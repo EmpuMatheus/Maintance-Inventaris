@@ -1,0 +1,3 @@
+export const TICKET_STATUSES = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'ON_HOLD', 'RESOLVED', 'CLOSED', 'CANCELLED'] as const;
+export const TICKET_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
+export const TICKET_CATEGORIES = ['HARDWARE', 'SOFTWARE', 'NETWORK', 'PERIPHERAL', 'PRINTER', 'ACCESS', 'OTHER'] as const;
