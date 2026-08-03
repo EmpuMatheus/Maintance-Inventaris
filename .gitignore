@@ -4,6 +4,12 @@ coverage/
 logs/
 storage/
 certs/
+release/
+dist-installer/
+build-info.json
+OfficeInventoryDev.exe
+.dev-launcher.lock
+dev.config.json
 
 .env
 .env.local

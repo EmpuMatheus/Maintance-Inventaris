@@ -1,0 +1,3241 @@
+# UI_UX.md
+
+# Office Inventory Maintenance System
+
+**Version:** 1.0
+**Platform:** Responsive Web Application
+**Primary User:** IT Team
+**Design Focus:** Fast, Clean, Operational, Mobile-Friendly
+**Primary Objective:** Monitoring kondisi dan maintenance inventaris kantor
+
+---
+
+# 1. UI/UX Objectives
+
+Interface harus memungkinkan Tim IT mengetahui kondisi inventaris dengan cepat tanpa harus membuka banyak halaman.
+
+Prinsip utama:
+
+```text
+FAST
+CLEAN
+CLEAR
+CONSISTENT
+RESPONSIVE
+ACTION-ORIENTED
+```
+
+User harus dapat melakukan aktivitas utama dengan sedikit langkah.
+
+Contoh:
+
+```text
+Scan QR
+   ↓
+Asset Detail
+   ↓
+Update Condition
+```
+
+atau:
+
+```text
+Dashboard
+   ↓
+Broken Assets
+   ↓
+Asset Detail
+   ↓
+Start Maintenance
+```
+
+Target UX:
+
+```text
+Informasi penting ≤ 3 clicks
+```
+
+---
+
+# 2. Design Philosophy
+
+Aplikasi merupakan operational dashboard, bukan website marketing.
+
+Prioritas:
+
+1. Informasi
+2. Status
+3. Action
+4. Navigation
+5. Visual
+
+Hindari:
+
+* Animasi berlebihan
+* Gradient berlebihan
+* Card terlalu banyak
+* Modal bertingkat
+* Menu terlalu dalam
+* Informasi duplikat
+* Warna terlalu ramai
+* Form terlalu panjang dalam satu layar
+
+---
+
+# 3. Application Layout
+
+Desktop menggunakan:
+
+```text
+┌─────────────────────────────────────────────┐
+│ Sidebar │              Header               │
+│         ├───────────────────────────────────┤
+│         │                                   │
+│         │                                   │
+│         │           Page Content            │
+│         │                                   │
+│         │                                   │
+│         │                                   │
+└─────────────────────────────────────────────┘
+```
+
+Struktur:
+
+```text
+Sidebar
+Header
+Page Header
+Page Content
+```
+
+---
+
+# 4. Desktop Sidebar
+
+Sidebar berada di kiri.
+
+Recommended width:
+
+```text
+Expanded : 240-260px
+Collapsed: 64-72px
+```
+
+Navigation:
+
+```text
+Dashboard
+
+Inventory
+
+Maintenance
+
+Tickets
+
+Calendar
+
+Reports
+
+────────────
+
+Master Data
+
+Administration
+```
+
+Recommended icons:
+
+```text
+Dashboard
+LayoutDashboard
+
+Inventory
+Package
+
+Maintenance
+Wrench
+
+Tickets
+TicketCheck
+
+Calendar
+CalendarDays
+
+Reports
+ChartNoAxesCombined
+
+Master Data
+Database
+
+Administration
+Settings
+```
+
+Gunakan:
+
+```text
+lucide-react
+```
+
+---
+
+# 5. Sidebar Structure
+
+Contoh:
+
+```text
+┌───────────────────────┐
+│                       │
+│  INVENTORY SYSTEM     │
+│                       │
+├───────────────────────┤
+│                       │
+│  ▣ Dashboard          │
+│                       │
+│  ▢ Inventory          │
+│                       │
+│  🔧 Maintenance       │
+│                       │
+│  ◫ Tickets            │
+│                       │
+│  □ Calendar           │
+│                       │
+│  ▤ Reports            │
+│                       │
+├───────────────────────┤
+│                       │
+│  ▦ Master Data        │
+│                       │
+│  ⚙ Administration     │
+│                       │
+├───────────────────────┤
+│                       │
+│  User Profile         │
+│  IT Administrator     │
+│                       │
+└───────────────────────┘
+```
+
+Menu aktif harus mudah terlihat.
+
+Sidebar dapat:
+
+```text
+Expand
+Collapse
+```
+
+Status collapse disimpan di:
+
+```text
+localStorage
+```
+
+---
+
+# 6. Header
+
+Header desktop:
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ Search...                       🔔      👤 Matheus       │
+└─────────────────────────────────────────────────────────┘
+```
+
+Komponen:
+
+* Global Search
+* QR Scan shortcut
+* Notification
+* User Profile
+* Theme toggle
+
+Global Search placeholder:
+
+```text
+Search assets, serial numbers, users...
+```
+
+Shortcut:
+
+```text
+Ctrl + K
+```
+
+membuka global search.
+
+---
+
+# 7. Mobile Navigation
+
+Pada mobile jangan menggunakan sidebar permanen.
+
+Gunakan:
+
+```text
+Top Header
++
+Bottom Navigation
+```
+
+Contoh:
+
+```text
+┌────────────────────────────┐
+│ Inventory System      🔔   │
+├────────────────────────────┤
+│                            │
+│        Page Content        │
+│                            │
+│                            │
+├────────────────────────────┤
+│ Home  Assets  Scan  Maint. │
+└────────────────────────────┘
+```
+
+Bottom navigation:
+
+```text
+Home
+Inventory
+Scan
+Maintenance
+More
+```
+
+`Scan` menjadi primary action di tengah.
+
+---
+
+# 8. Responsive Breakpoints
+
+Recommended:
+
+```text
+Mobile
+< 640px
+
+Tablet
+640px - 1024px
+
+Desktop
+> 1024px
+```
+
+Gunakan responsive utilities dari Tailwind CSS.
+
+Mobile bukan hanya desktop yang diperkecil.
+
+Beberapa halaman harus memiliki layout khusus mobile.
+
+---
+
+# 9. Color System
+
+Gunakan neutral base dengan warna status yang jelas.
+
+Primary:
+
+```text
+Blue / Indigo
+```
+
+Neutral:
+
+```text
+Slate
+Gray
+White
+```
+
+Status semantic:
+
+```text
+Green  → Healthy / Completed
+Blue   → Information / Active
+Yellow → Warning
+Orange → Need Attention
+Red    → Broken / Critical
+Gray   → Inactive / Retired
+```
+
+Jangan menggunakan warna sebagai satu-satunya indikator.
+
+Gunakan:
+
+```text
+Icon + Text + Color
+```
+
+---
+
+# 10. Light Mode
+
+Default application:
+
+```text
+Light Mode
+```
+
+Background:
+
+```text
+#F8FAFC
+```
+
+Card:
+
+```text
+#FFFFFF
+```
+
+Border:
+
+```text
+#E2E8F0
+```
+
+Primary text:
+
+```text
+#0F172A
+```
+
+Secondary text:
+
+```text
+#64748B
+```
+
+---
+
+# 11. Dark Mode
+
+Dark mode harus didukung.
+
+Contoh:
+
+```text
+Background
+Slate 950
+
+Card
+Slate 900
+
+Border
+Slate 800
+
+Primary Text
+Slate 100
+
+Secondary Text
+Slate 400
+```
+
+Theme:
+
+```text
+Light
+Dark
+System
+```
+
+Preference disimpan di:
+
+```text
+localStorage
+```
+
+---
+
+# 12. Typography
+
+Recommended font:
+
+```text
+Inter
+```
+
+Fallback:
+
+```text
+system-ui
+sans-serif
+```
+
+Hierarchy:
+
+```text
+Page Title
+24-30px / Bold
+
+Section Title
+18-20px / Semibold
+
+Card Number
+24-32px / Bold
+
+Body
+14px
+
+Secondary
+13px
+
+Small Label
+12px
+```
+
+Jangan menggunakan terlalu banyak ukuran font.
+
+---
+
+# 13. Page Header Pattern
+
+Semua halaman utama menggunakan pola:
+
+```text
+Inventory
+Manage and monitor company assets.
+
+                         [+ Add Asset]
+```
+
+Structure:
+
+```text
+Title
+Description
+Primary Action
+```
+
+Contoh Maintenance:
+
+```text
+Maintenance
+Track maintenance activities and schedules.
+
+                     [+ New Maintenance]
+```
+
+---
+
+# 14. Dashboard
+
+Dashboard merupakan halaman pertama setelah login.
+
+Struktur:
+
+```text
+Dashboard
+Overview of inventory condition and maintenance.
+
+[ Total Assets ]
+[ Good ]
+[ Need Attention ]
+[ Broken ]
+[ In Maintenance ]
+
+Asset Condition Overview
+
+Maintenance Overview
+
+Critical Assets
+
+Upcoming Maintenance
+
+Recent Activity
+```
+
+---
+
+# 15. Dashboard Summary Cards
+
+Desktop:
+
+```text
+┌────────────┐
+│ Total      │
+│ Assets     │
+│            │
+│ 1,284      │
+│            │
+│ +24 month  │
+└────────────┘
+```
+
+Cards:
+
+```text
+Total Assets
+Good
+Need Attention
+Broken
+In Maintenance
+```
+
+Optional:
+
+```text
+Critical
+```
+
+Setiap card clickable.
+
+Contoh:
+
+Klik:
+
+```text
+Broken
+```
+
+membuka:
+
+```text
+/inventory?condition=BROKEN
+```
+
+---
+
+# 16. Dashboard Layout
+
+Desktop:
+
+```text
+┌─────────┬─────────┬─────────┬─────────┬─────────┐
+│ Total   │ Good    │Attention│ Broken  │ Maint.  │
+└─────────┴─────────┴─────────┴─────────┴─────────┘
+
+┌──────────────────────┬──────────────────────────┐
+│                      │                          │
+│ Asset Condition      │ Maintenance Overview     │
+│                      │                          │
+└──────────────────────┴──────────────────────────┘
+
+┌──────────────────────┬──────────────────────────┐
+│                      │                          │
+│ Critical Assets      │ Upcoming Maintenance     │
+│                      │                          │
+└──────────────────────┴──────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│ Recent Activity                                 │
+└─────────────────────────────────────────────────┘
+```
+
+Mobile berubah menjadi single column.
+
+---
+
+# 17. Asset Condition Chart
+
+Recommended chart:
+
+```text
+Donut Chart
+```
+
+Data:
+
+```text
+Good
+Fair
+Need Attention
+Broken
+Critical
+```
+
+Chart harus clickable.
+
+Klik bagian:
+
+```text
+Critical
+```
+
+membuka filtered inventory list.
+
+---
+
+# 18. Inventory List
+
+Desktop menggunakan table.
+
+Header:
+
+```text
+Inventory
+
+[Search Assets...] [Category ▼] [Condition ▼] [Status ▼]
+
+                                      [+ Add Asset]
+```
+
+Table:
+
+```text
+┌──────────────┬────────────┬──────────┬──────────┬────────────┬─────────┐
+│ Asset Code   │ Asset      │ Category │ Location │ Condition  │ Action  │
+├──────────────┼────────────┼──────────┼──────────┼────────────┼─────────┤
+│ AST-IT-001   │ ThinkPad   │ Laptop   │ IT Room  │ ● GOOD     │   ⋮     │
+│ AST-IT-002   │ Epson L... │ Printer  │ Finance  │ ● FAIR     │   ⋮     │
+│ AST-NET-001  │ UDM Pro    │ Network  │ Server   │ ● GOOD     │   ⋮     │
+└──────────────┴────────────┴──────────┴──────────┴────────────┴─────────┘
+```
+
+Recommended columns:
+
+```text
+Asset Code
+Asset
+Category
+Location
+PIC
+Condition
+Status
+Last Maintenance
+Action
+```
+
+---
+
+# 19. Inventory Table UX
+
+Table mendukung:
+
+* Search
+* Sort
+* Filter
+* Pagination
+* Column visibility
+* Bulk selection
+* Export
+
+Sticky header pada desktop.
+
+Action menu:
+
+```text
+View Detail
+Edit
+Update Condition
+Start Maintenance
+Transfer
+Print QR
+```
+
+---
+
+# 20. Inventory Mobile View
+
+Jangan menggunakan table horizontal besar.
+
+Gunakan asset cards.
+
+```text
+┌────────────────────────────┐
+│ AST-IT-00021               │
+│                            │
+│ Lenovo ThinkPad E14        │
+│ Laptop                     │
+│                            │
+│ 📍 Accounting              │
+│ 👤 User A                  │
+│                            │
+│ ● GOOD        IN USE       │
+│                            │
+│ Last Maint: 20 Jul 2026    │
+└────────────────────────────┘
+```
+
+Tap card membuka Asset Detail.
+
+---
+
+# 21. Add Asset
+
+Gunakan form dengan sections.
+
+Jangan satu form panjang tanpa grouping.
+
+Sections:
+
+```text
+Basic Information
+
+Purchase Information
+
+Location & Assignment
+
+Warranty
+
+Specification
+
+Documents
+```
+
+---
+
+# 22. Add Asset Form
+
+## Basic Information
+
+```text
+Asset Name *
+Category *
+Sub Category
+Brand
+Model
+Serial Number
+```
+
+Asset Code:
+
+```text
+Auto Generated
+```
+
+Preview:
+
+```text
+AST-IT-000021
+```
+
+---
+
+# 23. Purchase Information
+
+Fields:
+
+```text
+Purchase Date
+Purchase Price
+Vendor
+Invoice Number
+```
+
+Optional section dapat collapsed.
+
+---
+
+# 24. Location & Assignment
+
+Fields:
+
+```text
+Site
+Building
+Floor
+Room
+Department
+PIC
+```
+
+Dependent dropdown:
+
+```text
+Site
+ ↓
+Building
+ ↓
+Floor
+ ↓
+Room
+```
+
+---
+
+# 25. Warranty
+
+Fields:
+
+```text
+Warranty Start
+Warranty End
+```
+
+Display calculated status:
+
+```text
+Warranty Active
+
+Expires:
+12 Jan 2027
+```
+
+---
+
+# 26. Asset Photo
+
+Upload menggunakan:
+
+```text
+Drag & Drop
+```
+
+atau:
+
+```text
+Select File
+```
+
+Mobile:
+
+```text
+Take Photo
+```
+
+Recommended compression sebelum upload.
+
+Supported:
+
+```text
+JPG
+PNG
+WEBP
+```
+
+---
+
+# 27. Asset Detail
+
+Asset Detail merupakan halaman utama operasional.
+
+Layout desktop:
+
+```text
+← Inventory
+
+Lenovo ThinkPad E14
+AST-IT-000021
+
+● GOOD      IN USE
+
+[Edit] [Update Condition] [Maintenance] [More ▼]
+
+─────────────────────────────────────────
+
+Overview
+Maintenance
+Issues
+Movement
+Documents
+Timeline
+```
+
+---
+
+# 28. Asset Detail Header
+
+Header harus selalu menampilkan:
+
+```text
+Asset Name
+Asset Code
+Condition
+Status
+```
+
+Optional:
+
+```text
+Asset Photo
+QR
+```
+
+Primary actions:
+
+```text
+Update Condition
+Start Maintenance
+```
+
+---
+
+# 29. Asset Overview
+
+Layout:
+
+```text
+┌──────────────────────────┬──────────────────────────┐
+│ Asset Information        │ Current Assignment       │
+│                          │                          │
+│ Category                 │ PIC                      │
+│ Brand                    │ Department               │
+│ Model                    │ Location                 │
+│ Serial                   │ Since                    │
+└──────────────────────────┴──────────────────────────┘
+
+┌──────────────────────────┬──────────────────────────┐
+│ Purchase & Warranty      │ Maintenance Summary      │
+│                          │                          │
+│ Purchase Date            │ Last Maintenance         │
+│ Price                    │ Next Maintenance         │
+│ Vendor                   │ Total Maintenance        │
+│ Warranty                 │ Total Cost               │
+└──────────────────────────┴──────────────────────────┘
+```
+
+---
+
+# 30. Asset Health
+
+Display:
+
+```text
+Asset Health
+
+92 / 100
+
+Excellent
+```
+
+Gunakan progress indicator.
+
+Jika fitur health score belum aktif:
+
+```text
+Health score unavailable
+```
+
+Jangan generate score palsu.
+
+---
+
+# 31. Asset Timeline
+
+Timeline:
+
+```text
+● 30 Jul 2026
+  Condition changed
+  GOOD → FAIR
+  by IT Admin
+
+│
+
+● 28 Jul 2026
+  Maintenance completed
+  MNT-2026-00021
+
+│
+
+● 27 Jul 2026
+  Ticket reported
+  Printer paper jam
+
+│
+
+● 10 Jun 2026
+  Asset moved
+  IT Room → Accounting
+```
+
+Timeline default:
+
+```text
+Newest first
+```
+
+---
+
+# 32. Update Condition
+
+Action harus sangat cepat.
+
+Gunakan modal atau bottom sheet.
+
+```text
+Update Asset Condition
+
+Current:
+GOOD
+
+New Condition:
+[ FAIR ▼ ]
+
+Reason:
+[_____________________]
+
+Notes:
+[_____________________]
+
+Attachment:
+[ Upload ]
+
+[Cancel] [Update Condition]
+```
+
+Pada mobile gunakan:
+
+```text
+Bottom Sheet
+```
+
+---
+
+# 33. Condition Badge
+
+Standard:
+
+```text
+GOOD
+Green
+
+FAIR
+Yellow
+
+NEED ATTENTION
+Orange
+
+BROKEN
+Red
+
+CRITICAL
+Dark Red
+
+RETIRED
+Gray
+```
+
+Semua menggunakan:
+
+```text
+Colored Dot
++
+Label
+```
+
+Contoh:
+
+```text
+● GOOD
+```
+
+---
+
+# 34. QR Code
+
+Asset Detail memiliki action:
+
+```text
+Print QR
+```
+
+QR label:
+
+```text
+┌──────────────────────────┐
+│                          │
+│       [ QR CODE ]        │
+│                          │
+│     AST-IT-000021        │
+│                          │
+│   Lenovo ThinkPad E14    │
+│                          │
+└──────────────────────────┘
+```
+
+---
+
+# 35. QR Scanner
+
+Mobile-first page.
+
+Route:
+
+```text
+/scan
+```
+
+UI:
+
+```text
+┌────────────────────────────┐
+│ Scan Asset                 │
+├────────────────────────────┤
+│                            │
+│       ┌────────────┐       │
+│       │            │       │
+│       │ CAMERA     │       │
+│       │            │       │
+│       └────────────┘       │
+│                            │
+│ Place QR inside the frame  │
+│                            │
+│ [ Enter Asset Code ]       │
+└────────────────────────────┘
+```
+
+---
+
+# 36. QR Scan Result
+
+Setelah berhasil scan:
+
+```text
+Lenovo ThinkPad E14
+
+AST-IT-000021
+
+● GOOD
+
+Accounting
+User A
+
+[View Asset]
+
+[Update Condition]
+
+[Start Maintenance]
+```
+
+Jangan memaksa user membuka detail apabila action yang dibutuhkan sudah jelas.
+
+---
+
+# 37. Maintenance List
+
+Page:
+
+```text
+Maintenance
+```
+
+Tabs:
+
+```text
+All
+Open
+In Progress
+Waiting Part
+Completed
+Overdue
+```
+
+Filters:
+
+```text
+Search
+Type
+Status
+Priority
+Technician
+Date
+```
+
+---
+
+# 38. Maintenance Table
+
+Desktop:
+
+```text
+Maintenance ID
+Asset
+Type
+Problem
+Technician
+Status
+Priority
+Started
+Action
+```
+
+Contoh:
+
+```text
+MNT-2026-0021
+AST-IT-0021
+Corrective
+Battery issue
+John
+IN PROGRESS
+HIGH
+29 Jul
+```
+
+---
+
+# 39. Maintenance Detail
+
+Header:
+
+```text
+MNT-2026-000021
+
+Lenovo ThinkPad E14
+
+Corrective Maintenance
+
+HIGH
+
+IN PROGRESS
+```
+
+Sections:
+
+```text
+Problem
+
+Diagnosis
+
+Action Taken
+
+Parts Used
+
+Technician
+
+Vendor
+
+Cost
+
+Photos
+
+Timeline
+```
+
+---
+
+# 40. Maintenance Workflow UI
+
+Gunakan visual stepper:
+
+```text
+OPEN
+  ●
+  │
+ASSIGNED
+  ●
+  │
+IN PROGRESS
+  ●
+  │
+TESTING
+  ○
+  │
+COMPLETED
+  ○
+```
+
+Untuk desktop dapat horizontal.
+
+Mobile menggunakan vertical.
+
+---
+
+# 41. Start Maintenance
+
+Form:
+
+```text
+Asset
+
+Maintenance Type
+
+Category
+
+Problem
+
+Priority
+
+Technician
+
+Vendor
+
+Scheduled Date
+
+Notes
+```
+
+Jika dimulai dari Asset Detail:
+
+```text
+Asset
+```
+
+sudah otomatis terisi.
+
+---
+
+# 42. Complete Maintenance
+
+Saat klik:
+
+```text
+Complete Maintenance
+```
+
+form meminta:
+
+```text
+Diagnosis *
+
+Action Taken *
+
+Result *
+
+Parts Used
+
+Labor Cost
+
+Other Cost
+
+Asset Condition After Maintenance *
+
+After Photo
+
+Notes
+```
+
+Setelah submit:
+
+```text
+Maintenance → COMPLETED
+
+Asset condition → updated
+```
+
+---
+
+# 43. Spare Parts UI
+
+Maintenance Detail:
+
+```text
+Parts Used
+
+┌────────────────────────────────────────────┐
+│ SSD 512GB     1 × ...              [Edit] │
+│ Battery       1 × ...              [Edit] │
+└────────────────────────────────────────────┘
+
+[+ Add Part]
+```
+
+Cost otomatis dihitung.
+
+---
+
+# 44. Ticket Page
+
+Layout:
+
+```text
+Tickets
+
+[All] [Open] [Assigned] [In Progress] [Resolved]
+
+[Search...] [Priority ▼] [Assigned ▼]
+
+                                  [+ New Ticket]
+```
+
+---
+
+# 45. Ticket Card Mobile
+
+```text
+TKT-2026-0021
+
+Laptop cannot turn on
+
+AST-IT-0021
+
+● HIGH
+
+IN PROGRESS
+
+Reported:
+30 Jul 2026
+```
+
+---
+
+# 46. Calendar
+
+Maintenance calendar:
+
+```text
+July 2026
+
+< Previous              Next >
+
+Mon Tue Wed Thu Fri Sat Sun
+
+        1   2   3   4   5
+
+6   7   8   9  10  11  12
+
+...
+```
+
+Events:
+
+```text
+Preventive Maintenance
+
+Inspection
+
+Overdue
+```
+
+Click event membuka Maintenance Detail.
+
+---
+
+# 47. Calendar Views
+
+Desktop:
+
+```text
+Month
+Week
+Agenda
+```
+
+Mobile default:
+
+```text
+Agenda
+```
+
+karena monthly calendar kurang nyaman pada layar kecil.
+
+---
+
+# 48. Reports
+
+Report dashboard:
+
+```text
+Reports
+
+Inventory
+
+Asset Condition
+
+Maintenance
+
+Maintenance Cost
+
+Broken Assets
+
+Asset Movement
+
+Warranty
+
+Asset Aging
+```
+
+Setiap report memiliki:
+
+```text
+Filter
+Preview
+Export
+```
+
+---
+
+# 49. Export UX
+
+Button:
+
+```text
+Export
+```
+
+Dropdown:
+
+```text
+Export Excel
+Export CSV
+```
+
+Jika export sedang diproses:
+
+```text
+Generating report...
+```
+
+Setelah selesai:
+
+```text
+Report generated successfully.
+```
+
+---
+
+# 50. Master Data
+
+Page menggunakan left navigation atau tabs.
+
+```text
+Master Data
+
+Categories
+Sub Categories
+Brands
+Departments
+Locations
+Vendors
+Maintenance Types
+```
+
+Layout:
+
+```text
+┌─────────────────┬───────────────────────────────────┐
+│ Categories      │                                   │
+│ Brands          │          Data Table               │
+│ Departments     │                                   │
+│ Locations       │                                   │
+│ Vendors         │                                   │
+└─────────────────┴───────────────────────────────────┘
+```
+
+---
+
+# 51. Location Management
+
+Karena location hierarchical:
+
+```text
+Site
+ └ Building
+     └ Floor
+         └ Room
+```
+
+UI sebaiknya menggunakan tree view.
+
+Contoh:
+
+```text
+▼ Head Office
+
+   ▼ Main Building
+
+      ▼ Floor 1
+
+         IT Room
+
+         Accounting
+
+      ▶ Floor 2
+```
+
+---
+
+# 52. Administration
+
+Menu:
+
+```text
+Users
+
+Roles
+
+System Settings
+
+Audit Log
+```
+
+Super Admin only.
+
+---
+
+# 53. Audit Log UI
+
+Table:
+
+```text
+Time
+User
+Action
+Entity
+Description
+IP
+```
+
+Contoh:
+
+```text
+30 Jul 2026 10:42
+
+IT Admin
+
+UPDATE CONDITION
+
+AST-IT-00021
+
+GOOD → BROKEN
+```
+
+Audit log tidak dapat diedit.
+
+---
+
+# 54. Search UX
+
+Global Search menggunakan command dialog.
+
+Shortcut:
+
+```text
+Ctrl + K
+```
+
+UI:
+
+```text
+Search...
+
+Recent
+
+AST-IT-00021
+Lenovo ThinkPad E14
+
+AST-NET-00004
+Ubiquiti UDM Pro
+```
+
+Search results grouped:
+
+```text
+Assets
+Maintenance
+Tickets
+Users
+```
+
+---
+
+# 55. Filter UX
+
+Filter aktif harus terlihat.
+
+Contoh:
+
+```text
+Condition: Broken ×
+Category: Laptop ×
+Location: Accounting ×
+
+Clear All
+```
+
+Filter disimpan pada URL query.
+
+Contoh:
+
+```text
+/inventory?condition=BROKEN&category=LAPTOP
+```
+
+Keuntungannya:
+
+* URL dapat dibagikan
+* Back button bekerja
+* Filter tidak hilang saat refresh
+
+---
+
+# 56. Modal Standard
+
+Desktop:
+
+```text
+┌──────────────────────────────────────┐
+│ Update Condition                 ×   │
+├──────────────────────────────────────┤
+│                                      │
+│ Form                                 │
+│                                      │
+├──────────────────────────────────────┤
+│               Cancel   [Save]        │
+└──────────────────────────────────────┘
+```
+
+Jangan menggunakan modal untuk halaman yang kompleks.
+
+Jika form terlalu besar:
+
+```text
+Dedicated Page
+```
+
+---
+
+# 57. Mobile Bottom Sheet
+
+Action sederhana pada mobile:
+
+```text
+Update Condition
+Assign Asset
+Transfer Asset
+Quick Actions
+```
+
+gunakan bottom sheet.
+
+Contoh:
+
+```text
+┌──────────────────────────┐
+│ ─────                    │
+│                          │
+│ Update Condition         │
+│                          │
+│ GOOD                     │
+│ FAIR                     │
+│ NEED ATTENTION           │
+│ BROKEN                   │
+│ CRITICAL                 │
+│                          │
+└──────────────────────────┘
+```
+
+---
+
+# 58. Confirmation Dialog
+
+Action berisiko harus meminta konfirmasi.
+
+Contoh:
+
+```text
+Retire Asset?
+
+AST-IT-00021 will be marked as retired.
+
+This action will be recorded in the audit log.
+
+[Cancel] [Retire Asset]
+```
+
+Hindari generic:
+
+```text
+Are you sure?
+```
+
+Jelaskan apa yang akan terjadi.
+
+---
+
+# 59. Toast Notification
+
+Gunakan:
+
+```text
+Sonner
+```
+
+Success:
+
+```text
+Asset created successfully.
+```
+
+Error:
+
+```text
+Failed to update asset condition.
+```
+
+Warning:
+
+```text
+Maintenance schedule is overdue.
+```
+
+Toast tidak digunakan untuk informasi yang membutuhkan keputusan user.
+
+---
+
+# 60. Loading State
+
+Jangan menampilkan blank page.
+
+Gunakan:
+
+```text
+Skeleton
+```
+
+untuk:
+
+* Dashboard cards
+* Tables
+* Asset Detail
+* Maintenance Detail
+
+Contoh:
+
+```text
+████████████
+
+████████
+████████████████
+
+████████████████████
+```
+
+---
+
+# 61. Empty State
+
+Contoh:
+
+```text
+No maintenance records yet.
+
+Maintenance history for this asset
+will appear here.
+
+[Start Maintenance]
+```
+
+Empty state harus memberikan next action jika relevan.
+
+---
+
+# 62. Error State
+
+Contoh:
+
+```text
+Unable to load inventory.
+
+Please check your connection and try again.
+
+[Try Again]
+```
+
+Jangan hanya:
+
+```text
+Error 500
+```
+
+---
+
+# 63. Offline / Poor Connection UX
+
+Karena aplikasi dapat digunakan dari smartphone di area kantor/gudang, koneksi mungkin tidak selalu stabil.
+
+Jika request gagal karena network:
+
+```text
+Connection lost.
+
+Your changes have not been submitted.
+```
+
+Jangan menampilkan success sebelum server mengkonfirmasi data tersimpan.
+
+Future:
+
+```text
+Offline Queue
+```
+
+dapat ditambahkan.
+
+---
+
+# 64. Form Validation
+
+Validation menggunakan:
+
+```text
+React Hook Form
++
+Zod
+```
+
+Error berada di bawah field.
+
+Contoh:
+
+```text
+Asset Name *
+
+[________________]
+
+Asset name is required.
+```
+
+Jangan hanya menampilkan error setelah seluruh form dikirim jika error dapat diketahui sebelumnya.
+
+---
+
+# 65. Required Fields
+
+Gunakan:
+
+```text
+*
+```
+
+Contoh:
+
+```text
+Asset Name *
+Category *
+Condition *
+```
+
+Optional field tidak perlu diberi label:
+
+```text
+Optional
+```
+
+berulang kali.
+
+---
+
+# 66. Date Format
+
+Display:
+
+```text
+30 Jul 2026
+```
+
+Detail jika membutuhkan waktu:
+
+```text
+30 Jul 2026, 10:45
+```
+
+Database tetap menggunakan standard timestamp.
+
+---
+
+# 67. Number Formatting
+
+Gunakan separator agar mudah dibaca.
+
+Contoh:
+
+```text
+1,284 Assets
+```
+
+Cost harus menggunakan format currency yang dikonfigurasi oleh sistem.
+
+Jangan hard-code format currency pada komponen individual.
+
+---
+
+# 68. Status Consistency
+
+Status yang sama harus menggunakan design yang sama di seluruh aplikasi.
+
+Contoh:
+
+```text
+COMPLETED
+```
+
+harus memiliki badge yang sama pada:
+
+```text
+Dashboard
+Maintenance List
+Maintenance Detail
+Asset Timeline
+Reports
+```
+
+---
+
+# 69. Icon Rules
+
+Gunakan icon library:
+
+```text
+lucide-react
+```
+
+Jangan mencampur banyak icon library.
+
+Icon harus memiliki fungsi.
+
+Contoh:
+
+```text
+MapPin
+Location
+
+User
+PIC
+
+Wrench
+Maintenance
+
+Calendar
+Schedule
+
+TriangleAlert
+Warning
+
+QrCode
+QR
+```
+
+---
+
+# 70. Button Hierarchy
+
+Primary:
+
+```text
+[ Add Asset ]
+```
+
+Secondary:
+
+```text
+[ Export ]
+```
+
+Ghost:
+
+```text
+[ Cancel ]
+```
+
+Danger:
+
+```text
+[ Retire Asset ]
+```
+
+Maksimal satu primary button dominan per section.
+
+---
+
+# 71. Floating Scan Action
+
+Pada mobile, QR Scan menjadi action utama.
+
+Recommended:
+
+```text
+        ┌───────┐
+        │  QR   │
+        └───────┘
+
+Home  Assets   Scan   Maint.   More
+```
+
+Scan dapat diakses dari semua halaman utama.
+
+---
+
+# 72. Mobile Quick Actions
+
+Setelah scan:
+
+```text
+Quick Actions
+
+Update Condition
+
+Start Maintenance
+
+Report Issue
+
+Transfer Asset
+
+View History
+```
+
+Ini penting karena aktivitas lapangan harus cepat.
+
+---
+
+# 73. Mobile Asset Inspection Flow
+
+Ideal flow:
+
+```text
+Open App
+
+↓
+
+Tap Scan
+
+↓
+
+Scan QR
+
+↓
+
+Asset Quick View
+
+↓
+
+Update Condition
+
+↓
+
+Select Condition
+
+↓
+
+Add Note / Photo
+
+↓
+
+Save
+```
+
+Target:
+
+```text
+< 30 seconds
+```
+
+untuk inspeksi sederhana.
+
+---
+
+# 74. Desktop Inventory Workflow
+
+```text
+Inventory
+
+↓
+
+Search / Filter
+
+↓
+
+Asset Detail
+
+↓
+
+Review Timeline
+
+↓
+
+Take Action
+```
+
+---
+
+# 75. Maintenance Workflow
+
+```text
+Asset
+
+↓
+
+Start Maintenance
+
+↓
+
+Problem
+
+↓
+
+Diagnosis
+
+↓
+
+Repair
+
+↓
+
+Testing
+
+↓
+
+Complete
+
+↓
+
+Update Asset Condition
+
+↓
+
+Timeline Updated
+```
+
+---
+
+# 76. Critical Asset UX
+
+Critical asset harus menonjol tanpa membuat UI terlalu agresif.
+
+Dashboard:
+
+```text
+Critical Assets
+
+3 assets require immediate attention.
+```
+
+List:
+
+```text
+● CRITICAL
+```
+
+Detail:
+
+```text
+Critical Condition
+
+This asset requires immediate attention.
+```
+
+---
+
+# 77. Overdue Maintenance UX
+
+Dashboard card:
+
+```text
+Overdue Maintenance
+
+8
+
+Requires attention
+```
+
+Maintenance list:
+
+```text
+OVERDUE
+```
+
+Display:
+
+```text
+Due 5 days ago
+```
+
+lebih informatif daripada hanya tanggal.
+
+---
+
+# 78. Warranty UX
+
+Asset Detail:
+
+```text
+Warranty
+
+Active
+
+Expires:
+12 Jan 2027
+
+166 days remaining
+```
+
+Jika hampir habis:
+
+```text
+Expires in 14 days
+```
+
+Jika expired:
+
+```text
+Warranty Expired
+```
+
+---
+
+# 79. Accessibility
+
+Minimum:
+
+* Keyboard navigation
+* Visible focus state
+* Semantic HTML
+* ARIA labels
+* Adequate contrast
+* Button minimum touch target
+* Form label jelas
+
+Minimum mobile touch target:
+
+```text
+44 × 44px
+```
+
+---
+
+# 80. Performance UX
+
+Target:
+
+```text
+Initial dashboard load < 2 seconds
+```
+
+pada koneksi internal normal.
+
+Gunakan:
+
+```text
+Lazy Loading
+Code Splitting
+Image Compression
+Pagination
+Query Caching
+```
+
+Jangan load seluruh inventory sekaligus.
+
+---
+
+# 81. Table Pagination
+
+Default:
+
+```text
+25 rows
+```
+
+Options:
+
+```text
+25
+50
+100
+```
+
+Server-side pagination direkomendasikan.
+
+---
+
+# 82. Image Optimization
+
+Asset photos:
+
+Recommended upload:
+
+```text
+WEBP
+```
+
+Thumbnail digunakan pada list.
+
+Full resolution hanya dimuat pada Asset Detail atau viewer.
+
+Jangan load gambar original pada table.
+
+---
+
+# 83. Desktop Page Width
+
+Gunakan content container yang cukup lebar.
+
+Dashboard dan table:
+
+```text
+Full available width
+```
+
+Form:
+
+```text
+Max width approximately 900-1100px
+```
+
+agar field tidak terlalu melebar.
+
+---
+
+# 84. Spacing System
+
+Gunakan consistent spacing:
+
+```text
+4
+8
+12
+16
+24
+32
+48
+```
+
+Jangan menggunakan nilai random seperti:
+
+```text
+13px
+19px
+27px
+```
+
+kecuali benar-benar diperlukan.
+
+---
+
+# 85. Border Radius
+
+Recommended:
+
+```text
+Cards
+12px
+
+Buttons
+8px
+
+Inputs
+8px
+
+Badges
+Full / Pill
+```
+
+Hindari semua komponen terlalu rounded.
+
+---
+
+# 86. Shadow
+
+Gunakan shadow minimal.
+
+Card lebih mengandalkan:
+
+```text
+Border
++
+Background
+```
+
+daripada heavy shadow.
+
+---
+
+# 87. Animation
+
+Gunakan hanya micro-interactions:
+
+```text
+150-250ms
+```
+
+Untuk:
+
+* Dropdown
+* Sidebar
+* Modal
+* Hover
+* Bottom sheet
+
+Hindari animasi yang memperlambat workflow.
+
+---
+
+# 88. Route Structure
+
+Recommended frontend routes:
+
+```text
+/login
+
+/dashboard
+
+/inventory
+/inventory/new
+/inventory/:assetCode
+/inventory/:assetCode/edit
+
+/scan
+
+/maintenance
+/maintenance/new
+/maintenance/:maintenanceCode
+
+/tickets
+/tickets/new
+/tickets/:ticketCode
+
+/calendar
+
+/reports
+
+/master-data/categories
+/master-data/brands
+/master-data/departments
+/master-data/locations
+/master-data/vendors
+/master-data/maintenance-types
+
+/admin/users
+/admin/roles
+/admin/audit-log
+/admin/settings
+```
+
+---
+
+# 89. Recommended React Component Structure
+
+```text
+components/
+
+  layout/
+    AppSidebar
+    AppHeader
+    MobileNavigation
+    PageHeader
+
+  ui/
+    Button
+    Input
+    Select
+    Dialog
+    Sheet
+    Badge
+    Card
+    Table
+    Skeleton
+    EmptyState
+
+  inventory/
+    AssetCard
+    AssetTable
+    AssetStatusBadge
+    AssetConditionBadge
+    AssetQuickView
+    AssetTimeline
+    AssetForm
+
+  maintenance/
+    MaintenanceTable
+    MaintenanceCard
+    MaintenanceStatus
+    MaintenanceTimeline
+    MaintenanceForm
+
+  qr/
+    QRScanner
+    QRLabel
+
+  dashboard/
+    SummaryCard
+    ConditionChart
+    MaintenanceOverview
+    CriticalAssetList
+    RecentActivity
+```
+
+---
+
+# 90. Recommended Frontend Libraries
+
+Core:
+
+```text
+React
+Vite
+TypeScript
+Tailwind CSS
+```
+
+Routing:
+
+```text
+React Router
+```
+
+Data:
+
+```text
+TanStack Query
+```
+
+Forms:
+
+```text
+React Hook Form
+Zod
+```
+
+Tables:
+
+```text
+TanStack Table
+```
+
+Icons:
+
+```text
+Lucide React
+```
+
+Toast:
+
+```text
+Sonner
+```
+
+Charts:
+
+```text
+Recharts
+```
+
+Dates:
+
+```text
+date-fns
+```
+
+---
+
+# 91. State Management
+
+Server state:
+
+```text
+TanStack Query
+```
+
+Local UI state:
+
+```text
+React State
+```
+
+Global state hanya jika diperlukan.
+
+Contoh:
+
+```text
+Authentication
+Theme
+Global UI preferences
+```
+
+Hindari memasukkan semua server data ke global state.
+
+---
+
+# 92. Query UX
+
+Setelah update:
+
+```text
+Update Condition
+```
+
+invalidate:
+
+```text
+asset detail
+asset history
+inventory list
+dashboard stats
+```
+
+User harus langsung melihat data terbaru tanpa refresh manual.
+
+---
+
+# 93. Permission UX
+
+Jangan hanya mengandalkan backend error.
+
+Jika user tidak memiliki permission:
+
+```text
+button tidak ditampilkan
+```
+
+atau:
+
+```text
+button disabled
+```
+
+sesuai konteks.
+
+Backend tetap wajib melakukan authorization.
+
+---
+
+# 94. Login Page
+
+Simple login.
+
+Desktop:
+
+```text
+┌──────────────────────────┬──────────────────────────┐
+│                          │                          │
+│   Inventory              │       Sign In            │
+│   Maintenance            │                          │
+│   System                 │       Username           │
+│                          │       Password           │
+│                          │                          │
+│                          │       [ Sign In ]        │
+│                          │                          │
+└──────────────────────────┴──────────────────────────┘
+```
+
+Mobile hanya menampilkan login form.
+
+---
+
+# 95. Login UX
+
+Fields:
+
+```text
+Username
+Password
+```
+
+Options:
+
+```text
+Show Password
+Remember Me
+```
+
+Loading:
+
+```text
+Signing in...
+```
+
+Error:
+
+```text
+Invalid username or password.
+```
+
+Jangan memberi tahu apakah username atau password yang salah secara spesifik.
+
+---
+
+# 96. Page Permission
+
+Jika user membuka route tanpa akses:
+
+```text
+Access Restricted
+
+You don't have permission to access this page.
+
+[Back to Dashboard]
+```
+
+---
+
+# 97. 404 Page
+
+```text
+Page Not Found
+
+The page you're looking for doesn't exist
+or may have been moved.
+
+[Back to Dashboard]
+```
+
+---
+
+# 98. Application Visual Identity
+
+Overall visual:
+
+```text
+Modern
+Professional
+Industrial
+Clean
+Technical
+Minimal
+```
+
+Hindari visual terlalu:
+
+```text
+Gaming
+Cyberpunk
+Marketing-style
+Colorful
+```
+
+karena aplikasi merupakan internal operational tool.
+
+---
+
+# 99. Primary User Journey
+
+Journey paling penting:
+
+```text
+LOGIN
+
+↓
+
+DASHBOARD
+
+↓
+
+SCAN / SEARCH ASSET
+
+↓
+
+ASSET DETAIL
+
+↓
+
+CHECK CONDITION
+
+↓
+
+ACTION
+
+├── UPDATE CONDITION
+│
+├── MAINTENANCE
+│
+├── REPORT ISSUE
+│
+├── TRANSFER
+│
+└── VIEW HISTORY
+
+↓
+
+SAVE
+
+↓
+
+TIMELINE UPDATED
+
+↓
+
+DASHBOARD UPDATED
+```
+
+---
+
+# 100. UI DEVELOPMENT PRIORITY
+
+## Phase 1
+
+```text
+Application Layout
+Login
+Sidebar
+Header
+Dashboard
+Inventory List
+Asset Form
+Asset Detail
+Condition Update
+QR Scanner
+```
+
+## Phase 2
+
+```text
+Maintenance List
+Maintenance Detail
+Maintenance Form
+Asset Timeline
+Movement
+Documents
+```
+
+## Phase 3
+
+```text
+Tickets
+Calendar
+Reports
+Master Data
+Administration
+Audit Log
+```
+
+## Phase 4
+
+```text
+Health Score
+Analytics
+Advanced Dashboard
+Notifications
+Offline Improvements
+```
+
+---
+
+# 101. MVP SCREEN LIST
+
+Minimum screens:
+
+```text
+01 Login
+
+02 Dashboard
+
+03 Inventory List
+
+04 Add Asset
+
+05 Edit Asset
+
+06 Asset Detail
+
+07 QR Scanner
+
+08 Asset Quick View
+
+09 Update Condition
+
+10 Maintenance List
+
+11 Start Maintenance
+
+12 Maintenance Detail
+
+13 Complete Maintenance
+
+14 Asset Timeline
+
+15 Master Data
+
+16 User Management
+
+17 Audit Log
+```
+
+---
+
+# 102. UX SUCCESS CRITERIA
+
+UI dianggap berhasil jika Tim IT dapat:
+
+```text
+Find an asset
+< 10 seconds
+
+Scan an asset
+< 5 seconds
+
+View current condition
+Immediately
+
+Update condition
+< 30 seconds
+
+Start maintenance
+< 1 minute
+
+View asset history
+< 10 seconds
+```
+
+Tujuan akhirnya bukan membuat user kagum terhadap UI.
+
+Tujuannya:
+
+```text
+USER DOES NOT NEED TO THINK
+ABOUT HOW TO USE THE SYSTEM.
+```
+
+Interface harus terasa natural dan predictable.
+
+---
+
+# 103. CORE UI PRINCIPLE
+
+Setiap halaman harus menjawab tiga pertanyaan:
+
+```text
+WHERE AM I?
+
+WHAT DO I NEED TO KNOW?
+
+WHAT CAN I DO NEXT?
+```
+
+Contoh Asset Detail:
+
+```text
+WHERE AM I?
+
+Lenovo ThinkPad E14
+AST-IT-000021
+
+
+WHAT DO I NEED TO KNOW?
+
+GOOD
+IN USE
+Accounting
+User A
+Last Maintenance: 20 Jul 2026
+
+
+WHAT CAN I DO NEXT?
+
+Update Condition
+Start Maintenance
+Transfer
+View History
+```
+
+Jika ketiga hal tersebut jelas, halaman memiliki UX yang baik.
+
+---
+
+# 104. DESIGN SYSTEM RULE
+
+Gunakan reusable components.
+
+Jangan membuat:
+
+```text
+GoodBadge
+BrokenBadge
+CriticalBadge
+```
+
+secara terpisah.
+
+Gunakan:
+
+```text
+<ConditionBadge condition="GOOD" />
+
+<ConditionBadge condition="BROKEN" />
+
+<ConditionBadge condition="CRITICAL" />
+```
+
+Hal yang sama berlaku untuk:
+
+```text
+StatusBadge
+PriorityBadge
+PageHeader
+DataTable
+EmptyState
+ConfirmDialog
+FormField
+SummaryCard
+```
+
+Tujuannya agar UI konsisten dan mudah dirawat.
+
+---
+
+# 105. FINAL FRONTEND PRINCIPLE
+
+Frontend Office Inventory Maintenance System harus berorientasi pada:
+
+```text
+SCAN
+ ↓
+IDENTIFY
+ ↓
+UNDERSTAND
+ ↓
+ACT
+ ↓
+RECORD
+```
+
+Bukan:
+
+```text
+OPEN MENU
+ ↓
+SEARCH MENU
+ ↓
+OPEN ANOTHER MENU
+ ↓
+OPEN FORM
+ ↓
+SEARCH AGAIN
+```
+
+Aktivitas lapangan harus sesingkat mungkin.
+
+Desktop digunakan untuk:
+
+```text
+MONITOR
+MANAGE
+ANALYZE
+REPORT
+```
+
+Mobile digunakan untuk:
+
+```text
+SCAN
+CHECK
+UPDATE
+MAINTAIN
+DOCUMENT
+```
+
+Kedua interface menggunakan sistem yang sama tetapi dioptimalkan untuk kebutuhan penggunaan yang berbeda.
+
+---
+
+# 106. DOCUMENT RELATIONSHIP
+
+Dokumen project saat ini:
+
+```text
+PRD.md
+   ↓
+DATABASE.md
+   ↓
+UI_UX.md
+```
+
+Dokumen berikutnya:
+
+```text
+API.md
+CODING_STANDARDS.md
+TASK.md
+```
+
+Hubungan:
+
+```text
+PRD
+│
+├── Defines WHAT to build
+│
+├── DATABASE defines HOW data is stored
+│
+├── UI_UX defines HOW users interact
+│
+├── API defines HOW frontend/backend communicate
+│
+├── CODING_STANDARDS defines HOW code is written
+│
+└── TASK defines HOW development is executed
+```
+
+Seluruh dokumen tersebut menjadi source of truth selama development Office Inventory Maintenance System.

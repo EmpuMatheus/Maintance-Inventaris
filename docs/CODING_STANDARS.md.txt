@@ -1,0 +1,3694 @@
+# CODING_STANDARDS.md
+
+# Office Inventory Maintenance System
+
+**Version:** 1.0
+**Status:** Required
+**Frontend:** React + Vite + TypeScript
+**Backend:** Node.js + Express.js + TypeScript
+**Database:** PostgreSQL
+**Validation:** Zod
+**Primary Purpose:** Maintainable, predictable, secure, and scalable codebase
+
+---
+
+# 1. Purpose
+
+Dokumen ini adalah aturan coding resmi untuk:
+
+```text
+Office Inventory Maintenance System
+```
+
+Semua developer dan coding agent wajib mengikuti dokumen ini.
+
+Tujuan:
+
+* Menjaga konsistensi codebase.
+* Menghindari duplicate logic.
+* Memisahkan responsibility.
+* Mempermudah debugging.
+* Mempermudah maintenance.
+* Mempermudah onboarding developer.
+* Menjaga keamanan aplikasi.
+* Menghindari perubahan yang merusak fitur existing.
+* Memastikan frontend dan backend mengikuti API contract.
+* Memastikan database tetap konsisten dengan dokumentasi.
+
+Jika implementasi bertentangan dengan dokumen project, developer harus memeriksa dokumentasi sebelum membuat asumsi baru.
+
+---
+
+# 2. Project Source of Truth
+
+Urutan referensi project:
+
+```text
+PRD.md
+DATABASE.md
+UI_UX.md
+API.md
+CODING_STANDARDS.md
+TASK.md
+```
+
+Responsibilities:
+
+```text
+PRD.md
+→ Product requirements
+
+DATABASE.md
+→ Database design
+
+UI_UX.md
+→ User experience and frontend behavior
+
+API.md
+→ Frontend/backend contract
+
+CODING_STANDARDS.md
+→ Implementation rules
+
+TASK.md
+→ Development execution
+```
+
+Jangan membuat business rule baru hanya berdasarkan asumsi.
+
+---
+
+# 3. Core Engineering Principles
+
+Seluruh development mengikuti:
+
+```text
+READABLE
+PREDICTABLE
+TYPE-SAFE
+MODULAR
+SECURE
+TESTABLE
+MAINTAINABLE
+```
+
+Prioritas:
+
+```text
+Correctness
+    ↓
+Security
+    ↓
+Maintainability
+    ↓
+Readability
+    ↓
+Performance
+    ↓
+Cleverness
+```
+
+Kode sederhana yang mudah dipahami lebih baik daripada kode pendek tetapi sulit dipelihara.
+
+---
+
+# 4. Main Technology Stack
+
+## Frontend
+
+```text
+React
+Vite
+TypeScript
+Tailwind CSS
+React Router
+TanStack Query
+TanStack Table
+React Hook Form
+Zod
+Sonner
+Lucide React
+Recharts
+date-fns
+```
+
+## Backend
+
+```text
+Node.js
+Express.js
+TypeScript
+Zod
+PostgreSQL
+```
+
+## Recommended Supporting Libraries
+
+```text
+Helmet
+CORS
+Argon2 / bcrypt
+JWT library
+Multer
+Pino
+```
+
+Database access dapat menggunakan:
+
+```text
+Prisma
+```
+
+atau:
+
+```text
+Drizzle ORM
+```
+
+atau repository layer berbasis PostgreSQL driver.
+
+Pilih satu pendekatan pada awal project dan gunakan secara konsisten.
+
+---
+
+# 5. Monorepo Structure
+
+Recommended:
+
+```text
+office-inventory/
+│
+├── apps/
+│   │
+│   ├── web/
+│   │   └── React frontend
+│   │
+│   └── api/
+│       └── Express backend
+│
+├── packages/
+│   │
+│   ├── shared/
+│   └── config/
+│
+├── docs/
+│   ├── PRD.md
+│   ├── DATABASE.md
+│   ├── UI_UX.md
+│   ├── API.md
+│   ├── CODING_STANDARDS.md
+│   └── TASK.md
+│
+├── .env.example
+├── .gitignore
+├── package.json
+└── README.md
+```
+
+Untuk MVP sederhana, frontend/backend juga boleh:
+
+```text
+frontend/
+backend/
+docs/
+```
+
+Tetapi jangan mencampur frontend dan backend source dalam satu folder `src`.
+
+---
+
+# 6. Frontend Folder Structure
+
+Recommended:
+
+```text
+apps/web/src/
+│
+├── app/
+│   ├── router/
+│   ├── providers/
+│   └── config/
+│
+├── components/
+│   ├── ui/
+│   └── layout/
+│
+├── features/
+│   ├── auth/
+│   ├── dashboard/
+│   ├── inventory/
+│   ├── maintenance/
+│   ├── tickets/
+│   ├── reports/
+│   ├── master-data/
+│   └── administration/
+│
+├── hooks/
+│
+├── lib/
+│
+├── services/
+│
+├── types/
+│
+├── utils/
+│
+├── assets/
+│
+├── App.tsx
+└── main.tsx
+```
+
+---
+
+# 7. Feature-Based Frontend Structure
+
+Feature logic harus dikelompokkan berdasarkan domain.
+
+Contoh:
+
+```text
+features/
+└── inventory/
+    │
+    ├── api/
+    │   ├── get-assets.ts
+    │   ├── get-asset.ts
+    │   ├── create-asset.ts
+    │   └── update-condition.ts
+    │
+    ├── components/
+    │   ├── AssetTable.tsx
+    │   ├── AssetCard.tsx
+    │   ├── AssetForm.tsx
+    │   └── ConditionBadge.tsx
+    │
+    ├── hooks/
+    │
+    ├── schemas/
+    │   └── asset.schema.ts
+    │
+    ├── types/
+    │   └── asset.types.ts
+    │
+    └── pages/
+        ├── InventoryPage.tsx
+        ├── AssetDetailPage.tsx
+        └── AssetFormPage.tsx
+```
+
+Jangan meletakkan seluruh component aplikasi di:
+
+```text
+components/
+```
+
+tanpa domain yang jelas.
+
+---
+
+# 8. Shared UI Components
+
+Generic component berada di:
+
+```text
+components/ui/
+```
+
+Contoh:
+
+```text
+Button
+Input
+Select
+Dialog
+Sheet
+Badge
+Card
+DataTable
+Skeleton
+EmptyState
+ConfirmDialog
+```
+
+Component tersebut tidak boleh mengandung business logic inventory.
+
+Contoh yang salah:
+
+```text
+components/ui/BrokenAssetButton.tsx
+```
+
+Seharusnya berada di:
+
+```text
+features/inventory/
+```
+
+---
+
+# 9. Backend Folder Structure
+
+Recommended:
+
+```text
+apps/api/src/
+│
+├── config/
+│
+├── modules/
+│   ├── auth/
+│   ├── users/
+│   ├── assets/
+│   ├── maintenance/
+│   ├── tickets/
+│   ├── dashboard/
+│   ├── reports/
+│   ├── notifications/
+│   ├── audit/
+│   └── master-data/
+│
+├── middleware/
+│
+├── database/
+│   ├── migrations/
+│   ├── seeds/
+│   └── client.ts
+│
+├── lib/
+│
+├── utils/
+│
+├── types/
+│
+├── app.ts
+└── server.ts
+```
+
+---
+
+# 10. Backend Module Structure
+
+Contoh:
+
+```text
+modules/assets/
+│
+├── asset.routes.ts
+├── asset.controller.ts
+├── asset.service.ts
+├── asset.repository.ts
+├── asset.schema.ts
+├── asset.types.ts
+├── asset.errors.ts
+└── asset.test.ts
+```
+
+Jika module semakin besar:
+
+```text
+assets/
+├── controllers/
+├── services/
+├── repositories/
+├── schemas/
+├── types/
+└── routes/
+```
+
+boleh digunakan.
+
+Jangan melakukan over-engineering pada module kecil.
+
+---
+
+# 11. Backend Architecture
+
+Gunakan:
+
+```text
+Route
+  ↓
+Middleware
+  ↓
+Controller
+  ↓
+Service
+  ↓
+Repository
+  ↓
+Database
+```
+
+Responsibilities harus jelas.
+
+---
+
+# 12. Route Responsibility
+
+Route hanya menentukan:
+
+```text
+HTTP method
+URL
+Middleware
+Controller
+```
+
+Contoh conceptual:
+
+```text
+PATCH /assets/:id/condition
+
+authenticate
+authorize
+validate
+updateConditionController
+```
+
+Route tidak boleh memiliki SQL atau business logic.
+
+---
+
+# 13. Controller Responsibility
+
+Controller menangani:
+
+```text
+Request
+Parameters
+Authenticated user
+Calling service
+Response
+```
+
+Controller harus tipis.
+
+Controller tidak boleh:
+
+```text
+Write SQL
+Calculate maintenance workflow
+Perform complex transactions
+Implement domain rules
+```
+
+---
+
+# 14. Service Responsibility
+
+Service adalah tempat:
+
+```text
+Business Logic
+Workflow
+Transactions
+Authorization-related domain checks
+Cross-repository operations
+```
+
+Contoh:
+
+```text
+completeMaintenance()
+```
+
+dapat:
+
+```text
+Validate maintenance state
+Calculate cost
+Complete maintenance
+Update asset
+Create condition history
+Update schedule
+Resolve ticket
+Create audit log
+```
+
+---
+
+# 15. Repository Responsibility
+
+Repository menangani persistence.
+
+Contoh:
+
+```text
+findAssetById()
+findAssetByCode()
+createAsset()
+updateAsset()
+createConditionHistory()
+```
+
+Repository tidak menentukan:
+
+```text
+whether maintenance may be completed
+```
+
+Itu responsibility service.
+
+---
+
+# 16. TypeScript Requirement
+
+Gunakan TypeScript untuk:
+
+```text
+Frontend
+Backend
+Shared packages
+```
+
+Dilarang membuat file `.js` untuk application logic tanpa alasan khusus.
+
+Recommended:
+
+```text
+strict: true
+```
+
+pada `tsconfig`.
+
+---
+
+# 17. Avoid `any`
+
+Jangan menggunakan:
+
+```text
+any
+```
+
+sebagai jalan pintas.
+
+Gunakan:
+
+```text
+unknown
+```
+
+jika tipe memang belum diketahui.
+
+Lalu lakukan narrowing.
+
+Exception hanya jika library eksternal memaksa dan harus diberi komentar alasan.
+
+---
+
+# 18. Naming Convention
+
+## Variables
+
+```text
+camelCase
+```
+
+Contoh:
+
+```text
+assetCode
+maintenanceStatus
+currentUser
+```
+
+## Functions
+
+```text
+camelCase
+```
+
+Contoh:
+
+```text
+getAssetById()
+updateAssetCondition()
+completeMaintenance()
+```
+
+## React Components
+
+```text
+PascalCase
+```
+
+Contoh:
+
+```text
+AssetCard
+ConditionBadge
+MaintenanceForm
+```
+
+## Types / Interfaces
+
+```text
+PascalCase
+```
+
+Contoh:
+
+```text
+Asset
+AssetCondition
+MaintenanceRecord
+```
+
+## Constants
+
+Global constants:
+
+```text
+UPPER_SNAKE_CASE
+```
+
+Contoh:
+
+```text
+MAX_UPLOAD_SIZE
+DEFAULT_PAGE_SIZE
+```
+
+---
+
+# 19. File Naming
+
+React component:
+
+```text
+AssetCard.tsx
+AssetDetailPage.tsx
+```
+
+Utility:
+
+```text
+format-date.ts
+format-currency.ts
+```
+
+Backend:
+
+```text
+asset.controller.ts
+asset.service.ts
+asset.repository.ts
+asset.schema.ts
+```
+
+Gunakan satu convention secara konsisten.
+
+---
+
+# 20. Boolean Naming
+
+Boolean harus terdengar seperti pertanyaan.
+
+Gunakan:
+
+```text
+isActive
+isLoading
+isSubmitting
+hasPermission
+hasNextPage
+canEdit
+```
+
+Hindari:
+
+```text
+active
+loadingStateFlag
+permissionValue
+```
+
+jika bentuk boolean tidak jelas.
+
+---
+
+# 21. Function Naming
+
+Function harus menjelaskan action.
+
+Gunakan:
+
+```text
+getAssetById()
+createAsset()
+updateAssetCondition()
+calculateMaintenanceCost()
+validateMaintenanceTransition()
+```
+
+Hindari:
+
+```text
+process()
+handleData()
+doStuff()
+run()
+```
+
+kecuali konteks membuat maksudnya benar-benar jelas.
+
+---
+
+# 22. Function Size
+
+Function harus memiliki satu responsibility utama.
+
+Jika function:
+
+```text
+Fetches data
+Validates state
+Transforms files
+Calculates report
+Sends email
+```
+
+dalam satu function, pecah menjadi bagian lebih kecil.
+
+Jangan memecah function hanya demi mengejar jumlah baris tertentu.
+
+Fokus pada responsibility.
+
+---
+
+# 23. Early Return
+
+Gunakan early return untuk mengurangi nesting.
+
+Prefer:
+
+```text
+if asset not found
+  throw AssetNotFound
+
+if asset retired
+  throw AssetAlreadyRetired
+
+continue process
+```
+
+Daripada:
+
+```text
+if asset exists
+  if asset not retired
+    if condition valid
+      ...
+```
+
+---
+
+# 24. Magic Values
+
+Dilarang menyebarkan magic string.
+
+Jangan:
+
+```text
+condition === "BROKEN"
+```
+
+di puluhan tempat tanpa centralized definition.
+
+Gunakan enum/constant.
+
+Contoh:
+
+```text
+AssetCondition.BROKEN
+```
+
+atau typed constant.
+
+---
+
+# 25. Domain Enums
+
+Centralize:
+
+```text
+AssetCondition
+AssetStatus
+MaintenanceStatus
+MaintenancePriority
+TicketStatus
+TicketPriority
+```
+
+Contoh:
+
+```text
+GOOD
+FAIR
+NEED_ATTENTION
+BROKEN
+CRITICAL
+RETIRED
+```
+
+Frontend dan backend harus menggunakan value yang sama sesuai API contract.
+
+---
+
+# 26. Database Naming
+
+Database menggunakan:
+
+```text
+snake_case
+```
+
+Contoh:
+
+```text
+asset_code
+created_at
+maintenance_type_id
+```
+
+Application TypeScript menggunakan:
+
+```text
+camelCase
+```
+
+Contoh:
+
+```text
+assetCode
+createdAt
+maintenanceTypeId
+```
+
+Mapping harus dilakukan secara konsisten.
+
+---
+
+# 27. Database IDs
+
+Internal ID:
+
+```text
+UUID
+```
+
+Human-readable ID:
+
+```text
+assetCode
+maintenanceCode
+ticketCode
+movementCode
+```
+
+Jangan menggunakan readable code sebagai relational primary key.
+
+---
+
+# 28. Human-Readable Code Generation
+
+Code dibuat backend.
+
+Contoh:
+
+```text
+AST-IT-000001
+MNT-2026-000001
+TKT-2026-000001
+```
+
+Frontend tidak boleh menentukan nomor sequence.
+
+Code generation harus aman terhadap concurrent request.
+
+---
+
+# 29. Database Migration
+
+Semua perubahan schema harus melalui migration.
+
+Dilarang:
+
+```text
+manual ALTER TABLE production
+```
+
+tanpa migration yang tercatat.
+
+Migration harus berada di repository.
+
+---
+
+# 30. Migration Rule
+
+Migration yang sudah digunakan pada shared/production environment jangan diedit sembarangan.
+
+Jika perlu perubahan:
+
+```text
+create new migration
+```
+
+Bukan:
+
+```text
+rewrite historical migration
+```
+
+---
+
+# 31. Database Seed
+
+Seed digunakan untuk:
+
+```text
+Default roles
+Default admin if required
+Initial master data
+Development fixtures
+```
+
+Seed harus aman dijalankan sesuai environment strategy.
+
+Jangan memasukkan production password ke source code.
+
+---
+
+# 32. Database Transactions
+
+Gunakan transaction untuk multi-step operation.
+
+Wajib untuk:
+
+```text
+Update condition
+Asset transfer
+Assignment
+Return asset
+Complete maintenance
+Retire asset
+Dispose asset
+Ticket → Maintenance
+```
+
+Pattern:
+
+```text
+BEGIN
+ ↓
+Operation A
+ ↓
+Operation B
+ ↓
+Audit
+ ↓
+COMMIT
+```
+
+Error:
+
+```text
+ROLLBACK
+```
+
+---
+
+# 33. Soft Delete
+
+Untuk data utama gunakan:
+
+```text
+deleted_at
+```
+
+atau:
+
+```text
+is_active
+```
+
+sesuai domain.
+
+Jangan hard delete asset yang sudah memiliki history.
+
+---
+
+# 34. Audit Logging
+
+Action penting wajib masuk audit log.
+
+Contoh:
+
+```text
+CREATE_ASSET
+UPDATE_ASSET
+UPDATE_CONDITION
+TRANSFER_ASSET
+ASSIGN_ASSET
+START_MAINTENANCE
+COMPLETE_MAINTENANCE
+RETIRE_ASSET
+DISPOSE_ASSET
+```
+
+Audit log harus dibuat backend.
+
+Frontend tidak boleh membuat audit record secara langsung.
+
+---
+
+# 35. API Contract
+
+Endpoint harus mengikuti:
+
+```text
+API.md
+```
+
+Jangan mengganti:
+
+```text
+PATCH /assets/:id/condition
+```
+
+menjadi:
+
+```text
+POST /changeAssetCondition
+```
+
+hanya karena lebih mudah saat coding.
+
+Jika API contract memang perlu berubah:
+
+```text
+Update API.md
+ ↓
+Update implementation
+ ↓
+Update frontend
+ ↓
+Update tests
+```
+
+---
+
+# 36. API Response
+
+Gunakan format konsisten.
+
+Success:
+
+```text
+{
+  success: true,
+  data: ...
+}
+```
+
+Error:
+
+```text
+{
+  success: false,
+  error: {
+    code,
+    message
+  }
+}
+```
+
+Jangan setiap controller memiliki format response berbeda.
+
+---
+
+# 37. HTTP Status
+
+Gunakan status code sesuai API.md.
+
+Jangan selalu mengembalikan:
+
+```text
+200
+```
+
+untuk error.
+
+---
+
+# 38. Error Handling
+
+Backend menggunakan centralized error handler.
+
+Flow:
+
+```text
+Service throws domain error
+        ↓
+Controller/middleware forwards error
+        ↓
+Global error handler
+        ↓
+Standard API response
+```
+
+Jangan membuat try/catch berulang di setiap function jika tidak diperlukan.
+
+---
+
+# 39. Domain Errors
+
+Gunakan typed/custom errors.
+
+Contoh:
+
+```text
+AssetNotFoundError
+AssetAlreadyRetiredError
+InvalidMaintenanceTransitionError
+ForbiddenError
+ValidationError
+```
+
+Setiap error dipetakan ke:
+
+```text
+HTTP status
+error code
+safe message
+```
+
+---
+
+# 40. Error Security
+
+Production response jangan expose:
+
+```text
+Stack trace
+SQL query
+Database credentials
+Filesystem path
+JWT secret
+Internal exception detail
+```
+
+Detail internal masuk server log.
+
+---
+
+# 41. Request Validation
+
+Semua external input harus divalidasi.
+
+Termasuk:
+
+```text
+body
+params
+query
+file metadata
+```
+
+Gunakan:
+
+```text
+Zod
+```
+
+Jangan hanya melakukan frontend validation.
+
+---
+
+# 42. Zod Schemas
+
+Schemas diletakkan dekat domain.
+
+Frontend:
+
+```text
+features/inventory/schemas/
+```
+
+Backend:
+
+```text
+modules/assets/asset.schema.ts
+```
+
+Jika schema benar-benar identik dan architecture memungkinkan, shared schema dapat dipertimbangkan.
+
+Tetapi jangan memaksa sharing jika frontend/backend membutuhkan constraint berbeda.
+
+---
+
+# 43. React Component Rule
+
+Component harus fokus pada presentation atau interaction tertentu.
+
+Hindari component:
+
+```text
+AssetPage.tsx
+```
+
+yang berisi:
+
+```text
+API call
+form
+table
+dialog
+timeline
+QR generation
+maintenance logic
+filters
+```
+
+Pecah menjadi feature components.
+
+---
+
+# 44. Page Components
+
+Page bertanggung jawab untuk:
+
+```text
+Page layout
+Route params
+Feature composition
+Top-level query coordination
+```
+
+Contoh:
+
+```text
+AssetDetailPage
+```
+
+menggunakan:
+
+```text
+AssetHeader
+AssetOverview
+AssetTabs
+AssetTimeline
+```
+
+---
+
+# 45. React Props
+
+Gunakan explicit props.
+
+Contoh conceptual:
+
+```text
+ConditionBadge
+  condition: AssetCondition
+```
+
+Hindari:
+
+```text
+data: any
+```
+
+untuk component domain.
+
+---
+
+# 46. Reusable Components
+
+Sebelum membuat component baru, periksa apakah sudah tersedia:
+
+```text
+Button
+Badge
+Dialog
+DataTable
+EmptyState
+Skeleton
+PageHeader
+```
+
+Jangan membuat:
+
+```text
+BlueButton
+RedButton
+GreenButton
+```
+
+Gunakan:
+
+```text
+Button variant
+```
+
+---
+
+# 47. Styling
+
+Gunakan Tailwind CSS secara konsisten.
+
+Hindari kombinasi acak:
+
+```text
+Tailwind
+inline style
+CSS module
+global CSS
+styled-components
+```
+
+untuk kasus yang sama.
+
+Global CSS hanya untuk:
+
+```text
+CSS variables
+base styles
+font
+theme
+```
+
+---
+
+# 48. Design Tokens
+
+Centralize:
+
+```text
+colors
+spacing
+radius
+font
+status styles
+```
+
+Status mapping jangan dibuat berbeda pada setiap page.
+
+Contoh:
+
+```text
+GOOD → success
+FAIR → warning
+BROKEN → destructive
+```
+
+---
+
+# 49. Responsive Development
+
+Setiap feature harus diperiksa pada:
+
+```text
+Mobile
+Tablet
+Desktop
+```
+
+Jangan menyelesaikan seluruh desktop dahulu lalu menganggap mobile akan otomatis bekerja.
+
+Fitur operasional seperti:
+
+```text
+QR Scan
+Update Condition
+Maintenance
+Photo Upload
+```
+
+harus mobile-first.
+
+---
+
+# 50. Table Rule
+
+Large datasets harus menggunakan:
+
+```text
+Server-side pagination
+Server-side filter
+Server-side sort
+```
+
+Jangan:
+
+```text
+GET all 100,000 assets
+```
+
+lalu filter di browser.
+
+---
+
+# 51. TanStack Query
+
+Gunakan TanStack Query untuk server state.
+
+Contoh query keys:
+
+```text
+["assets"]
+["assets", filters]
+["asset", assetId]
+["asset", assetId, "timeline"]
+["maintenance", filters]
+["dashboard", "summary"]
+```
+
+Query keys harus predictable.
+
+---
+
+# 52. Query Key Factory
+
+Untuk domain besar gunakan query key factory.
+
+Concept:
+
+```text
+assetKeys.all
+assetKeys.list(filters)
+assetKeys.detail(id)
+assetKeys.timeline(id)
+```
+
+Ini mengurangi typo saat invalidation.
+
+---
+
+# 53. Query Invalidation
+
+Mutation harus menginvalidate data yang relevan.
+
+Contoh:
+
+```text
+updateCondition()
+```
+
+invalidate:
+
+```text
+asset detail
+asset history
+asset timeline
+asset list
+dashboard
+```
+
+Jangan menggunakan:
+
+```text
+window.location.reload()
+```
+
+untuk memperbarui UI.
+
+---
+
+# 54. Loading State
+
+Gunakan:
+
+```text
+Skeleton
+Spinner
+Button loading state
+```
+
+sesuai konteks.
+
+Jangan membiarkan halaman kosong selama loading.
+
+---
+
+# 55. Empty State
+
+List kosong harus memiliki meaningful empty state.
+
+Contoh:
+
+```text
+No maintenance records yet.
+```
+
+Bukan hanya:
+
+```text
+[]
+```
+
+---
+
+# 56. Error State
+
+Query error harus memberikan:
+
+```text
+Message
+Retry action
+```
+
+jika relevan.
+
+Jangan hanya:
+
+```text
+console.log(error)
+```
+
+dan halaman kosong.
+
+---
+
+# 57. Forms
+
+Gunakan:
+
+```text
+React Hook Form
++
+Zod
+```
+
+Form submit flow:
+
+```text
+Validate
+ ↓
+Submit
+ ↓
+Loading
+ ↓
+API Response
+ ↓
+Success/Error feedback
+```
+
+Disable submit selama request aktif jika duplicate submission tidak diperbolehkan.
+
+---
+
+# 58. Form Default Values
+
+Default values harus explicit.
+
+Jangan membiarkan controlled/uncontrolled state berubah selama lifecycle component.
+
+---
+
+# 59. Form Data
+
+Form field names sebaiknya mengikuti API contract.
+
+Contoh:
+
+```text
+assetName
+categoryId
+purchaseDate
+```
+
+Ini mengurangi transform yang tidak perlu.
+
+Transform tetap dilakukan jika UI representation berbeda dari API representation.
+
+---
+
+# 60. Confirmation
+
+Destructive atau high-impact action wajib confirmation.
+
+Contoh:
+
+```text
+Retire Asset
+Dispose Asset
+Cancel Maintenance
+Delete Attachment
+```
+
+Tidak perlu confirmation untuk setiap save biasa.
+
+---
+
+# 61. Toast
+
+Gunakan toast untuk:
+
+```text
+Success
+Simple failure
+Non-blocking warning
+```
+
+Jangan menggunakan toast untuk:
+
+```text
+Complex confirmation
+Long error explanation
+Form validation
+```
+
+---
+
+# 62. Icons
+
+Gunakan:
+
+```text
+Lucide React
+```
+
+Jangan memasukkan icon library tambahan tanpa kebutuhan kuat.
+
+---
+
+# 63. Date Handling
+
+Gunakan:
+
+```text
+date-fns
+```
+
+atau utility centralized.
+
+Jangan melakukan formatting tanggal berbeda-beda di setiap component.
+
+Centralize:
+
+```text
+formatDate()
+formatDateTime()
+formatRelativeDate()
+```
+
+---
+
+# 64. Timezone
+
+Database timestamps disimpan dengan strategy yang konsisten.
+
+Recommended:
+
+```text
+UTC
+```
+
+API menggunakan ISO 8601.
+
+Frontend menampilkan sesuai timezone aplikasi/user.
+
+Jangan mencampur timezone implicit tanpa aturan.
+
+---
+
+# 65. Currency Handling
+
+Currency value jangan menggunakan floating-point calculation yang tidak aman untuk critical financial calculation.
+
+Database:
+
+```text
+NUMERIC / DECIMAL
+```
+
+Gunakan centralized:
+
+```text
+formatCurrency()
+```
+
+Currency display mengikuti system configuration.
+
+Jangan hard-code simbol currency pada setiap component.
+
+---
+
+# 66. File Upload
+
+File upload harus divalidasi frontend dan backend.
+
+Frontend validation hanya UX.
+
+Backend adalah source of truth.
+
+Check:
+
+```text
+MIME
+Extension
+Size
+Authorization
+```
+
+---
+
+# 67. File Naming
+
+Physical storage filename jangan menggunakan original filename.
+
+Gunakan generated identifier.
+
+Metadata original filename boleh disimpan di database.
+
+---
+
+# 68. Image Optimization
+
+Asset image:
+
+```text
+Compress
+Resize if necessary
+Prefer WEBP
+Generate thumbnail when useful
+```
+
+List menggunakan thumbnail.
+
+Detail dapat menggunakan larger image.
+
+---
+
+# 69. QR Code Rule
+
+QR hanya menyimpan:
+
+```text
+asset identifier
+```
+
+atau application URL.
+
+Jangan menyimpan seluruh detail asset di QR.
+
+Frontend tidak boleh menganggap QR metadata sebagai source of truth.
+
+Setelah scan:
+
+```text
+QR
+ ↓
+Asset Code
+ ↓
+API Lookup
+ ↓
+Current Asset Data
+```
+
+---
+
+# 70. Authentication
+
+Authentication logic harus centralized.
+
+Frontend:
+
+```text
+AuthProvider
+ProtectedRoute
+API client/interceptor
+```
+
+Backend:
+
+```text
+authenticate middleware
+```
+
+Jangan melakukan authentication check berbeda pada setiap controller.
+
+---
+
+# 71. Authorization
+
+Backend authorization menggunakan permission.
+
+Contoh:
+
+```text
+authorize("asset.update")
+```
+
+Frontend permission digunakan untuk UI visibility.
+
+Backend tetap wajib memverifikasi.
+
+---
+
+# 72. Password
+
+Password:
+
+```text
+Never log
+Never return
+Never store plaintext
+```
+
+Gunakan:
+
+```text
+Argon2id
+```
+
+atau secure password hashing implementation yang disetujui project.
+
+---
+
+# 73. JWT
+
+JWT payload minimum.
+
+Jangan menyimpan seluruh profile user di token.
+
+Contoh:
+
+```text
+sub
+session identifier
+token metadata
+```
+
+Role/permission dapat mengikuti architecture authentication final.
+
+---
+
+# 74. Secrets
+
+Dilarang hard-code:
+
+```text
+JWT secret
+Database password
+API key
+Storage secret
+```
+
+Gunakan environment variables.
+
+---
+
+# 75. Environment Variables
+
+Contoh:
+
+```text
+NODE_ENV
+PORT
+DATABASE_URL
+JWT_SECRET
+JWT_EXPIRES_IN
+CORS_ORIGIN
+UPLOAD_MAX_SIZE
+STORAGE_PATH
+```
+
+Semua documented di:
+
+```text
+.env.example
+```
+
+`.env` tidak boleh masuk Git.
+
+---
+
+# 76. Environment Validation
+
+Backend harus memvalidasi environment saat startup.
+
+Jika:
+
+```text
+DATABASE_URL
+```
+
+atau required secret tidak tersedia:
+
+```text
+Fail fast
+```
+
+Jangan menjalankan aplikasi dalam state setengah terkonfigurasi.
+
+---
+
+# 77. Logging
+
+Recommended structured logger:
+
+```text
+Pino
+```
+
+Log harus memiliki context:
+
+```text
+requestId
+userId
+route
+method
+duration
+```
+
+---
+
+# 78. Logging Levels
+
+Gunakan:
+
+```text
+debug
+info
+warn
+error
+```
+
+Jangan gunakan:
+
+```text
+console.log()
+```
+
+secara permanen di production application code.
+
+---
+
+# 79. Sensitive Logging
+
+Jangan log:
+
+```text
+Password
+Authorization header
+JWT
+Cookies
+Database URL
+Secret
+Uploaded private documents
+```
+
+---
+
+# 80. Request ID
+
+Setiap API request memiliki request ID.
+
+Gunakan untuk menghubungkan:
+
+```text
+HTTP Request
+Application Log
+Error
+Audit Investigation
+```
+
+---
+
+# 81. Security Middleware
+
+Recommended:
+
+```text
+Helmet
+CORS
+Rate Limiting
+Body Size Limit
+Authentication
+Authorization
+Validation
+```
+
+Urutan middleware harus dirancang dengan jelas.
+
+---
+
+# 82. SQL Injection Prevention
+
+Gunakan:
+
+```text
+Parameterized query
+```
+
+atau ORM/query builder yang aman.
+
+Dilarang:
+
+```text
+"SELECT * FROM assets WHERE name = '" + userInput + "'"
+```
+
+---
+
+# 83. Search Security
+
+Search/sort/filter field harus whitelist.
+
+Jangan memasukkan query parameter langsung sebagai:
+
+```text
+column name
+ORDER BY
+raw SQL
+```
+
+tanpa validation.
+
+---
+
+# 84. XSS
+
+React escaping tidak menggantikan semua security requirement.
+
+Jangan menggunakan:
+
+```text
+dangerouslySetInnerHTML
+```
+
+kecuali benar-benar diperlukan dan content telah disanitasi.
+
+---
+
+# 85. CORS
+
+Production menggunakan explicit origin.
+
+Jangan:
+
+```text
+origin: "*"
+```
+
+untuk authenticated production application tanpa alasan arsitektural yang jelas.
+
+---
+
+# 86. API Rate Limit
+
+Minimal:
+
+```text
+Login
+Upload
+Export
+```
+
+harus dilindungi dari abuse.
+
+---
+
+# 87. Dependency Management
+
+Jangan install package untuk fungsi sederhana yang dapat dilakukan platform/library existing.
+
+Sebelum menambah dependency:
+
+```text
+Is it needed?
+Is it maintained?
+Is it secure?
+Does existing dependency already solve it?
+```
+
+---
+
+# 88. Dependency Version
+
+Lock file wajib masuk Git.
+
+Contoh:
+
+```text
+package-lock.json
+```
+
+atau package manager equivalent.
+
+Jangan menghapus lock file tanpa alasan.
+
+---
+
+# 89. Package Scripts
+
+Recommended root scripts:
+
+```text
+dev
+build
+lint
+typecheck
+test
+format
+```
+
+Jika monorepo:
+
+```text
+dev:web
+dev:api
+```
+
+boleh ditambahkan.
+
+---
+
+# 90. Linting
+
+Gunakan ESLint.
+
+Code harus lolos:
+
+```text
+npm run lint
+```
+
+sebelum dianggap selesai.
+
+Jangan men-disable rule hanya untuk menghilangkan warning tanpa memahami penyebabnya.
+
+---
+
+# 91. Formatting
+
+Gunakan Prettier.
+
+Developer tidak perlu memperdebatkan formatting manual.
+
+Formatting harus otomatis.
+
+---
+
+# 92. Type Check
+
+Code harus lolos:
+
+```text
+npm run typecheck
+```
+
+Jangan menggunakan:
+
+```text
+@ts-ignore
+```
+
+sebagai solusi default.
+
+Jika benar-benar diperlukan, berikan alasan.
+
+---
+
+# 93. Build Validation
+
+Sebelum task dinyatakan selesai:
+
+```text
+npm run build
+```
+
+harus berhasil.
+
+Perubahan yang bekerja di dev tetapi gagal build belum dianggap selesai.
+
+---
+
+# 94. Testing Strategy
+
+Prioritas testing:
+
+```text
+Business logic
+Critical workflow
+Permissions
+Validation
+Transactions
+```
+
+Tidak perlu mengejar coverage tinggi tanpa nilai.
+
+---
+
+# 95. Unit Tests
+
+Unit test cocok untuk:
+
+```text
+calculateMaintenanceCost()
+validateMaintenanceTransition()
+generateAssetCode()
+calculateWarrantyStatus()
+```
+
+---
+
+# 96. Integration Tests
+
+Integration test penting untuk:
+
+```text
+Login
+Create Asset
+Update Condition
+Transfer Asset
+Start Maintenance
+Complete Maintenance
+Permissions
+```
+
+---
+
+# 97. Critical Workflow Tests
+
+Minimal test:
+
+```text
+Create asset
+ ↓
+Assign
+ ↓
+Change condition
+ ↓
+Start maintenance
+ ↓
+Complete maintenance
+ ↓
+Condition history created
+ ↓
+Audit created
+```
+
+---
+
+# 98. Regression Rule
+
+Jika menemukan bug:
+
+```text
+Reproduce
+ ↓
+Understand cause
+ ↓
+Fix root cause
+ ↓
+Add regression test when practical
+ ↓
+Verify related flow
+```
+
+Jangan hanya menutupi symptom.
+
+---
+
+# 99. Existing Feature Protection
+
+Salah satu aturan terpenting:
+
+```text
+DO NOT BREAK WORKING FEATURES
+```
+
+Sebelum mengubah existing implementation:
+
+1. Pahami flow saat ini.
+2. Cari semua usage.
+3. Periksa API impact.
+4. Periksa database impact.
+5. Periksa UI impact.
+6. Buat perubahan terkecil yang memenuhi requirement.
+7. Jalankan test.
+8. Jalankan build.
+
+---
+
+# 100. No Unrequested Refactor
+
+Coding agent tidak boleh melakukan refactor besar yang tidak diminta saat mengerjakan bug kecil.
+
+Contoh task:
+
+```text
+Fix QR scanner camera permission
+```
+
+Jangan sekaligus:
+
+```text
+Rewrite routing
+Replace TanStack Query
+Change folder structure
+Replace CSS framework
+```
+
+Scope harus dijaga.
+
+---
+
+# 101. Minimal Change Principle
+
+Untuk bugfix:
+
+```text
+SMALLEST SAFE CHANGE
+```
+
+lebih disukai daripada rewrite.
+
+Refactor besar harus menjadi task terpisah.
+
+---
+
+# 102. Understand Before Modify
+
+Sebelum mengubah code:
+
+```text
+READ
+ ↓
+TRACE
+ ↓
+UNDERSTAND
+ ↓
+PLAN
+ ↓
+MODIFY
+ ↓
+VERIFY
+```
+
+Jangan:
+
+```text
+GUESS
+ ↓
+REWRITE
+```
+
+---
+
+# 103. Search Before Create
+
+Sebelum membuat:
+
+```text
+component
+utility
+hook
+service
+type
+constant
+```
+
+cari apakah sudah ada implementation serupa.
+
+Tujuan:
+
+```text
+Avoid duplication
+```
+
+---
+
+# 104. No Duplicate Business Logic
+
+Contoh buruk:
+
+Frontend:
+
+```text
+calculate maintenance total
+```
+
+Backend:
+
+```text
+calculate maintenance total differently
+```
+
+Critical calculation harus memiliki satu authoritative source.
+
+Untuk maintenance cost:
+
+```text
+Backend
+```
+
+adalah source of truth.
+
+Frontend hanya menampilkan preview jika dibutuhkan.
+
+---
+
+# 105. Comments
+
+Comment menjelaskan:
+
+```text
+WHY
+```
+
+bukan:
+
+```text
+WHAT
+```
+
+Bad:
+
+```text
+// increment count by one
+```
+
+Good:
+
+```text
+// Sequence is generated inside the transaction to avoid duplicate asset codes.
+```
+
+---
+
+# 106. TODO Comments
+
+TODO harus actionable.
+
+Gunakan:
+
+```text
+TODO: Replace local storage with S3-compatible storage before production deployment.
+```
+
+Hindari:
+
+```text
+TODO: fix later
+```
+
+---
+
+# 107. Dead Code
+
+Hapus:
+
+```text
+unused import
+unused function
+commented old implementation
+debug code
+```
+
+Jangan menyimpan versi lama sebagai comment.
+
+Git sudah menyimpan history.
+
+---
+
+# 108. Git Branch Naming
+
+Recommended:
+
+```text
+feature/inventory-list
+feature/qr-scanner
+feature/maintenance
+
+fix/asset-condition-history
+fix/mobile-navigation
+
+refactor/asset-service
+```
+
+---
+
+# 109. Commit Convention
+
+Recommended:
+
+```text
+feat:
+fix:
+refactor:
+docs:
+test:
+chore:
+```
+
+Contoh:
+
+```text
+feat: add asset condition history
+
+fix: prevent duplicate maintenance completion
+
+docs: update asset API contract
+```
+
+---
+
+# 110. Commit Scope
+
+Commit sebaiknya fokus pada satu logical change.
+
+Hindari commit:
+
+```text
+update everything
+```
+
+---
+
+# 111. Documentation Update
+
+Jika perubahan memengaruhi:
+
+```text
+Product behavior
+Database
+UI flow
+API
+Coding convention
+```
+
+update dokumentasi terkait.
+
+Documentation drift harus dihindari.
+
+---
+
+# 112. README
+
+README harus menjelaskan:
+
+```text
+Project overview
+Requirements
+Installation
+Environment
+Database setup
+Development
+Build
+Testing
+Deployment
+```
+
+README bukan pengganti PRD/API docs.
+
+---
+
+# 113. API Documentation
+
+API implementation harus disinkronkan dengan:
+
+```text
+API.md
+```
+
+Recommended future:
+
+```text
+OpenAPI
+Swagger UI
+```
+
+---
+
+# 114. Accessibility
+
+Frontend harus mempertimbangkan:
+
+```text
+Keyboard
+Focus state
+Labels
+Semantic HTML
+ARIA where needed
+Contrast
+Touch target
+```
+
+Jangan membuat clickable `div` jika semantic `button` lebih tepat.
+
+---
+
+# 115. Performance
+
+Optimisasi berdasarkan masalah nyata.
+
+Prioritas:
+
+```text
+Server pagination
+Efficient queries
+Avoid N+1
+Lazy load routes
+Optimize images
+Query caching
+```
+
+Jangan melakukan premature micro-optimization.
+
+---
+
+# 116. Lazy Loading
+
+Large route dapat menggunakan:
+
+```text
+React.lazy
+```
+
+atau route-level code splitting.
+
+Contoh:
+
+```text
+Reports
+Administration
+Advanced Analytics
+```
+
+tidak perlu masuk initial bundle jika tidak langsung digunakan.
+
+---
+
+# 117. Memoization
+
+Jangan menggunakan:
+
+```text
+useMemo
+useCallback
+React.memo
+```
+
+di semua tempat tanpa alasan.
+
+Gunakan jika ada measurable/reasonable rendering benefit atau identity requirement.
+
+---
+
+# 118. API Calls
+
+API calls harus centralized.
+
+Jangan:
+
+```text
+fetch("http://localhost:3000/api...")
+```
+
+langsung di berbagai components.
+
+Gunakan:
+
+```text
+API client
+Feature API functions
+```
+
+---
+
+# 119. API Base URL
+
+Gunakan environment:
+
+```text
+VITE_API_URL
+```
+
+Jangan hard-code:
+
+```text
+localhost
+server IP
+production domain
+```
+
+di source component.
+
+---
+
+# 120. Import Aliases
+
+Recommended:
+
+```text
+@/components
+@/features
+@/lib
+@/hooks
+```
+
+Hindari import seperti:
+
+```text
+../../../../../../components/Button
+```
+
+---
+
+# 121. Barrel Files
+
+Gunakan barrel export secara terbatas.
+
+Jangan membuat barrel besar yang menyebabkan:
+
+```text
+Circular dependency
+Hidden dependency
+Large accidental imports
+```
+
+---
+
+# 122. Circular Dependencies
+
+Circular dependency harus dihindari.
+
+Contoh buruk:
+
+```text
+assets
+ ↓
+maintenance
+ ↓
+assets
+```
+
+Jika dua module membutuhkan shared type/helper:
+
+```text
+extract shared abstraction
+```
+
+tetapi jangan membuat `utils` menjadi tempat sampah.
+
+---
+
+# 123. Utility Rule
+
+`utils/` hanya untuk generic pure utilities.
+
+Contoh:
+
+```text
+formatDate
+formatCurrency
+generateRequestId
+```
+
+Business logic seperti:
+
+```text
+completeMaintenance
+```
+
+tidak boleh masuk `utils`.
+
+---
+
+# 124. Constants
+
+Domain constants berada dekat domain.
+
+Global constants hanya jika benar-benar digunakan lintas aplikasi.
+
+---
+
+# 125. Configuration
+
+Environment-specific behavior berada di config layer.
+
+Contoh:
+
+```text
+config/database.ts
+config/auth.ts
+config/storage.ts
+```
+
+Jangan membaca `process.env` di puluhan files.
+
+---
+
+# 126. Production Safety
+
+Jangan jalankan:
+
+```text
+database reset
+seed destructive data
+drop table
+```
+
+secara otomatis saat production startup.
+
+Production migration harus explicit dan controlled.
+
+---
+
+# 127. Backup Awareness
+
+Perubahan schema destructive harus mempertimbangkan backup dan migration strategy.
+
+Jangan menghapus column berisi data tanpa migration plan.
+
+---
+
+# 128. Data Integrity
+
+Business state penting tidak boleh hanya dijaga frontend.
+
+Contoh:
+
+Frontend dapat disable:
+
+```text
+Complete Maintenance
+```
+
+tetapi backend tetap harus menolak completion yang invalid.
+
+---
+
+# 129. History Integrity
+
+Jangan mengubah history lama untuk merepresentasikan current state.
+
+Contoh:
+
+Jika asset berpindah:
+
+```text
+Insert movement
++
+Update current location
+```
+
+Jangan:
+
+```text
+Edit previous movement row
+```
+
+---
+
+# 130. Timeline
+
+Timeline berasal dari historical records.
+
+Jangan menyimpan generated display string sebagai source of truth.
+
+Simpan structured data.
+
+Frontend bertanggung jawab terhadap presentation.
+
+---
+
+# 131. Status Transition
+
+Status transition harus centralized di backend.
+
+Contoh maintenance:
+
+```text
+OPEN
+→ ASSIGNED
+→ IN_PROGRESS
+→ TESTING
+→ COMPLETED
+```
+
+Jangan membiarkan generic endpoint menerima status apa pun tanpa validation.
+
+---
+
+# 132. Frontend Status Logic
+
+Frontend boleh menentukan:
+
+```text
+button visibility
+badge
+label
+```
+
+berdasarkan current state.
+
+Tetapi backend tetap menentukan apakah transition valid.
+
+---
+
+# 133. Optimistic Update
+
+Jangan gunakan optimistic update untuk operation kritis tanpa kebutuhan jelas.
+
+Contoh:
+
+```text
+Dispose Asset
+Complete Maintenance
+Transfer Asset
+```
+
+lebih aman menunggu server confirmation.
+
+---
+
+# 134. Network Failure
+
+Jika mutation gagal:
+
+```text
+Do not show success
+Do not assume saved
+Keep user input when practical
+Provide retry
+```
+
+---
+
+# 135. Loading Buttons
+
+Mutation button:
+
+```text
+Save
+```
+
+menjadi:
+
+```text
+Saving...
+```
+
+dan disabled selama submission jika operation tidak boleh duplicate.
+
+---
+
+# 136. Double Submission
+
+Backend harus tetap aman terhadap duplicate request walaupun frontend sudah disable button.
+
+Untuk critical create action, idempotency dapat dipertimbangkan.
+
+---
+
+# 137. Mobile Camera
+
+QR scanner dan photo capture harus:
+
+```text
+Handle permission denied
+Handle no camera
+Handle camera unavailable
+Provide manual asset-code fallback
+```
+
+Jangan membuat QR scanner sebagai satu-satunya cara mencari asset.
+
+---
+
+# 138. Browser Support
+
+Target browser modern:
+
+```text
+Chrome
+Edge
+Android Chrome
+```
+
+Jika perusahaan memiliki browser khusus, tambahkan target setelah environment diketahui.
+
+---
+
+# 139. Feature Flags
+
+Untuk feature eksperimental seperti:
+
+```text
+Health Score
+Replacement Recommendation
+Advanced Analytics
+```
+
+feature flag dapat digunakan.
+
+Jangan menampilkan fitur setengah jadi pada production user.
+
+---
+
+# 140. MVP Discipline
+
+MVP fokus:
+
+```text
+Inventory
+Condition
+QR
+Maintenance
+History
+Dashboard
+```
+
+Jangan menunda core feature karena mengerjakan:
+
+```text
+AI
+complex analytics
+advanced animation
+custom theme builder
+```
+
+yang belum dibutuhkan.
+
+---
+
+# 141. Coding Agent Rules
+
+Jika coding dilakukan oleh AI coding agent, agent wajib:
+
+1. Membaca documentation terkait sebelum coding.
+2. Memeriksa existing implementation.
+3. Tidak menghapus feature tanpa instruksi.
+4. Tidak mengganti stack tanpa instruksi.
+5. Tidak membuat API baru jika existing API memenuhi kebutuhan.
+6. Tidak mengubah database tanpa migration.
+7. Tidak hard-code secrets.
+8. Tidak menggunakan mock data setelah real API tersedia kecuali development fixture.
+9. Tidak menyatakan task selesai sebelum verification.
+10. Melaporkan file yang diubah.
+11. Melaporkan migration yang dibuat.
+12. Melaporkan test/build result.
+13. Menjelaskan blocker jika requirement tidak dapat dipenuhi.
+
+---
+
+# 142. Coding Agent Required Workflow
+
+Sebelum coding:
+
+```text
+READ DOCUMENTATION
+        ↓
+INSPECT CODEBASE
+        ↓
+IDENTIFY IMPACT
+        ↓
+MAKE PLAN
+        ↓
+IMPLEMENT
+        ↓
+TEST
+        ↓
+TYPECHECK
+        ↓
+BUILD
+        ↓
+REPORT
+```
+
+---
+
+# 143. Coding Agent Must Not
+
+Agent tidak boleh:
+
+```text
+Rewrite working modules without reason
+
+Invent requirements
+
+Change database schema silently
+
+Change API contract silently
+
+Disable TypeScript errors
+
+Use any everywhere
+
+Hard-code localhost
+
+Hard-code credentials
+
+Delete migration history
+
+Return fake success
+
+Hide backend errors
+
+Use page reload as state management
+
+Duplicate existing components
+
+Install unnecessary packages
+```
+
+---
+
+# 144. Task Completion Definition
+
+Sebuah coding task dianggap selesai jika:
+
+```text
+Requirement implemented
++
+Existing related flow still works
++
+Validation handled
++
+Error state handled
++
+Permission handled if relevant
++
+Responsive behavior checked if UI
++
+Lint passes
++
+Typecheck passes
++
+Tests pass where available
++
+Build passes
++
+Documentation updated if necessary
+```
+
+---
+
+# 145. Definition of Done — Frontend
+
+Frontend task selesai jika:
+
+```text
+UI matches UI_UX.md
+
+API integration follows API.md
+
+Loading state exists
+
+Error state exists
+
+Empty state exists where relevant
+
+Responsive behavior works
+
+Form validation works
+
+Permission behavior works
+
+No console errors
+
+Typecheck passes
+
+Build passes
+```
+
+---
+
+# 146. Definition of Done — Backend
+
+Backend task selesai jika:
+
+```text
+Endpoint follows API.md
+
+Input validated
+
+Authentication enforced
+
+Authorization enforced
+
+Business rule implemented
+
+Transaction used where required
+
+Audit created where required
+
+Errors standardized
+
+Database query efficient
+
+Tests added where valuable
+
+Typecheck passes
+
+Build passes
+```
+
+---
+
+# 147. Definition of Done — Database
+
+Database change selesai jika:
+
+```text
+Migration created
+
+Foreign keys correct
+
+Indexes considered
+
+Constraints correct
+
+History impact considered
+
+Rollback/migration strategy considered
+
+DATABASE.md updated when design changes
+```
+
+---
+
+# 148. Bug Fix Definition of Done
+
+Bug fix selesai jika:
+
+```text
+Bug reproduced
+
+Root cause identified
+
+Minimal safe fix implemented
+
+Related functionality tested
+
+Regression test added when practical
+
+Build successful
+```
+
+---
+
+# 149. Review Checklist
+
+Sebelum merge:
+
+```text
+Does this follow PRD?
+
+Does this follow API.md?
+
+Does this preserve history?
+
+Is authorization enforced?
+
+Is validation enforced?
+
+Can this create duplicate data?
+
+Does this need transaction?
+
+Does this need audit log?
+
+Does this work on mobile?
+
+Are loading/error states handled?
+
+Did we introduce unnecessary dependency?
+
+Did lint/typecheck/build pass?
+```
+
+---
+
+# 150. Code Review Priorities
+
+Review dengan urutan:
+
+```text
+1. Correctness
+2. Security
+3. Data integrity
+4. Business rules
+5. Regression risk
+6. Maintainability
+7. Performance
+8. Style
+```
+
+Jangan fokus pada formatting kecil sementara transaction atau authorization salah.
+
+---
+
+# 151. Refactoring Rule
+
+Refactor dilakukan ketika:
+
+```text
+Duplicate logic nyata
+Component terlalu sulit dipelihara
+Service memiliki terlalu banyak responsibility
+Testing sangat sulit
+Performance problem teridentifikasi
+```
+
+Refactor bukan dilakukan hanya karena developer lebih menyukai style lain.
+
+---
+
+# 152. Architecture Change Rule
+
+Perubahan besar seperti:
+
+```text
+Express → framework lain
+
+PostgreSQL → database lain
+
+REST → GraphQL
+
+React → framework lain
+
+Tailwind → CSS framework lain
+```
+
+harus menjadi architectural decision terpisah.
+
+Jangan dilakukan sebagai bagian incidental dari feature task.
+
+---
+
+# 153. Dependency Change Rule
+
+Sebelum mengganti library utama, dokumentasikan:
+
+```text
+Why?
+
+What problem?
+
+Migration impact?
+
+Bundle impact?
+
+Security impact?
+
+Existing code impact?
+```
+
+---
+
+# 154. Security Review Triggers
+
+Review security tambahan jika task menyentuh:
+
+```text
+Authentication
+Authorization
+File Upload
+Password
+JWT
+User Management
+Export
+Document Access
+Admin
+Audit
+```
+
+---
+
+# 155. Database Review Triggers
+
+Review data integrity tambahan jika task menyentuh:
+
+```text
+Asset Condition
+Asset Movement
+Assignment
+Maintenance Completion
+Retirement
+Disposal
+Ticket Conversion
+```
+
+---
+
+# 156. UI Review Triggers
+
+Review mobile tambahan jika task menyentuh:
+
+```text
+QR Scanner
+Condition Update
+Maintenance
+Camera
+Photo Upload
+Quick Actions
+```
+
+---
+
+# 157. Documentation Rule
+
+Jika implementation dan documentation berbeda:
+
+```text
+STOP
+```
+
+Tentukan apakah:
+
+```text
+Implementation salah
+```
+
+atau:
+
+```text
+Documentation sudah obsolete
+```
+
+Lalu sinkronkan.
+
+Jangan membiarkan keduanya berbeda tanpa keputusan.
+
+---
+
+# 158. Project Philosophy
+
+Office Inventory Maintenance System bukan sekadar CRUD application.
+
+System menjaga:
+
+```text
+CURRENT STATE
++
+HISTORY
++
+ACCOUNTABILITY
+```
+
+Current state:
+
+```text
+Where is the asset?
+Who uses it?
+What condition is it in?
+```
+
+History:
+
+```text
+Where has it been?
+Who used it?
+What happened to it?
+What maintenance was performed?
+```
+
+Accountability:
+
+```text
+Who changed it?
+When?
+Why?
+```
+
+Setiap implementation harus mempertahankan ketiga prinsip tersebut.
+
+---
+
+# 159. Core Data Rule
+
+Untuk domain penting gunakan pattern:
+
+```text
+CURRENT STATE
+        +
+HISTORY RECORD
+        +
+AUDIT LOG
+```
+
+Contoh condition:
+
+```text
+assets.condition
+        +
+asset_condition_history
+        +
+audit_logs
+```
+
+Contoh movement:
+
+```text
+assets.current_location
+        +
+asset_movements
+        +
+audit_logs
+```
+
+---
+
+# 160. Final Engineering Rule
+
+Sebelum menulis code, tanyakan:
+
+```text
+Is this required?
+
+Does something already exist?
+
+Where should this logic live?
+
+What data will change?
+
+Does history need to be preserved?
+
+Does this need a transaction?
+
+Does this need permission?
+
+Does this need audit logging?
+
+What happens if the request fails?
+
+What happens if it is submitted twice?
+
+Will this break existing behavior?
+```
+
+Kemudian:
+
+```text
+UNDERSTAND
+   ↓
+DESIGN
+   ↓
+IMPLEMENT
+   ↓
+VALIDATE
+   ↓
+TEST
+   ↓
+DOCUMENT
+```
+
+Bukan:
+
+```text
+CODE FIRST
+   ↓
+FIX LATER
+```
+
+---
+
+# 161. Documentation Status
+
+Current documentation:
+
+```text
+PRD.md                 COMPLETE
+DATABASE.md            COMPLETE
+UI_UX.md               COMPLETE
+API.md                 COMPLETE
+CODING_STANDARDS.md    COMPLETE
+TASK.md                 NEXT
+```
+
+---
+
+# 162. Next Development Document
+
+Dokumen selanjutnya:
+
+```text
+TASK.md
+```
+
+`TASK.md` akan mengubah seluruh requirement menjadi execution roadmap.
+
+Contoh:
+
+```text
+PHASE 0
+Project Initialization
+
+PHASE 1
+Authentication
+
+PHASE 2
+Master Data
+
+PHASE 3
+Inventory Core
+
+PHASE 4
+QR System
+
+PHASE 5
+Condition Monitoring
+
+PHASE 6
+Maintenance
+
+PHASE 7
+Dashboard
+
+PHASE 8
+Asset Movement
+
+PHASE 9
+Tickets
+
+PHASE 10
+Reports
+
+PHASE 11
+Testing & Security
+
+PHASE 12
+Production Deployment
+```
+
+Setiap task harus memiliki:
+
+```text
+ID
+Priority
+Dependencies
+Requirements
+Acceptance Criteria
+Verification
+Status
+```
+
+Dengan begitu coding agent dapat mengerjakan project secara berurutan tanpa menebak-nebak requirement.

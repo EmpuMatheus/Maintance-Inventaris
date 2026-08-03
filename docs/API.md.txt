@@ -1,0 +1,3527 @@
+# API.md
+
+# Office Inventory Maintenance System
+
+**Version:** 1.0
+**API Style:** REST API
+**Backend:** Node.js + Express.js + TypeScript
+**Database:** PostgreSQL
+**Authentication:** JWT
+**Validation:** Zod
+**Content Type:** `application/json`
+
+---
+
+# 1. API Objectives
+
+API menjadi communication layer antara:
+
+```text
+React Frontend
+      ↓
+   REST API
+      ↓
+Business Logic
+      ↓
+ PostgreSQL
+```
+
+API bertanggung jawab terhadap:
+
+* Authentication
+* Authorization
+* Input validation
+* Business logic
+* Database transaction
+* Asset management
+* Condition monitoring
+* QR lookup
+* Maintenance
+* Ticket
+* Asset movement
+* Master data
+* Reporting
+* Audit logging
+* Notification
+
+Frontend tidak boleh mengakses database secara langsung.
+
+---
+
+# 2. Base URL
+
+Development:
+
+```text
+http://localhost:3000/api/v1
+```
+
+Production:
+
+```text
+https://inventory.company.com/api/v1
+```
+
+Semua endpoint menggunakan versioning:
+
+```text
+/api/v1
+```
+
+Contoh:
+
+```text
+GET /api/v1/assets
+GET /api/v1/maintenance
+GET /api/v1/dashboard/summary
+```
+
+---
+
+# 3. API Principles
+
+API harus mengikuti prinsip:
+
+```text
+CONSISTENT
+PREDICTABLE
+SECURE
+VALIDATED
+VERSIONED
+DOCUMENTED
+```
+
+Frontend tidak boleh membutuhkan pengetahuan tentang struktur internal database.
+
+Contoh:
+
+Jangan expose query database melalui frontend.
+
+Frontend:
+
+```text
+GET /api/v1/assets?condition=BROKEN
+```
+
+Bukan:
+
+```text
+SELECT * FROM assets WHERE condition = 'BROKEN'
+```
+
+---
+
+# 4. Request Format
+
+Default:
+
+```http
+Content-Type: application/json
+```
+
+Contoh:
+
+```json
+{
+  "assetName": "Lenovo ThinkPad E14",
+  "categoryId": "uuid",
+  "brandId": "uuid"
+}
+```
+
+Untuk upload:
+
+```http
+Content-Type: multipart/form-data
+```
+
+---
+
+# 5. Response Format
+
+Semua response menggunakan format konsisten.
+
+Success:
+
+```json
+{
+  "success": true,
+  "data": {}
+}
+```
+
+Success dengan message:
+
+```json
+{
+  "success": true,
+  "message": "Asset created successfully.",
+  "data": {}
+}
+```
+
+Error:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ASSET_NOT_FOUND",
+    "message": "Asset not found."
+  }
+}
+```
+
+---
+
+# 6. Validation Error
+
+Contoh:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid request data.",
+    "fields": {
+      "assetName": [
+        "Asset name is required."
+      ],
+      "categoryId": [
+        "Invalid category."
+      ]
+    }
+  }
+}
+```
+
+Frontend dapat langsung memetakan:
+
+```text
+fields
+```
+
+ke React Hook Form.
+
+---
+
+# 7. HTTP Status Codes
+
+Gunakan standard:
+
+```text
+200 OK
+Request berhasil
+
+201 Created
+Resource berhasil dibuat
+
+204 No Content
+Request berhasil tanpa response body
+
+400 Bad Request
+Invalid request
+
+401 Unauthorized
+Belum login / token invalid
+
+403 Forbidden
+Tidak memiliki permission
+
+404 Not Found
+Resource tidak ditemukan
+
+409 Conflict
+Duplicate / conflicting state
+
+422 Unprocessable Entity
+Validation / business rule failure
+
+429 Too Many Requests
+Rate limit
+
+500 Internal Server Error
+Unexpected server error
+```
+
+---
+
+# 8. Authentication
+
+Authentication menggunakan:
+
+```text
+JWT
+```
+
+Flow:
+
+```text
+Login
+  ↓
+Server validates credentials
+  ↓
+Access Token
+  ↓
+Frontend sends token
+  ↓
+Protected API
+```
+
+---
+
+# 9. Login
+
+Endpoint:
+
+```http
+POST /api/v1/auth/login
+```
+
+Request:
+
+```json
+{
+  "username": "itadmin",
+  "password": "password"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "accessToken": "jwt-token",
+    "user": {
+      "id": "uuid",
+      "employeeCode": "8000001",
+      "name": "IT Administrator",
+      "username": "itadmin",
+      "roles": [
+        "IT_ADMIN"
+      ]
+    }
+  }
+}
+```
+
+Password tidak pernah dikembalikan.
+
+---
+
+# 10. Current User
+
+```http
+GET /api/v1/auth/me
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "employeeCode": "8000001",
+    "name": "IT Administrator",
+    "username": "itadmin",
+    "email": "it@example.com",
+    "roles": [
+      "IT_ADMIN"
+    ],
+    "permissions": [
+      "asset.read",
+      "asset.create",
+      "asset.update",
+      "maintenance.create"
+    ]
+  }
+}
+```
+
+---
+
+# 11. Logout
+
+Jika menggunakan refresh-token/session strategy:
+
+```http
+POST /api/v1/auth/logout
+```
+
+Server harus menghapus atau revoke session/refresh token terkait.
+
+Access token yang stateless dan belum expired tidak dianggap revoked kecuali sistem memiliki token blacklist/session store.
+
+---
+
+# 12. Authorization Header
+
+Protected request:
+
+```http
+Authorization: Bearer <access_token>
+```
+
+Jika tidak tersedia:
+
+```text
+401 Unauthorized
+```
+
+---
+
+# 13. Role Based Access Control
+
+Default roles:
+
+```text
+SUPER_ADMIN
+IT_ADMIN
+TECHNICIAN
+VIEWER
+```
+
+Permission menggunakan format:
+
+```text
+resource.action
+```
+
+Contoh:
+
+```text
+asset.read
+asset.create
+asset.update
+asset.retire
+
+maintenance.read
+maintenance.create
+maintenance.update
+maintenance.complete
+
+ticket.read
+ticket.create
+
+report.read
+report.export
+
+admin.user.manage
+admin.audit.read
+```
+
+---
+
+# 14. Permission Enforcement
+
+Permission harus diperiksa pada backend.
+
+Frontend hiding button hanya UX.
+
+Contoh:
+
+```text
+User tidak memiliki:
+
+asset.update
+```
+
+Backend tetap harus menolak:
+
+```http
+PATCH /assets/:id
+```
+
+dengan:
+
+```text
+403 Forbidden
+```
+
+---
+
+# 15. Pagination
+
+List endpoint menggunakan server-side pagination.
+
+Request:
+
+```http
+GET /api/v1/assets?page=1&limit=25
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": [],
+  "meta": {
+    "page": 1,
+    "limit": 25,
+    "total": 1284,
+    "totalPages": 52,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  }
+}
+```
+
+Default:
+
+```text
+page = 1
+limit = 25
+```
+
+Maximum:
+
+```text
+limit = 100
+```
+
+---
+
+# 16. Sorting
+
+Format:
+
+```http
+?sortBy=assetName&sortOrder=asc
+```
+
+Allowed:
+
+```text
+asc
+desc
+```
+
+Backend harus whitelist sortable fields.
+
+Jangan memasukkan nilai `sortBy` secara langsung ke SQL.
+
+---
+
+# 17. Search
+
+Contoh:
+
+```http
+GET /api/v1/assets?search=thinkpad
+```
+
+Search dapat mencari:
+
+```text
+asset_code
+asset_name
+serial_number
+model
+PIC
+location
+```
+
+---
+
+# 18. Filter
+
+Contoh:
+
+```http
+GET /api/v1/assets?condition=BROKEN
+```
+
+Multiple:
+
+```http
+GET /api/v1/assets?condition=BROKEN&categoryId=uuid&departmentId=uuid
+```
+
+Frontend menyimpan filter pada URL.
+
+---
+
+# 19. Date Filter
+
+Standard:
+
+```text
+dateFrom
+dateTo
+```
+
+Contoh:
+
+```http
+GET /api/v1/maintenance?dateFrom=2026-07-01&dateTo=2026-07-31
+```
+
+API menggunakan ISO format.
+
+---
+
+# 20. USERS API
+
+List users:
+
+```http
+GET /api/v1/users
+```
+
+Filter:
+
+```text
+search
+departmentId
+role
+isActive
+page
+limit
+```
+
+---
+
+# 21. Get User
+
+```http
+GET /api/v1/users/:id
+```
+
+---
+
+# 22. Create User
+
+```http
+POST /api/v1/users
+```
+
+Request:
+
+```json
+{
+  "employeeCode": "8000001",
+  "name": "John Doe",
+  "username": "john",
+  "email": "john@example.com",
+  "departmentId": "uuid",
+  "position": "IT Support",
+  "roles": [
+    "TECHNICIAN"
+  ]
+}
+```
+
+Password creation harus mengikuti flow security yang ditentukan sistem.
+
+---
+
+# 23. Update User
+
+```http
+PATCH /api/v1/users/:id
+```
+
+---
+
+# 24. Disable User
+
+Recommended:
+
+```http
+PATCH /api/v1/users/:id/status
+```
+
+Request:
+
+```json
+{
+  "isActive": false
+}
+```
+
+Jangan hard delete user yang memiliki history.
+
+---
+
+# 25. MASTER DATA API
+
+Pattern:
+
+```text
+/api/v1/master/*
+```
+
+Endpoints:
+
+```http
+GET    /api/v1/master/categories
+POST   /api/v1/master/categories
+PATCH  /api/v1/master/categories/:id
+
+GET    /api/v1/master/subcategories
+POST   /api/v1/master/subcategories
+PATCH  /api/v1/master/subcategories/:id
+
+GET    /api/v1/master/brands
+POST   /api/v1/master/brands
+PATCH  /api/v1/master/brands/:id
+
+GET    /api/v1/master/departments
+POST   /api/v1/master/departments
+PATCH  /api/v1/master/departments/:id
+
+GET    /api/v1/master/vendors
+POST   /api/v1/master/vendors
+PATCH  /api/v1/master/vendors/:id
+
+GET    /api/v1/master/maintenance-types
+POST   /api/v1/master/maintenance-types
+PATCH  /api/v1/master/maintenance-types/:id
+```
+
+---
+
+# 26. Location API
+
+Sites:
+
+```http
+GET    /api/v1/master/sites
+POST   /api/v1/master/sites
+PATCH  /api/v1/master/sites/:id
+```
+
+Buildings:
+
+```http
+GET    /api/v1/master/buildings
+POST   /api/v1/master/buildings
+PATCH  /api/v1/master/buildings/:id
+```
+
+Floors:
+
+```http
+GET    /api/v1/master/floors
+POST   /api/v1/master/floors
+PATCH  /api/v1/master/floors/:id
+```
+
+Rooms:
+
+```http
+GET    /api/v1/master/rooms
+POST   /api/v1/master/rooms
+PATCH  /api/v1/master/rooms/:id
+```
+
+---
+
+# 27. Dependent Location
+
+Example:
+
+```http
+GET /api/v1/master/buildings?siteId=uuid
+```
+
+```http
+GET /api/v1/master/floors?buildingId=uuid
+```
+
+```http
+GET /api/v1/master/rooms?floorId=uuid
+```
+
+Frontend dapat membuat:
+
+```text
+Site
+ ↓
+Building
+ ↓
+Floor
+ ↓
+Room
+```
+
+---
+
+# 28. ASSET API
+
+Base:
+
+```text
+/api/v1/assets
+```
+
+---
+
+# 29. List Assets
+
+```http
+GET /api/v1/assets
+```
+
+Supported query:
+
+```text
+search
+categoryId
+subcategoryId
+brandId
+siteId
+buildingId
+floorId
+roomId
+departmentId
+picId
+condition
+status
+warrantyStatus
+page
+limit
+sortBy
+sortOrder
+```
+
+---
+
+# 30. Asset List Response
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "assetCode": "AST-IT-000021",
+      "assetName": "Lenovo ThinkPad E14",
+      "category": {
+        "id": "uuid",
+        "name": "IT"
+      },
+      "subcategory": {
+        "id": "uuid",
+        "name": "Laptop"
+      },
+      "brand": {
+        "id": "uuid",
+        "name": "Lenovo"
+      },
+      "model": "ThinkPad E14",
+      "serialNumber": "ABC123",
+      "location": {
+        "site": "Head Office",
+        "building": "Main Building",
+        "floor": "Floor 1",
+        "room": "Accounting"
+      },
+      "pic": {
+        "id": "uuid",
+        "name": "User A"
+      },
+      "condition": "GOOD",
+      "status": "IN_USE",
+      "lastMaintenanceDate": "2026-07-20"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 25,
+    "total": 1284,
+    "totalPages": 52
+  }
+}
+```
+
+---
+
+# 31. Get Asset
+
+Support internal UUID:
+
+```http
+GET /api/v1/assets/:id
+```
+
+Untuk lookup berdasarkan human-readable code gunakan endpoint eksplisit:
+
+```http
+GET /api/v1/assets/code/:assetCode
+```
+
+Contoh:
+
+```http
+GET /api/v1/assets/code/AST-IT-000021
+```
+
+Ini menghindari ambiguity antara UUID dan asset code.
+
+---
+
+# 32. Asset Detail Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "assetCode": "AST-IT-000021",
+    "assetName": "Lenovo ThinkPad E14",
+    "category": {},
+    "subcategory": {},
+    "brand": {},
+    "model": "ThinkPad E14",
+    "serialNumber": "ABC123",
+    "specification": "Intel Core i5, 16GB RAM",
+    "purchase": {
+      "date": "2025-01-12",
+      "price": 1000,
+      "vendor": {},
+      "invoiceNumber": "INV-001"
+    },
+    "warranty": {
+      "start": "2025-01-12",
+      "end": "2028-01-12",
+      "status": "ACTIVE",
+      "daysRemaining": 531
+    },
+    "location": {},
+    "department": {},
+    "pic": {},
+    "condition": "GOOD",
+    "status": "IN_USE",
+    "healthScore": 92,
+    "photoUrl": "/uploads/assets/example.webp",
+    "maintenanceSummary": {
+      "lastMaintenance": "2026-07-20",
+      "nextMaintenance": "2026-10-20",
+      "totalMaintenance": 4,
+      "totalCost": 150
+    }
+  }
+}
+```
+
+---
+
+# 33. Create Asset
+
+```http
+POST /api/v1/assets
+```
+
+Request:
+
+```json
+{
+  "assetName": "Lenovo ThinkPad E14",
+  "categoryId": "uuid",
+  "subcategoryId": "uuid",
+  "brandId": "uuid",
+  "model": "ThinkPad E14",
+  "serialNumber": "ABC123",
+  "specification": "Intel Core i5, 16GB RAM",
+  "purchaseDate": "2026-07-30",
+  "purchasePrice": 1000,
+  "vendorId": "uuid",
+  "invoiceNumber": "INV-001",
+  "warrantyStart": "2026-07-30",
+  "warrantyEnd": "2029-07-30",
+  "siteId": "uuid",
+  "buildingId": "uuid",
+  "floorId": "uuid",
+  "roomId": "uuid",
+  "departmentId": "uuid",
+  "picId": "uuid",
+  "condition": "GOOD",
+  "status": "IN_USE",
+  "notes": ""
+}
+```
+
+Asset code dibuat backend.
+
+Frontend tidak membuat asset code.
+
+---
+
+# 34. Create Asset Response
+
+```json
+{
+  "success": true,
+  "message": "Asset created successfully.",
+  "data": {
+    "id": "uuid",
+    "assetCode": "AST-IT-000022"
+  }
+}
+```
+
+---
+
+# 35. Update Asset
+
+```http
+PATCH /api/v1/assets/:id
+```
+
+Hanya field yang dikirim yang diubah.
+
+Contoh:
+
+```json
+{
+  "brandId": "uuid",
+  "model": "ThinkPad E14 Gen 5",
+  "notes": "Updated specification."
+}
+```
+
+Condition, current PIC, dan location sebaiknya tidak diubah melalui generic update karena membutuhkan history.
+
+---
+
+# 36. Update Asset Condition
+
+Dedicated endpoint:
+
+```http
+PATCH /api/v1/assets/:id/condition
+```
+
+Request:
+
+```json
+{
+  "condition": "FAIR",
+  "reason": "Battery health decreased.",
+  "notes": "Battery replacement recommended."
+}
+```
+
+Backend transaction:
+
+```text
+BEGIN
+
+Read current condition
+
+Validate transition
+
+Update assets.condition
+
+Insert asset_condition_history
+
+Insert audit_logs
+
+COMMIT
+```
+
+---
+
+# 37. Condition Response
+
+```json
+{
+  "success": true,
+  "message": "Asset condition updated.",
+  "data": {
+    "assetCode": "AST-IT-000021",
+    "previousCondition": "GOOD",
+    "condition": "FAIR"
+  }
+}
+```
+
+---
+
+# 38. Asset Condition History
+
+```http
+GET /api/v1/assets/:id/condition-history
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "previousCondition": "GOOD",
+      "newCondition": "FAIR",
+      "reason": "Battery health decreased.",
+      "changedBy": {
+        "id": "uuid",
+        "name": "IT Administrator"
+      },
+      "createdAt": "2026-07-30T10:30:00+07:00"
+    }
+  ]
+}
+```
+
+---
+
+# 39. Asset Assignment
+
+Assign:
+
+```http
+POST /api/v1/assets/:id/assignments
+```
+
+Request:
+
+```json
+{
+  "userId": "uuid",
+  "departmentId": "uuid",
+  "assignedDate": "2026-07-30",
+  "notes": ""
+}
+```
+
+---
+
+# 40. Return Asset
+
+```http
+POST /api/v1/assets/:id/assignments/return
+```
+
+Request:
+
+```json
+{
+  "returnedDate": "2026-07-30",
+  "notes": "Returned to IT."
+}
+```
+
+Backend harus menutup active assignment.
+
+---
+
+# 41. Assignment History
+
+```http
+GET /api/v1/assets/:id/assignments
+```
+
+---
+
+# 42. Transfer Asset
+
+```http
+POST /api/v1/assets/:id/movements
+```
+
+Request:
+
+```json
+{
+  "siteId": "uuid",
+  "buildingId": "uuid",
+  "floorId": "uuid",
+  "roomId": "uuid",
+  "departmentId": "uuid",
+  "picId": "uuid",
+  "movementDate": "2026-07-30",
+  "reason": "Transferred to Accounting.",
+  "notes": ""
+}
+```
+
+Backend transaction:
+
+```text
+BEGIN
+
+Read current location/PIC
+
+Create asset movement
+
+Update asset current location
+
+Update department
+
+Update PIC if supplied
+
+Update assignment when required
+
+Create audit log
+
+COMMIT
+```
+
+---
+
+# 43. Asset Movement History
+
+```http
+GET /api/v1/assets/:id/movements
+```
+
+---
+
+# 44. Asset Timeline
+
+```http
+GET /api/v1/assets/:id/timeline
+```
+
+Optional:
+
+```text
+?page=1&limit=25
+```
+
+Backend menggabungkan:
+
+```text
+Condition History
+Assignments
+Movements
+Maintenance
+Tickets
+Relevant Asset Events
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "type": "CONDITION_CHANGED",
+      "title": "Condition changed",
+      "description": "GOOD → FAIR",
+      "actor": {
+        "name": "IT Administrator"
+      },
+      "createdAt": "2026-07-30T10:30:00+07:00"
+    },
+    {
+      "type": "MAINTENANCE_COMPLETED",
+      "title": "Maintenance completed",
+      "reference": "MNT-2026-000021",
+      "createdAt": "2026-07-28T13:20:00+07:00"
+    }
+  ]
+}
+```
+
+---
+
+# 45. Asset Documents
+
+List:
+
+```http
+GET /api/v1/assets/:id/documents
+```
+
+Upload:
+
+```http
+POST /api/v1/assets/:id/documents
+```
+
+Multipart:
+
+```text
+file
+documentType
+description
+```
+
+Delete:
+
+```http
+DELETE /api/v1/assets/:id/documents/:documentId
+```
+
+Deletion harus tetap masuk audit log.
+
+---
+
+# 46. Asset Photo
+
+Recommended:
+
+```http
+POST /api/v1/assets/:id/photo
+```
+
+Multipart:
+
+```text
+photo
+```
+
+Backend melakukan:
+
+```text
+Validate MIME
+Validate file size
+Generate safe filename
+Store file
+Update asset photo
+```
+
+---
+
+# 47. QR API
+
+Generate/read QR information:
+
+```http
+GET /api/v1/assets/:id/qr
+```
+
+Response dapat berisi:
+
+```json
+{
+  "success": true,
+  "data": {
+    "assetCode": "AST-IT-000021",
+    "qrValue": "AST-IT-000021"
+  }
+}
+```
+
+QR image dapat dibuat frontend atau backend sesuai implementasi final.
+
+---
+
+# 48. QR Lookup
+
+Scanner membaca:
+
+```text
+AST-IT-000021
+```
+
+Frontend request:
+
+```http
+GET /api/v1/qr/assets/AST-IT-000021
+```
+
+Response dibuat ringan untuk penggunaan mobile:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "assetCode": "AST-IT-000021",
+    "assetName": "Lenovo ThinkPad E14",
+    "condition": "GOOD",
+    "status": "IN_USE",
+    "location": "Accounting",
+    "pic": "User A",
+    "lastMaintenance": "2026-07-20",
+    "nextMaintenance": "2026-10-20"
+  }
+}
+```
+
+---
+
+# 49. Retire Asset
+
+Dedicated action:
+
+```http
+POST /api/v1/assets/:id/retire
+```
+
+Request:
+
+```json
+{
+  "reason": "Asset reached end of useful life.",
+  "notes": ""
+}
+```
+
+Backend:
+
+```text
+status → RETIRED
+condition → RETIRED
+```
+
+History dan audit log wajib dibuat.
+
+---
+
+# 50. Dispose Asset
+
+```http
+POST /api/v1/assets/:id/dispose
+```
+
+Request:
+
+```json
+{
+  "disposalDate": "2026-07-30",
+  "reason": "Damaged beyond repair.",
+  "notes": ""
+}
+```
+
+Disposal tidak berarti DELETE.
+
+Asset tetap berada di database.
+
+---
+
+# 51. MAINTENANCE API
+
+Base:
+
+```text
+/api/v1/maintenance
+```
+
+---
+
+# 52. List Maintenance
+
+```http
+GET /api/v1/maintenance
+```
+
+Query:
+
+```text
+search
+assetId
+category
+typeId
+status
+priority
+technicianId
+vendorId
+dateFrom
+dateTo
+page
+limit
+sortBy
+sortOrder
+```
+
+---
+
+# 53. Get Maintenance
+
+```http
+GET /api/v1/maintenance/:id
+```
+
+Lookup by code:
+
+```http
+GET /api/v1/maintenance/code/:maintenanceCode
+```
+
+---
+
+# 54. Create Maintenance
+
+```http
+POST /api/v1/maintenance
+```
+
+Request:
+
+```json
+{
+  "assetId": "uuid",
+  "maintenanceTypeId": "uuid",
+  "maintenanceCategory": "CORRECTIVE",
+  "problem": "Battery does not charge.",
+  "priority": "HIGH",
+  "technicianId": "uuid",
+  "vendorId": null,
+  "scheduledDate": "2026-07-30",
+  "notes": ""
+}
+```
+
+Backend membuat:
+
+```text
+MNT-2026-000001
+```
+
+---
+
+# 55. Maintenance Detail Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "maintenanceCode": "MNT-2026-000021",
+    "asset": {
+      "id": "uuid",
+      "assetCode": "AST-IT-000021",
+      "assetName": "Lenovo ThinkPad E14"
+    },
+    "category": "CORRECTIVE",
+    "problem": "Battery does not charge.",
+    "diagnosis": null,
+    "actionTaken": null,
+    "priority": "HIGH",
+    "status": "IN_PROGRESS",
+    "technician": {},
+    "vendor": null,
+    "cost": {
+      "labor": 0,
+      "parts": 0,
+      "other": 0,
+      "total": 0
+    }
+  }
+}
+```
+
+---
+
+# 56. Maintenance Status Actions
+
+Daripada generic status update tanpa rule, gunakan action endpoints.
+
+Assign:
+
+```http
+POST /api/v1/maintenance/:id/assign
+```
+
+Start:
+
+```http
+POST /api/v1/maintenance/:id/start
+```
+
+Move to waiting part:
+
+```http
+POST /api/v1/maintenance/:id/waiting-part
+```
+
+Move to testing:
+
+```http
+POST /api/v1/maintenance/:id/testing
+```
+
+Complete:
+
+```http
+POST /api/v1/maintenance/:id/complete
+```
+
+Cancel:
+
+```http
+POST /api/v1/maintenance/:id/cancel
+```
+
+Backend mengontrol allowed transition.
+
+---
+
+# 57. Maintenance Workflow Rules
+
+Recommended:
+
+```text
+OPEN
+ ↓
+ASSIGNED
+ ↓
+IN_PROGRESS
+ ├── WAITING_PART
+ │       ↓
+ │   IN_PROGRESS
+ │
+ ↓
+TESTING
+ ↓
+COMPLETED
+```
+
+`CANCELLED` hanya diperbolehkan dari state tertentu sesuai business rule.
+
+Invalid transition:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_MAINTENANCE_TRANSITION",
+    "message": "Maintenance cannot move from COMPLETED to IN_PROGRESS."
+  }
+}
+```
+
+---
+
+# 58. Assign Maintenance
+
+```http
+POST /api/v1/maintenance/:id/assign
+```
+
+Request:
+
+```json
+{
+  "technicianId": "uuid"
+}
+```
+
+---
+
+# 59. Start Maintenance
+
+```http
+POST /api/v1/maintenance/:id/start
+```
+
+Backend:
+
+```text
+status → IN_PROGRESS
+start_date → current timestamp
+```
+
+Asset dapat berubah:
+
+```text
+status → IN_MAINTENANCE
+```
+
+sesuai business rule.
+
+---
+
+# 60. Update Diagnosis
+
+```http
+PATCH /api/v1/maintenance/:id
+```
+
+Request:
+
+```json
+{
+  "diagnosis": "Battery cells have degraded.",
+  "actionTaken": "Battery replaced."
+}
+```
+
+---
+
+# 61. Add Maintenance Part
+
+```http
+POST /api/v1/maintenance/:id/parts
+```
+
+Request:
+
+```json
+{
+  "partName": "Laptop Battery",
+  "partNumber": "BAT-E14",
+  "quantity": 1,
+  "unitPrice": 50,
+  "vendorId": "uuid",
+  "notes": ""
+}
+```
+
+Backend menghitung:
+
+```text
+totalPrice
+```
+
+Jangan percaya `totalPrice` dari frontend.
+
+---
+
+# 62. Update Maintenance Part
+
+```http
+PATCH /api/v1/maintenance/:id/parts/:partId
+```
+
+---
+
+# 63. Delete Maintenance Part
+
+```http
+DELETE /api/v1/maintenance/:id/parts/:partId
+```
+
+Setelah perubahan part:
+
+```text
+maintenance.parts_cost
+maintenance.total_cost
+```
+
+harus dihitung ulang.
+
+---
+
+# 64. Complete Maintenance
+
+```http
+POST /api/v1/maintenance/:id/complete
+```
+
+Request:
+
+```json
+{
+  "diagnosis": "Battery failure.",
+  "actionTaken": "Battery replaced and charging tested.",
+  "result": "Asset working normally.",
+  "laborCost": 20,
+  "otherCost": 0,
+  "assetCondition": "GOOD",
+  "notes": ""
+}
+```
+
+Backend transaction:
+
+```text
+BEGIN
+
+Validate current maintenance state
+
+Calculate parts cost
+
+Calculate total cost
+
+Update maintenance
+
+Set COMPLETED
+
+Set finish_date
+
+Update asset status
+
+Update asset condition
+
+Insert condition history if changed
+
+Update maintenance schedule
+
+Resolve linked ticket when applicable
+
+Create audit log
+
+COMMIT
+```
+
+---
+
+# 65. Maintenance Documents
+
+List:
+
+```http
+GET /api/v1/maintenance/:id/documents
+```
+
+Upload:
+
+```http
+POST /api/v1/maintenance/:id/documents
+```
+
+Types:
+
+```text
+BEFORE_PHOTO
+AFTER_PHOTO
+INVOICE
+SERVICE_REPORT
+OTHER
+```
+
+---
+
+# 66. Maintenance Schedule API
+
+Base:
+
+```text
+/api/v1/maintenance-schedules
+```
+
+List:
+
+```http
+GET /api/v1/maintenance-schedules
+```
+
+Create:
+
+```http
+POST /api/v1/maintenance-schedules
+```
+
+Request:
+
+```json
+{
+  "assetId": "uuid",
+  "maintenanceTypeId": "uuid",
+  "frequencyType": "MONTHS",
+  "frequencyValue": 3,
+  "nextMaintenanceDate": "2026-10-30",
+  "reminderDays": 7
+}
+```
+
+---
+
+# 67. Update Schedule
+
+```http
+PATCH /api/v1/maintenance-schedules/:id
+```
+
+---
+
+# 68. Disable Schedule
+
+```http
+PATCH /api/v1/maintenance-schedules/:id/status
+```
+
+Request:
+
+```json
+{
+  "isActive": false
+}
+```
+
+---
+
+# 69. Upcoming Maintenance
+
+```http
+GET /api/v1/maintenance-schedules/upcoming
+```
+
+Query:
+
+```text
+days=30
+```
+
+Response:
+
+```text
+Maintenance due within next 30 days
+```
+
+---
+
+# 70. Overdue Maintenance
+
+```http
+GET /api/v1/maintenance-schedules/overdue
+```
+
+---
+
+# 71. TICKET API
+
+Base:
+
+```text
+/api/v1/tickets
+```
+
+---
+
+# 72. List Tickets
+
+```http
+GET /api/v1/tickets
+```
+
+Query:
+
+```text
+search
+assetId
+reporterId
+assignedTo
+priority
+status
+dateFrom
+dateTo
+page
+limit
+```
+
+---
+
+# 73. Create Ticket
+
+```http
+POST /api/v1/tickets
+```
+
+Request:
+
+```json
+{
+  "assetId": "uuid",
+  "title": "Laptop cannot turn on",
+  "description": "Laptop does not respond when power button is pressed.",
+  "priority": "HIGH"
+}
+```
+
+Backend menghasilkan:
+
+```text
+TKT-2026-000001
+```
+
+---
+
+# 74. Get Ticket
+
+```http
+GET /api/v1/tickets/:id
+```
+
+atau:
+
+```http
+GET /api/v1/tickets/code/:ticketCode
+```
+
+---
+
+# 75. Assign Ticket
+
+```http
+POST /api/v1/tickets/:id/assign
+```
+
+Request:
+
+```json
+{
+  "technicianId": "uuid"
+}
+```
+
+---
+
+# 76. Start Ticket
+
+```http
+POST /api/v1/tickets/:id/start
+```
+
+---
+
+# 77. Resolve Ticket
+
+```http
+POST /api/v1/tickets/:id/resolve
+```
+
+Request:
+
+```json
+{
+  "resolution": "Battery connector reseated and tested."
+}
+```
+
+---
+
+# 78. Close Ticket
+
+```http
+POST /api/v1/tickets/:id/close
+```
+
+---
+
+# 79. Convert Ticket to Maintenance
+
+```http
+POST /api/v1/tickets/:id/create-maintenance
+```
+
+Request:
+
+```json
+{
+  "maintenanceTypeId": "uuid",
+  "technicianId": "uuid",
+  "vendorId": null
+}
+```
+
+Backend:
+
+```text
+Create maintenance record
+
+maintenance.ticket_id = ticket.id
+
+Copy problem information
+
+Update ticket state when required
+
+Audit action
+```
+
+---
+
+# 80. Ticket Comments
+
+List:
+
+```http
+GET /api/v1/tickets/:id/comments
+```
+
+Create:
+
+```http
+POST /api/v1/tickets/:id/comments
+```
+
+Request:
+
+```json
+{
+  "comment": "Device has been collected by IT.",
+  "isInternal": false
+}
+```
+
+---
+
+# 81. DASHBOARD API
+
+Base:
+
+```text
+/api/v1/dashboard
+```
+
+---
+
+# 82. Dashboard Summary
+
+```http
+GET /api/v1/dashboard/summary
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "totalAssets": 1284,
+    "good": 1100,
+    "fair": 80,
+    "needAttention": 45,
+    "broken": 25,
+    "critical": 4,
+    "inMaintenance": 30
+  }
+}
+```
+
+---
+
+# 83. Condition Overview
+
+```http
+GET /api/v1/dashboard/asset-conditions
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "condition": "GOOD",
+      "count": 1100
+    },
+    {
+      "condition": "FAIR",
+      "count": 80
+    }
+  ]
+}
+```
+
+---
+
+# 84. Maintenance Overview
+
+```http
+GET /api/v1/dashboard/maintenance
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "today": 5,
+    "upcoming": 12,
+    "overdue": 8,
+    "completedThisMonth": 34
+  }
+}
+```
+
+---
+
+# 85. Critical Assets
+
+```http
+GET /api/v1/dashboard/critical-assets
+```
+
+Recommended:
+
+```text
+limit=10
+```
+
+---
+
+# 86. Recent Activity
+
+```http
+GET /api/v1/dashboard/recent-activity
+```
+
+Recommended:
+
+```text
+limit=20
+```
+
+---
+
+# 87. REPORT API
+
+Base:
+
+```text
+/api/v1/reports
+```
+
+Endpoints:
+
+```http
+GET /api/v1/reports/inventory
+GET /api/v1/reports/asset-condition
+GET /api/v1/reports/maintenance
+GET /api/v1/reports/maintenance-cost
+GET /api/v1/reports/broken-assets
+GET /api/v1/reports/asset-movement
+GET /api/v1/reports/warranty
+GET /api/v1/reports/asset-aging
+```
+
+Semua report mendukung filter yang relevan.
+
+---
+
+# 88. Export API
+
+Recommended:
+
+```http
+POST /api/v1/reports/export
+```
+
+Request:
+
+```json
+{
+  "report": "INVENTORY",
+  "format": "XLSX",
+  "filters": {
+    "categoryId": null,
+    "condition": null
+  }
+}
+```
+
+Untuk report kecil, server dapat langsung mengembalikan file.
+
+Untuk report besar, gunakan async export job.
+
+---
+
+# 89. Export Job
+
+Future / recommended production:
+
+```http
+POST /api/v1/exports
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "jobId": "uuid",
+    "status": "PROCESSING"
+  }
+}
+```
+
+Check:
+
+```http
+GET /api/v1/exports/:jobId
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "COMPLETED",
+    "downloadUrl": "/api/v1/exports/uuid/download"
+  }
+}
+```
+
+---
+
+# 90. NOTIFICATION API
+
+List:
+
+```http
+GET /api/v1/notifications
+```
+
+Unread:
+
+```http
+GET /api/v1/notifications?isRead=false
+```
+
+Mark one as read:
+
+```http
+PATCH /api/v1/notifications/:id/read
+```
+
+Mark all:
+
+```http
+POST /api/v1/notifications/read-all
+```
+
+---
+
+# 91. AUDIT LOG API
+
+```http
+GET /api/v1/audit-logs
+```
+
+Permission:
+
+```text
+admin.audit.read
+```
+
+Filters:
+
+```text
+userId
+action
+entityType
+entityId
+dateFrom
+dateTo
+page
+limit
+```
+
+Audit logs read-only.
+
+Tidak tersedia:
+
+```text
+POST
+PATCH
+DELETE
+```
+
+untuk normal application users.
+
+---
+
+# 92. FILE UPLOAD SECURITY
+
+Backend wajib melakukan:
+
+```text
+MIME validation
+
+Extension validation
+
+Maximum size validation
+
+Random filename
+
+Path sanitization
+
+Authorization
+
+File ownership check
+```
+
+Jangan gunakan original filename sebagai physical storage filename.
+
+---
+
+# 93. Recommended Upload Limits
+
+Images:
+
+```text
+5 MB
+```
+
+Documents:
+
+```text
+10 MB
+```
+
+Nilai harus configurable melalui environment variables.
+
+---
+
+# 94. Allowed Images
+
+Recommended:
+
+```text
+image/jpeg
+image/png
+image/webp
+```
+
+SVG upload dari user sebaiknya tidak diizinkan pada MVP karena memiliki risiko active content jika tidak disanitasi dengan benar.
+
+---
+
+# 95. Allowed Documents
+
+Recommended:
+
+```text
+application/pdf
+```
+
+Tambahkan format lain hanya jika benar-benar dibutuhkan.
+
+---
+
+# 96. API Validation
+
+Semua request harus divalidasi menggunakan Zod.
+
+Contoh conceptual schema:
+
+```text
+assetName
+min 1
+max 200
+
+purchasePrice
+>= 0
+
+healthScore
+0 - 100
+
+condition
+valid enum
+
+assetId
+valid UUID
+```
+
+Validation frontend tidak menggantikan validation backend.
+
+---
+
+# 97. Database Transactions
+
+Endpoint berikut wajib menggunakan transaction:
+
+```text
+Create Asset with Assignment
+
+Update Condition
+
+Transfer Asset
+
+Assign / Return Asset
+
+Complete Maintenance
+
+Retire Asset
+
+Dispose Asset
+
+Convert Ticket to Maintenance
+```
+
+Jika satu operation gagal:
+
+```text
+ROLLBACK
+```
+
+---
+
+# 98. Idempotency
+
+Untuk action yang berpotensi dikirim ulang akibat koneksi lambat, pertimbangkan:
+
+```http
+Idempotency-Key: <uuid>
+```
+
+Terutama:
+
+```text
+Create Asset
+Create Maintenance
+Transfer Asset
+Complete Maintenance
+Report Export
+```
+
+Dapat diterapkan setelah MVP jika diperlukan.
+
+---
+
+# 99. Concurrency
+
+Backend harus mencegah update saling menimpa.
+
+Recommended:
+
+```text
+updated_at
+```
+
+atau optimistic locking menggunakan:
+
+```text
+version
+```
+
+Contoh:
+
+User A membuka asset.
+
+User B mengubah asset.
+
+User A mencoba menyimpan data lama.
+
+API dapat mengembalikan:
+
+```text
+409 Conflict
+```
+
+---
+
+# 100. Error Codes
+
+Gunakan machine-readable error code.
+
+Examples:
+
+```text
+AUTH_INVALID_CREDENTIALS
+
+AUTH_TOKEN_EXPIRED
+
+FORBIDDEN
+
+VALIDATION_ERROR
+
+ASSET_NOT_FOUND
+
+ASSET_CODE_EXISTS
+
+INVALID_ASSET_CONDITION
+
+INVALID_ASSET_STATUS
+
+ASSET_ALREADY_RETIRED
+
+MAINTENANCE_NOT_FOUND
+
+INVALID_MAINTENANCE_TRANSITION
+
+TICKET_NOT_FOUND
+
+INVALID_TICKET_TRANSITION
+
+FILE_TOO_LARGE
+
+INVALID_FILE_TYPE
+
+RESOURCE_CONFLICT
+
+INTERNAL_ERROR
+```
+
+Frontend tidak perlu membaca text message untuk menentukan logic.
+
+Gunakan:
+
+```text
+error.code
+```
+
+---
+
+# 101. Logging
+
+Backend log minimum:
+
+```text
+timestamp
+requestId
+method
+route
+statusCode
+duration
+userId
+```
+
+Jangan log:
+
+```text
+password
+JWT
+refresh token
+secret
+sensitive document content
+```
+
+---
+
+# 102. Request ID
+
+Setiap request diberikan:
+
+```text
+requestId
+```
+
+Response header:
+
+```http
+X-Request-ID: uuid
+```
+
+Jika terjadi error, response dapat menyertakan:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INTERNAL_ERROR",
+    "message": "An unexpected error occurred.",
+    "requestId": "uuid"
+  }
+}
+```
+
+Mempermudah debugging.
+
+---
+
+# 103. Rate Limiting
+
+Authentication:
+
+```text
+lebih ketat
+```
+
+General API:
+
+```text
+lebih longgar
+```
+
+Contoh policy harus configurable.
+
+Terutama lindungi:
+
+```text
+/auth/login
+/upload
+/export
+```
+
+---
+
+# 104. CORS
+
+Production hanya mengizinkan trusted frontend origins.
+
+Contoh:
+
+```text
+CORS_ORIGIN=https://inventory.company.com
+```
+
+Jangan production:
+
+```text
+*
+```
+
+jika menggunakan credential/session-sensitive flow.
+
+---
+
+# 105. Security Headers
+
+Gunakan security middleware seperti Helmet.
+
+Recommended:
+
+```text
+Helmet
+CORS
+Rate Limit
+Body Size Limit
+Input Validation
+```
+
+---
+
+# 106. SQL Security
+
+Seluruh query harus menggunakan:
+
+```text
+Parameterized Query
+```
+
+atau ORM/query builder yang melakukan parameterization dengan benar.
+
+Dilarang:
+
+```text
+SQL string concatenation
+```
+
+dengan input user.
+
+---
+
+# 107. Password Security
+
+Gunakan password hashing kuat seperti:
+
+```text
+Argon2id
+```
+
+atau:
+
+```text
+bcrypt
+```
+
+Password tidak pernah:
+
+```text
+Logged
+Returned
+Stored as plaintext
+```
+
+---
+
+# 108. Token Storage
+
+Jika architecture memungkinkan, refresh token lebih aman disimpan menggunakan:
+
+```text
+Secure
+HttpOnly
+SameSite
+Cookie
+```
+
+Hindari menyimpan long-lived sensitive token di `localStorage`.
+
+Access-token strategy final harus ditentukan sebelum implementasi authentication.
+
+---
+
+# 109. API Caching
+
+Data yang relatif jarang berubah dapat di-cache frontend melalui TanStack Query:
+
+```text
+Categories
+Brands
+Departments
+Locations
+Maintenance Types
+```
+
+Data operasional:
+
+```text
+Dashboard
+Assets
+Maintenance
+Tickets
+```
+
+menggunakan stale time lebih pendek.
+
+---
+
+# 110. Cache Invalidation
+
+Setelah:
+
+```text
+Update Asset Condition
+```
+
+invalidate:
+
+```text
+asset detail
+asset condition history
+asset timeline
+asset list
+dashboard summary
+dashboard condition
+```
+
+Setelah:
+
+```text
+Complete Maintenance
+```
+
+invalidate:
+
+```text
+maintenance detail
+maintenance list
+asset detail
+asset timeline
+dashboard
+maintenance schedule
+```
+
+---
+
+# 111. API Performance
+
+List endpoint tidak boleh mengembalikan seluruh nested relationship.
+
+List:
+
+```text
+lightweight
+```
+
+Detail:
+
+```text
+complete
+```
+
+Contoh:
+
+```http
+GET /assets
+```
+
+tidak perlu mengembalikan:
+
+```text
+full maintenance history
+documents
+timeline
+audit log
+```
+
+---
+
+# 112. N+1 Query Prevention
+
+Backend harus menghindari query:
+
+```text
+1 asset query
++
+1 category query per asset
++
+1 user query per asset
++
+1 location query per asset
+```
+
+Gunakan:
+
+```text
+JOIN
+batch query
+ORM relation loading
+```
+
+secara efisien.
+
+---
+
+# 113. Dashboard Performance
+
+Dashboard sebaiknya tidak mengambil seluruh data inventory.
+
+Gunakan aggregate query:
+
+```text
+COUNT
+SUM
+GROUP BY
+```
+
+Contoh:
+
+```text
+COUNT assets GROUP BY condition
+```
+
+---
+
+# 114. API Documentation
+
+Recommended:
+
+```text
+OpenAPI 3.x
+```
+
+dan development UI:
+
+```text
+Swagger UI
+```
+
+Endpoint documentation harus mencakup:
+
+```text
+Method
+Path
+Permission
+Parameters
+Request Body
+Response
+Errors
+```
+
+---
+
+# 115. Health Endpoint
+
+```http
+GET /api/v1/health
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "healthy"
+  }
+}
+```
+
+Untuk internal monitoring dapat ditambah:
+
+```text
+database
+storage
+version
+uptime
+```
+
+Jangan expose sensitive infrastructure information ke endpoint public.
+
+---
+
+# 116. API Version Endpoint
+
+Optional:
+
+```http
+GET /api/v1/version
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "api": "1.0.0"
+  }
+}
+```
+
+---
+
+# 117. Recommended Backend Layers
+
+API implementation:
+
+```text
+Route
+
+↓
+
+Middleware
+
+↓
+
+Controller
+
+↓
+
+Service
+
+↓
+
+Repository
+
+↓
+
+Database
+```
+
+Responsibilities:
+
+```text
+Route
+Endpoint definition
+
+Middleware
+Auth / Permission / Validation
+
+Controller
+HTTP request / response
+
+Service
+Business logic
+
+Repository
+Database access
+
+Database
+PostgreSQL
+```
+
+---
+
+# 118. Example Asset Request Flow
+
+```text
+PATCH
+/assets/:id/condition
+
+↓
+
+authenticate()
+
+↓
+
+authorize("asset.update")
+
+↓
+
+validate(updateConditionSchema)
+
+↓
+
+assetController.updateCondition()
+
+↓
+
+assetService.updateCondition()
+
+↓
+
+transaction
+
+├── assetRepository.updateCondition()
+├── conditionHistoryRepository.create()
+└── auditRepository.create()
+
+↓
+
+response
+```
+
+---
+
+# 119. Controller Rule
+
+Controller harus tipis.
+
+Jangan:
+
+```text
+Controller
+├ SQL
+├ business rule
+├ transaction
+├ audit
+├ response
+└ notification
+```
+
+Gunakan:
+
+```text
+Controller
+   ↓
+Service
+```
+
+Business logic berada di service.
+
+---
+
+# 120. Repository Rule
+
+Repository hanya bertanggung jawab terhadap persistence.
+
+Contoh:
+
+```text
+findAssetById()
+
+findAssetByCode()
+
+createAsset()
+
+updateAsset()
+
+createConditionHistory()
+```
+
+Repository tidak menentukan business workflow.
+
+---
+
+# 121. Service Rule
+
+Service menangani:
+
+```text
+Business Rules
+Transactions
+Workflow
+Cross-domain coordination
+```
+
+Contoh:
+
+```text
+completeMaintenance()
+```
+
+dapat mengubah:
+
+```text
+maintenance
+asset
+condition history
+schedule
+ticket
+audit log
+```
+
+---
+
+# 122. API MVP Priority
+
+## Phase 1
+
+```text
+Health
+
+Auth
+
+Users
+
+Roles
+
+Master Data
+
+Assets
+
+Asset Condition
+
+QR Lookup
+
+Asset Timeline
+```
+
+## Phase 2
+
+```text
+Assignments
+
+Movements
+
+Asset Documents
+
+Maintenance
+
+Maintenance Parts
+
+Maintenance Documents
+```
+
+## Phase 3
+
+```text
+Maintenance Schedule
+
+Tickets
+
+Notifications
+
+Reports
+
+Audit Logs
+```
+
+## Phase 4
+
+```text
+Advanced Analytics
+
+Health Score
+
+Repeated Failure
+
+Replacement Recommendation
+
+Async Export
+```
+
+---
+
+# 123. Minimum MVP Endpoints
+
+Authentication:
+
+```text
+POST /auth/login
+GET  /auth/me
+```
+
+Dashboard:
+
+```text
+GET /dashboard/summary
+GET /dashboard/asset-conditions
+GET /dashboard/maintenance
+GET /dashboard/recent-activity
+```
+
+Assets:
+
+```text
+GET   /assets
+POST  /assets
+GET   /assets/:id
+GET   /assets/code/:assetCode
+PATCH /assets/:id
+PATCH /assets/:id/condition
+GET   /assets/:id/condition-history
+GET   /assets/:id/timeline
+```
+
+QR:
+
+```text
+GET /qr/assets/:assetCode
+```
+
+Maintenance:
+
+```text
+GET  /maintenance
+POST /maintenance
+GET  /maintenance/:id
+POST /maintenance/:id/assign
+POST /maintenance/:id/start
+POST /maintenance/:id/complete
+```
+
+Master:
+
+```text
+GET /master/categories
+GET /master/subcategories
+GET /master/brands
+GET /master/departments
+GET /master/sites
+GET /master/buildings
+GET /master/floors
+GET /master/rooms
+GET /master/vendors
+GET /master/maintenance-types
+```
+
+---
+
+# 124. API Contract Rule
+
+Frontend tidak boleh membuat asumsi berdasarkan database.
+
+Contoh:
+
+Jangan frontend menentukan:
+
+```text
+if maintenance completed
+then asset condition = GOOD
+```
+
+Frontend hanya meminta:
+
+```text
+Complete Maintenance
+```
+
+Backend menentukan:
+
+```text
+valid transition
+asset status
+asset condition
+history
+schedule
+audit
+ticket
+```
+
+Dengan prinsip:
+
+```text
+FRONTEND
+= PRESENTATION + USER INTERACTION
+
+BACKEND
+= BUSINESS RULES + DATA INTEGRITY
+```
+
+---
+
+# 125. Source of Truth
+
+Untuk data:
+
+```text
+PostgreSQL
+```
+
+adalah source of truth.
+
+Untuk business rule:
+
+```text
+Backend Service Layer
+```
+
+adalah source of truth.
+
+Untuk API contract:
+
+```text
+API.md
++
+OpenAPI Specification
+```
+
+adalah source of truth.
+
+Frontend tidak boleh menjadi source of truth untuk business state.
+
+---
+
+# 126. Final API Architecture
+
+```text
+                    ┌──────────────────────┐
+                    │                      │
+                    │    React Frontend    │
+                    │                      │
+                    └──────────┬───────────┘
+                               │
+                               │ HTTPS / JSON
+                               ▼
+                    ┌──────────────────────┐
+                    │                      │
+                    │      REST API        │
+                    │      /api/v1         │
+                    │                      │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │                      │
+                    │      Middleware      │
+                    │                      │
+                    │ Auth                 │
+                    │ Permission           │
+                    │ Validation           │
+                    │ Rate Limit           │
+                    │                      │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │      Controller      │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │       Service        │
+                    │                      │
+                    │   Business Logic     │
+                    │   Transactions       │
+                    │   Workflow           │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │      Repository      │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │                      │
+                    │     PostgreSQL       │
+                    │                      │
+                    └──────────────────────┘
+```
+
+---
+
+# 127. Core API Principle
+
+Setiap endpoint harus menjawab:
+
+```text
+WHO
+```
+
+Siapa yang melakukan request?
+
+```text
+CAN
+```
+
+Apakah user memiliki permission?
+
+```text
+VALID
+```
+
+Apakah request valid?
+
+```text
+ALLOWED
+```
+
+Apakah business state memperbolehkan action?
+
+```text
+TRANSACTION
+```
+
+Apakah perubahan data dilakukan secara atomic?
+
+```text
+HISTORY
+```
+
+Apakah perubahan penting tercatat?
+
+```text
+RESPONSE
+```
+
+Apakah frontend menerima response yang konsisten?
+
+Flow:
+
+```text
+REQUEST
+   ↓
+AUTHENTICATE
+   ↓
+AUTHORIZE
+   ↓
+VALIDATE
+   ↓
+BUSINESS RULE
+   ↓
+TRANSACTION
+   ↓
+AUDIT
+   ↓
+RESPONSE
+```
+
+---
+
+# 128. Document Relationship
+
+Project documentation:
+
+```text
+PRD.md                 ✅
+   ↓
+DATABASE.md            ✅
+   ↓
+UI_UX.md               ✅
+   ↓
+API.md                 ✅
+   ↓
+CODING_STANDARDS.md    NEXT
+   ↓
+TASK.md
+```
+
+Responsibilities:
+
+```text
+PRD
+What are we building?
+
+DATABASE
+How is the data stored?
+
+UI_UX
+How does the user interact?
+
+API
+How do frontend and backend communicate?
+
+CODING_STANDARDS
+How must the code be written?
+
+TASK
+In what order should the system be built?
+```
+
+---
+
+# 129. Final Rule
+
+Jika implementasi membutuhkan endpoint baru:
+
+```text
+DO NOT
+```
+
+langsung membuat endpoint tanpa dokumentasi.
+
+Flow:
+
+```text
+Requirement
+   ↓
+Check PRD
+   ↓
+Check Database
+   ↓
+Define API Contract
+   ↓
+Update API.md / OpenAPI
+   ↓
+Implement Backend
+   ↓
+Integrate Frontend
+   ↓
+Test
+```
+
+Dengan cara ini frontend, backend, database, dan dokumentasi tetap sinkron selama development Office Inventory Maintenance System.

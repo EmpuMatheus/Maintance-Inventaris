@@ -1,0 +1,2033 @@
+# DATABASE.md
+
+# Office Inventory Maintenance System
+
+**Database:** PostgreSQL
+**Version:** 1.0
+**Primary Application:** Office Inventory Maintenance System
+**Primary User:** IT Team
+
+---
+
+# 1. Database Objectives
+
+Database dirancang untuk menangani seluruh lifecycle inventaris kantor:
+
+`Asset Registration`
+
+↓
+
+`Assignment`
+
+↓
+
+`Condition Monitoring`
+
+↓
+
+`Issue Reporting`
+
+↓
+
+`Maintenance`
+
+↓
+
+`Movement`
+
+↓
+
+`History`
+
+↓
+
+`Retirement / Disposal`
+
+Prinsip utama database:
+
+* Data aset tidak boleh kehilangan history.
+* Perubahan kondisi harus tercatat.
+* Perpindahan aset harus tercatat.
+* Maintenance harus memiliki history.
+* Setiap aktivitas penting memiliki audit log.
+* Master data menggunakan relational reference.
+* Data penting tidak dihapus secara permanen.
+* Struktur harus mudah dikembangkan.
+
+---
+
+# 2. Database Naming Convention
+
+Gunakan:
+
+`snake_case`
+
+Contoh:
+
+```text
+asset_categories
+asset_condition_history
+maintenance_records
+maintenance_parts
+asset_movements
+```
+
+Primary Key:
+
+```text
+id
+```
+
+Foreign Key:
+
+```text
+asset_id
+category_id
+location_id
+user_id
+```
+
+Timestamp:
+
+```text
+created_at
+updated_at
+deleted_at
+```
+
+---
+
+# 3. Recommended ID Strategy
+
+Gunakan UUID sebagai internal database ID.
+
+Contoh:
+
+```text
+id UUID PRIMARY KEY
+```
+
+Sedangkan kode yang dilihat user menggunakan readable code.
+
+Contoh:
+
+```text
+AST-IT-000001
+MNT-2026-000001
+TKT-2026-000001
+MOV-2026-000001
+```
+
+Dengan demikian:
+
+```text
+UUID
+```
+
+digunakan sistem.
+
+Sedangkan:
+
+```text
+asset_code
+maintenance_code
+ticket_code
+```
+
+digunakan user.
+
+---
+
+# 4. Core Database Structure
+
+Database dibagi menjadi beberapa domain.
+
+## Authentication
+
+```text
+users
+roles
+user_roles
+```
+
+## Master Data
+
+```text
+asset_categories
+asset_subcategories
+brands
+vendors
+departments
+sites
+buildings
+floors
+rooms
+maintenance_types
+```
+
+## Inventory
+
+```text
+assets
+asset_assignments
+asset_condition_history
+asset_movements
+asset_documents
+```
+
+## Maintenance
+
+```text
+maintenance_records
+maintenance_parts
+maintenance_documents
+maintenance_schedules
+```
+
+## Ticket
+
+```text
+tickets
+ticket_comments
+ticket_documents
+```
+
+## System
+
+```text
+notifications
+audit_logs
+```
+
+---
+
+# 5. Database Relationship Overview
+
+Simplified relationship:
+
+```text
+asset_categories
+        │
+        ▼
+asset_subcategories
+        │
+        ▼
+      assets
+        │
+        ├──────── asset_assignments
+        │
+        ├──────── asset_condition_history
+        │
+        ├──────── asset_movements
+        │
+        ├──────── asset_documents
+        │
+        ├──────── maintenance_records
+        │               │
+        │               ├── maintenance_parts
+        │               └── maintenance_documents
+        │
+        ├──────── maintenance_schedules
+        │
+        └──────── tickets
+```
+
+---
+
+# 6. USERS
+
+Table:
+
+```text
+users
+```
+
+Digunakan untuk login sekaligus user/PIC jika diperlukan.
+
+Fields:
+
+| Column        | Type         | Description     |
+| ------------- | ------------ | --------------- |
+| id            | UUID         | Primary key     |
+| employee_code | VARCHAR(50)  | Employee ID     |
+| name          | VARCHAR(150) | Full name       |
+| email         | VARCHAR(150) | Email           |
+| username      | VARCHAR(100) | Username        |
+| password_hash | TEXT         | Hashed password |
+| department_id | UUID         | Department      |
+| phone         | VARCHAR(30)  | Phone           |
+| position      | VARCHAR(100) | Position        |
+| is_active     | BOOLEAN      | Active status   |
+| created_at    | TIMESTAMP    | Created         |
+| updated_at    | TIMESTAMP    | Updated         |
+
+Constraints:
+
+```text
+username UNIQUE
+email UNIQUE
+employee_code UNIQUE
+```
+
+---
+
+# 7. ROLES
+
+Table:
+
+```text
+roles
+```
+
+Fields:
+
+| Column      | Type        |
+| ----------- | ----------- |
+| id          | UUID        |
+| name        | VARCHAR(50) |
+| description | TEXT        |
+| created_at  | TIMESTAMP   |
+
+Default:
+
+```text
+SUPER_ADMIN
+IT_ADMIN
+TECHNICIAN
+VIEWER
+```
+
+---
+
+# 8. USER ROLES
+
+Table:
+
+```text
+user_roles
+```
+
+Fields:
+
+```text
+id
+user_id
+role_id
+created_at
+```
+
+Relationship:
+
+```text
+users
+   │
+   ▼
+user_roles
+   │
+   ▼
+roles
+```
+
+Satu user dapat memiliki lebih dari satu role.
+
+---
+
+# 9. DEPARTMENTS
+
+Table:
+
+```text
+departments
+```
+
+Fields:
+
+```text
+id
+code
+name
+description
+is_active
+created_at
+updated_at
+```
+
+Contoh:
+
+```text
+IT
+ACCOUNTING
+HR
+PURCHASING
+WAREHOUSE
+PRODUCTION
+QUALITY CONTROL
+```
+
+---
+
+# 10. ASSET CATEGORIES
+
+Table:
+
+```text
+asset_categories
+```
+
+Fields:
+
+```text
+id
+code
+name
+description
+icon
+is_active
+created_at
+updated_at
+```
+
+Contoh:
+
+```text
+IT
+NETWORK
+OFFICE
+FURNITURE
+MACHINE
+ELECTRONIC
+```
+
+---
+
+# 11. ASSET SUBCATEGORIES
+
+Table:
+
+```text
+asset_subcategories
+```
+
+Fields:
+
+```text
+id
+category_id
+code
+name
+description
+is_active
+created_at
+updated_at
+```
+
+Contoh:
+
+```text
+IT
+ ├ Laptop
+ ├ Desktop
+ ├ Monitor
+ └ Printer
+
+NETWORK
+ ├ Router
+ ├ Switch
+ ├ Access Point
+ └ Firewall
+```
+
+---
+
+# 12. BRANDS
+
+Table:
+
+```text
+brands
+```
+
+Fields:
+
+```text
+id
+name
+description
+is_active
+created_at
+updated_at
+```
+
+Contoh:
+
+```text
+Lenovo
+HP
+Dell
+Epson
+Canon
+MikroTik
+Ubiquiti
+APC
+```
+
+---
+
+# 13. VENDORS
+
+Table:
+
+```text
+vendors
+```
+
+Fields:
+
+```text
+id
+code
+name
+contact_person
+phone
+email
+address
+notes
+is_active
+created_at
+updated_at
+```
+
+Vendor dapat digunakan untuk:
+
+```text
+Asset Purchase
+Maintenance
+Sparepart
+Warranty
+```
+
+---
+
+# 14. LOCATION STRUCTURE
+
+Location dibuat hierarchical.
+
+```text
+SITE
+ ↓
+BUILDING
+ ↓
+FLOOR
+ ↓
+ROOM
+```
+
+---
+
+# 15. SITES
+
+Table:
+
+```text
+sites
+```
+
+Fields:
+
+```text
+id
+code
+name
+address
+description
+is_active
+created_at
+updated_at
+```
+
+---
+
+# 16. BUILDINGS
+
+Table:
+
+```text
+buildings
+```
+
+Fields:
+
+```text
+id
+site_id
+code
+name
+description
+is_active
+created_at
+updated_at
+```
+
+---
+
+# 17. FLOORS
+
+Table:
+
+```text
+floors
+```
+
+Fields:
+
+```text
+id
+building_id
+code
+name
+description
+is_active
+created_at
+updated_at
+```
+
+---
+
+# 18. ROOMS
+
+Table:
+
+```text
+rooms
+```
+
+Fields:
+
+```text
+id
+floor_id
+code
+name
+description
+is_active
+created_at
+updated_at
+```
+
+Contoh:
+
+```text
+Head Office
+    │
+    └── Main Building
+            │
+            ├── Floor 1
+            │     ├── IT Room
+            │     └── Accounting
+            │
+            └── Floor 2
+                  ├── Meeting Room
+                  └── Director Room
+```
+
+---
+
+# 19. ASSETS
+
+Ini merupakan table utama.
+
+Table:
+
+```text
+assets
+```
+
+Fields:
+
+| Column         | Type          | Description       |
+| -------------- | ------------- | ----------------- |
+| id             | UUID          | Primary Key       |
+| asset_code     | VARCHAR(50)   | Unique asset code |
+| asset_name     | VARCHAR(200)  | Asset name        |
+| category_id    | UUID          | Category          |
+| subcategory_id | UUID          | Subcategory       |
+| brand_id       | UUID          | Brand             |
+| model          | VARCHAR(150)  | Model             |
+| serial_number  | VARCHAR(150)  | Serial Number     |
+| manufacturer   | VARCHAR(150)  | Manufacturer      |
+| specification  | TEXT          | Specification     |
+| purchase_date  | DATE          | Purchase Date     |
+| purchase_price | DECIMAL(15,2) | Purchase Price    |
+| vendor_id      | UUID          | Vendor            |
+| invoice_number | VARCHAR(100)  | Invoice           |
+| warranty_start | DATE          | Warranty Start    |
+| warranty_end   | DATE          | Warranty End      |
+| site_id        | UUID          | Site              |
+| building_id    | UUID          | Building          |
+| floor_id       | UUID          | Floor             |
+| room_id        | UUID          | Room              |
+| department_id  | UUID          | Department        |
+| current_pic_id | UUID          | Current PIC       |
+| status         | VARCHAR(50)   | Asset Status      |
+| condition      | VARCHAR(50)   | Current Condition |
+| health_score   | INTEGER       | 0-100             |
+| qr_code        | TEXT          | QR value          |
+| photo_url      | TEXT          | Main photo        |
+| notes          | TEXT          | Notes             |
+| created_by     | UUID          | Creator           |
+| created_at     | TIMESTAMP     | Created           |
+| updated_at     | TIMESTAMP     | Updated           |
+| deleted_at     | TIMESTAMP     | Soft delete       |
+
+---
+
+# 20. ASSET CODE
+
+Format:
+
+```text
+AST-{CATEGORY}-{NUMBER}
+```
+
+Contoh:
+
+```text
+AST-IT-000001
+AST-IT-000002
+AST-NET-000001
+AST-OFFICE-000001
+```
+
+Asset code:
+
+```text
+UNIQUE
+NOT NULL
+```
+
+Tidak boleh berubah setelah asset dibuat kecuali melalui administrative action.
+
+---
+
+# 21. ASSET STATUS
+
+Recommended values:
+
+```text
+AVAILABLE
+ASSIGNED
+IN_USE
+IN_MAINTENANCE
+BROKEN
+SPARE
+LOST
+RETIRED
+DISPOSED
+```
+
+---
+
+# 22. ASSET CONDITION
+
+Recommended values:
+
+```text
+GOOD
+FAIR
+NEED_ATTENTION
+BROKEN
+CRITICAL
+RETIRED
+```
+
+Current condition disimpan di:
+
+```text
+assets.condition
+```
+
+Sedangkan seluruh perubahan disimpan pada:
+
+```text
+asset_condition_history
+```
+
+---
+
+# 23. ASSET CONDITION HISTORY
+
+Table:
+
+```text
+asset_condition_history
+```
+
+Fields:
+
+```text
+id
+asset_id
+previous_condition
+new_condition
+reason
+notes
+changed_by
+created_at
+```
+
+Optional:
+
+```text
+inspection_score
+attachment_url
+```
+
+Contoh:
+
+```text
+AST-IT-000001
+
+GOOD
+ ↓
+FAIR
+ ↓
+NEED_ATTENTION
+ ↓
+BROKEN
+ ↓
+GOOD
+```
+
+Semua perubahan tetap tersimpan.
+
+---
+
+# 24. ASSET ASSIGNMENTS
+
+Table:
+
+```text
+asset_assignments
+```
+
+Digunakan untuk mencatat siapa yang menggunakan aset.
+
+Fields:
+
+```text
+id
+asset_id
+user_id
+department_id
+assigned_date
+returned_date
+assigned_by
+notes
+status
+created_at
+updated_at
+```
+
+Status:
+
+```text
+ACTIVE
+RETURNED
+TRANSFERRED
+```
+
+---
+
+# 25. ASSET MOVEMENTS
+
+Table:
+
+```text
+asset_movements
+```
+
+Digunakan untuk mencatat perpindahan lokasi.
+
+Fields:
+
+```text
+id
+movement_code
+asset_id
+
+from_site_id
+from_building_id
+from_floor_id
+from_room_id
+from_department_id
+from_pic_id
+
+to_site_id
+to_building_id
+to_floor_id
+to_room_id
+to_department_id
+to_pic_id
+
+movement_date
+reason
+notes
+moved_by
+approved_by
+created_at
+```
+
+---
+
+# 26. ASSET DOCUMENTS
+
+Table:
+
+```text
+asset_documents
+```
+
+Fields:
+
+```text
+id
+asset_id
+document_type
+file_name
+file_url
+description
+uploaded_by
+created_at
+```
+
+Document type:
+
+```text
+PHOTO
+INVOICE
+WARRANTY
+MANUAL
+PURCHASE_DOCUMENT
+OTHER
+```
+
+---
+
+# 27. MAINTENANCE TYPES
+
+Table:
+
+```text
+maintenance_types
+```
+
+Fields:
+
+```text
+id
+code
+name
+maintenance_category
+description
+is_active
+created_at
+updated_at
+```
+
+Category:
+
+```text
+PREVENTIVE
+CORRECTIVE
+INSPECTION
+```
+
+Contoh:
+
+```text
+CLEANING
+GENERAL_INSPECTION
+PRINTER_SERVICE
+PC_SERVICE
+UPS_INSPECTION
+NETWORK_INSPECTION
+```
+
+---
+
+# 28. MAINTENANCE RECORDS
+
+Table:
+
+```text
+maintenance_records
+```
+
+Fields:
+
+| Column               | Description             |
+| -------------------- | ----------------------- |
+| id                   | UUID                    |
+| maintenance_code     | Human readable ID       |
+| asset_id             | Asset                   |
+| maintenance_type_id  | Type                    |
+| maintenance_category | Preventive / Corrective |
+| ticket_id            | Source ticket           |
+| problem              | Problem                 |
+| diagnosis            | Diagnosis               |
+| action_taken         | Action                  |
+| technician_id        | Technician              |
+| vendor_id            | External vendor         |
+| priority             | Priority                |
+| status               | Maintenance status      |
+| scheduled_date       | Scheduled               |
+| start_date           | Started                 |
+| finish_date          | Finished                |
+| downtime_minutes     | Downtime                |
+| labor_cost           | Labor                   |
+| parts_cost           | Sparepart               |
+| other_cost           | Other                   |
+| total_cost           | Total                   |
+| result               | Result                  |
+| notes                | Notes                   |
+| created_by           | Creator                 |
+| created_at           | Created                 |
+| updated_at           | Updated                 |
+
+---
+
+# 29. MAINTENANCE CODE
+
+Format:
+
+```text
+MNT-{YEAR}-{NUMBER}
+```
+
+Contoh:
+
+```text
+MNT-2026-000001
+MNT-2026-000002
+```
+
+---
+
+# 30. MAINTENANCE STATUS
+
+Values:
+
+```text
+OPEN
+ASSIGNED
+IN_PROGRESS
+WAITING_PART
+TESTING
+COMPLETED
+CANCELLED
+```
+
+---
+
+# 31. MAINTENANCE PRIORITY
+
+Values:
+
+```text
+LOW
+MEDIUM
+HIGH
+CRITICAL
+```
+
+---
+
+# 32. MAINTENANCE PARTS
+
+Table:
+
+```text
+maintenance_parts
+```
+
+Fields:
+
+```text
+id
+maintenance_id
+part_name
+part_number
+quantity
+unit_price
+total_price
+vendor_id
+notes
+created_at
+```
+
+Calculation:
+
+```text
+total_price = quantity × unit_price
+```
+
+---
+
+# 33. MAINTENANCE DOCUMENTS
+
+Table:
+
+```text
+maintenance_documents
+```
+
+Fields:
+
+```text
+id
+maintenance_id
+document_type
+file_name
+file_url
+description
+uploaded_by
+created_at
+```
+
+Document types:
+
+```text
+BEFORE_PHOTO
+AFTER_PHOTO
+INVOICE
+SERVICE_REPORT
+OTHER
+```
+
+---
+
+# 34. MAINTENANCE SCHEDULES
+
+Table:
+
+```text
+maintenance_schedules
+```
+
+Fields:
+
+```text
+id
+asset_id
+maintenance_type_id
+frequency_type
+frequency_value
+last_maintenance_date
+next_maintenance_date
+reminder_days
+is_active
+created_by
+created_at
+updated_at
+```
+
+Frequency example:
+
+```text
+DAYS
+WEEKS
+MONTHS
+YEARS
+```
+
+Contoh:
+
+```text
+frequency_type = MONTHS
+frequency_value = 3
+```
+
+Berarti maintenance setiap:
+
+```text
+3 bulan
+```
+
+---
+
+# 35. TICKETS
+
+Table:
+
+```text
+tickets
+```
+
+Fields:
+
+```text
+id
+ticket_code
+asset_id
+reporter_id
+title
+description
+priority
+status
+assigned_to
+reported_at
+assigned_at
+resolved_at
+closed_at
+resolution
+created_at
+updated_at
+```
+
+---
+
+# 36. TICKET CODE
+
+Format:
+
+```text
+TKT-{YEAR}-{NUMBER}
+```
+
+Contoh:
+
+```text
+TKT-2026-000001
+```
+
+---
+
+# 37. TICKET STATUS
+
+Values:
+
+```text
+OPEN
+ASSIGNED
+IN_PROGRESS
+RESOLVED
+CLOSED
+CANCELLED
+```
+
+---
+
+# 38. TICKET COMMENTS
+
+Table:
+
+```text
+ticket_comments
+```
+
+Fields:
+
+```text
+id
+ticket_id
+user_id
+comment
+is_internal
+created_at
+updated_at
+```
+
+Digunakan untuk komunikasi dan progress ticket.
+
+---
+
+# 39. TICKET DOCUMENTS
+
+Table:
+
+```text
+ticket_documents
+```
+
+Fields:
+
+```text
+id
+ticket_id
+file_name
+file_url
+file_type
+uploaded_by
+created_at
+```
+
+---
+
+# 40. NOTIFICATIONS
+
+Table:
+
+```text
+notifications
+```
+
+Fields:
+
+```text
+id
+user_id
+type
+title
+message
+entity_type
+entity_id
+is_read
+read_at
+created_at
+```
+
+Contoh type:
+
+```text
+MAINTENANCE_DUE
+MAINTENANCE_OVERDUE
+WARRANTY_EXPIRING
+NEW_TICKET
+TICKET_ASSIGNED
+CRITICAL_ASSET
+```
+
+---
+
+# 41. AUDIT LOGS
+
+Table:
+
+```text
+audit_logs
+```
+
+Fields:
+
+```text
+id
+user_id
+action
+entity_type
+entity_id
+old_data
+new_data
+ip_address
+user_agent
+created_at
+```
+
+Gunakan:
+
+```text
+JSONB
+```
+
+untuk:
+
+```text
+old_data
+new_data
+```
+
+Contoh:
+
+```text
+action:
+UPDATE_ASSET
+
+entity_type:
+ASSET
+
+old_data:
+{
+  "condition": "GOOD"
+}
+
+new_data:
+{
+  "condition": "BROKEN"
+}
+```
+
+---
+
+# 42. SOFT DELETE
+
+Data penting sebaiknya tidak menggunakan hard delete.
+
+Gunakan:
+
+```text
+deleted_at
+```
+
+Contoh:
+
+```text
+deleted_at = NULL
+```
+
+berarti aktif.
+
+Jika:
+
+```text
+deleted_at = 2026-07-30 10:30:00
+```
+
+berarti sudah dihapus secara logical.
+
+Terutama untuk:
+
+```text
+assets
+users
+vendors
+```
+
+---
+
+# 43. ASSET TIMELINE
+
+Tidak perlu membuat table timeline terpisah pada MVP.
+
+Timeline dapat dibangun dari:
+
+```text
+asset_condition_history
+asset_assignments
+asset_movements
+maintenance_records
+tickets
+audit_logs
+```
+
+Backend menggabungkan data berdasarkan:
+
+```text
+asset_id
+```
+
+kemudian:
+
+```text
+ORDER BY created_at DESC
+```
+
+Hasil:
+
+```text
+30 Jul
+Asset condition changed
+
+29 Jul
+Maintenance completed
+
+28 Jul
+Maintenance started
+
+27 Jul
+Ticket created
+
+20 Jul
+Asset transferred
+```
+
+---
+
+# 44. HEALTH SCORE
+
+Field:
+
+```text
+assets.health_score
+```
+
+Range:
+
+```text
+0 - 100
+```
+
+Untuk MVP dapat diinput atau dihitung sederhana.
+
+Future version dapat menggunakan formula:
+
+```text
+Health Score
+=
+Base Score
+- Age Penalty
+- Failure Penalty
+- Maintenance Penalty
+- Critical Issue Penalty
+```
+
+---
+
+# 45. REPEATED FAILURE
+
+Repeated failure tidak memerlukan table khusus.
+
+Dapat dihitung dari:
+
+```text
+maintenance_records
+```
+
+Rule contoh:
+
+```text
+maintenance_category = CORRECTIVE
+```
+
+dan:
+
+```text
+COUNT >= 3
+```
+
+dalam:
+
+```text
+6 months
+```
+
+Maka:
+
+```text
+REPEATED_FAILURE = TRUE
+```
+
+---
+
+# 46. WARRANTY STATUS
+
+Tidak perlu menyimpan warranty status secara manual.
+
+Hitung dari:
+
+```text
+warranty_end
+```
+
+Status:
+
+```text
+ACTIVE
+EXPIRING_SOON
+EXPIRED
+NO_WARRANTY
+```
+
+Hal ini mencegah data status tidak sinkron.
+
+---
+
+# 47. COST CALCULATION
+
+Maintenance:
+
+```text
+labor_cost
++
+parts_cost
++
+other_cost
+=
+total_cost
+```
+
+Sedangkan lifetime maintenance cost sebuah asset:
+
+```text
+SUM(maintenance_records.total_cost)
+```
+
+berdasarkan:
+
+```text
+asset_id
+```
+
+---
+
+# 48. IMPORTANT INDEXES
+
+Indexes sangat penting ketika data mulai banyak.
+
+Recommended:
+
+```text
+assets.asset_code
+assets.serial_number
+assets.category_id
+assets.department_id
+assets.current_pic_id
+assets.condition
+assets.status
+
+maintenance_records.asset_id
+maintenance_records.status
+maintenance_records.scheduled_date
+
+tickets.asset_id
+tickets.status
+
+asset_condition_history.asset_id
+
+asset_movements.asset_id
+```
+
+---
+
+# 49. UNIQUE CONSTRAINTS
+
+Recommended:
+
+```text
+users.username UNIQUE
+users.email UNIQUE
+users.employee_code UNIQUE
+
+assets.asset_code UNIQUE
+
+maintenance_records.maintenance_code UNIQUE
+
+tickets.ticket_code UNIQUE
+
+asset_categories.code UNIQUE
+
+departments.code UNIQUE
+```
+
+Serial number tidak wajib UNIQUE karena beberapa barang mungkin tidak memiliki serial number atau memiliki format vendor yang tidak konsisten.
+
+---
+
+# 50. FOREIGN KEY BEHAVIOR
+
+Sebisa mungkin hindari:
+
+```text
+ON DELETE CASCADE
+```
+
+pada data utama.
+
+Contoh:
+
+Jika category masih digunakan asset, category tidak boleh dihapus.
+
+Gunakan:
+
+```text
+is_active = false
+```
+
+untuk master data yang sudah tidak digunakan.
+
+---
+
+# 51. TRANSACTION REQUIREMENT
+
+Beberapa proses wajib menggunakan database transaction.
+
+Contoh:
+
+## Update Condition
+
+```text
+BEGIN
+
+Update assets.condition
+
+Insert asset_condition_history
+
+Insert audit_logs
+
+COMMIT
+```
+
+Jika salah satu gagal:
+
+```text
+ROLLBACK
+```
+
+---
+
+# 52. MAINTENANCE COMPLETION TRANSACTION
+
+Ketika maintenance selesai:
+
+```text
+BEGIN
+
+Update maintenance status → COMPLETED
+
+Update finish_date
+
+Calculate total_cost
+
+Update asset condition
+
+Insert condition history
+
+Update next maintenance schedule
+
+Insert audit log
+
+COMMIT
+```
+
+---
+
+# 53. ASSET TRANSFER TRANSACTION
+
+Saat asset dipindahkan:
+
+```text
+BEGIN
+
+Insert asset_movements
+
+Update assets location
+
+Update current PIC
+
+Update asset assignment
+
+Insert audit log
+
+COMMIT
+```
+
+---
+
+# 54. QR CODE DATA
+
+QR sebaiknya tidak menyimpan seluruh informasi aset.
+
+Jangan:
+
+```text
+Name: Lenovo ThinkPad
+User: John
+Location: Accounting
+Serial: XXXXX
+```
+
+Gunakan identifier:
+
+```text
+AST-IT-000001
+```
+
+atau URL:
+
+```text
+/assets/AST-IT-000001
+```
+
+Data aktual tetap diambil dari database.
+
+---
+
+# 55. DASHBOARD DATA SOURCES
+
+## Total Assets
+
+```text
+assets
+```
+
+## Asset Condition
+
+```text
+assets.condition
+```
+
+## Broken Assets
+
+```text
+condition = BROKEN
+```
+
+## Critical Assets
+
+```text
+condition = CRITICAL
+```
+
+## Maintenance
+
+```text
+maintenance_records
+```
+
+## Upcoming Maintenance
+
+```text
+maintenance_schedules.next_maintenance_date
+```
+
+## Open Tickets
+
+```text
+tickets.status
+```
+
+---
+
+# 56. DATABASE ERD — SIMPLIFIED
+
+```text
+                         ┌──────────────┐
+                         │    roles     │
+                         └──────┬───────┘
+                                │
+                         ┌──────▼───────┐
+                         │  user_roles  │
+                         └──────┬───────┘
+                                │
+                         ┌──────▼───────┐
+                         │    users     │
+                         └──────┬───────┘
+                                │
+                                │ PIC
+                                ▼
+┌──────────────────┐      ┌──────────────┐
+│ asset_categories │─────▶│    assets    │
+└──────────────────┘      └──────┬───────┘
+                                 │
+        ┌────────────────────────┼────────────────────────┐
+        │                        │                        │
+        ▼                        ▼                        ▼
+┌────────────────┐     ┌───────────────────┐      ┌──────────────┐
+│ condition      │     │ maintenance       │      │   tickets    │
+│ history        │     │ records           │      └──────┬───────┘
+└────────────────┘     └─────────┬─────────┘             │
+                                 │                       ▼
+                                 ▼                ticket_comments
+                         maintenance_parts
+                                 │
+                                 ▼
+                        maintenance_documents
+
+
+assets
+ │
+ ├── asset_assignments
+ │
+ ├── asset_movements
+ │
+ ├── asset_documents
+ │
+ └── maintenance_schedules
+```
+
+---
+
+# 57. CORE MVP TABLES
+
+Untuk MVP, prioritaskan table berikut:
+
+```text
+users
+roles
+user_roles
+
+departments
+
+asset_categories
+asset_subcategories
+brands
+
+sites
+buildings
+floors
+rooms
+
+vendors
+
+assets
+
+asset_condition_history
+asset_assignments
+asset_movements
+asset_documents
+
+maintenance_types
+maintenance_records
+maintenance_parts
+maintenance_documents
+maintenance_schedules
+
+audit_logs
+```
+
+Ticket dapat masuk setelah core inventory + maintenance stabil.
+
+---
+
+# 58. DATA INTEGRITY PRINCIPLE
+
+Database harus mengikuti prinsip:
+
+```text
+CURRENT STATE
++
+HISTORY
+```
+
+Contoh:
+
+Current condition:
+
+```text
+assets.condition
+```
+
+History:
+
+```text
+asset_condition_history
+```
+
+Current location:
+
+```text
+assets.room_id
+```
+
+History:
+
+```text
+asset_movements
+```
+
+Current PIC:
+
+```text
+assets.current_pic_id
+```
+
+History:
+
+```text
+asset_assignments
+```
+
+Dengan pola ini aplikasi tetap cepat ketika membaca kondisi sekarang tanpa kehilangan histori.
+
+---
+
+# 59. DATABASE DEVELOPMENT ORDER
+
+Urutan implementasi database:
+
+```text
+01 Authentication
+      ↓
+02 Master Data
+      ↓
+03 Location
+      ↓
+04 Asset
+      ↓
+05 Asset Condition History
+      ↓
+06 Assignment
+      ↓
+07 Movement
+      ↓
+08 Maintenance
+      ↓
+09 Maintenance Schedule
+      ↓
+10 Ticket
+      ↓
+11 Notification
+      ↓
+12 Audit Log
+```
+
+---
+
+# 60. FINAL DATABASE PRINCIPLE
+
+Database harus dapat menjawab:
+
+```text
+WHAT
+```
+
+Barang apa?
+
+```text
+WHERE
+```
+
+Ada di mana?
+
+```text
+WHO
+```
+
+Siapa PIC-nya?
+
+```text
+CONDITION
+```
+
+Bagaimana kondisinya?
+
+```text
+HISTORY
+```
+
+Apa yang pernah terjadi?
+
+```text
+MAINTENANCE
+```
+
+Apa yang pernah diperbaiki?
+
+```text
+COST
+```
+
+Berapa biaya perawatannya?
+
+```text
+NEXT
+```
+
+Kapan maintenance berikutnya?
+
+Semua jawaban harus dapat ditelusuri tanpa kehilangan histori data.
+
+---
+
+# 61. NEXT DOCUMENTS
+
+Setelah database selesai, development documentation dilanjutkan dengan:
+
+```text
+PRD.md
+DATABASE.md
+UI_UX.md
+API.md
+CODING_STANDARDS.md
+TASK.md
+```
+
+Dokumen tersebut menjadi source of truth selama development Office Inventory Maintenance System.

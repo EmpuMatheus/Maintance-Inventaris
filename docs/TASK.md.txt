@@ -1,0 +1,3899 @@
+# TASK.md
+
+# Office Inventory Maintenance System
+
+**Version:** 1.0
+**Status:** Development Roadmap
+**Primary Users:** IT Team
+**Primary Focus:** Office Asset Condition Monitoring & Maintenance
+
+---
+
+# 1. Purpose
+
+Dokumen ini adalah execution roadmap untuk:
+
+```text
+Office Inventory Maintenance System
+```
+
+Dokumen referensi wajib:
+
+```text
+PRD.md
+DATABASE.md
+UI_UX.md
+API.md
+CODING_STANDARDS.md
+```
+
+`TASK.md` menentukan:
+
+```text
+WHAT TO BUILD
+      ↓
+IN WHAT ORDER
+      ↓
+DEPENDENCIES
+      ↓
+ACCEPTANCE CRITERIA
+      ↓
+VERIFICATION
+```
+
+Coding agent wajib membaca dokumen terkait sebelum mengerjakan task.
+
+---
+
+# 2. Task Status
+
+Gunakan status:
+
+```text
+[ ] TODO
+[~] IN PROGRESS
+[x] COMPLETE
+[!] BLOCKED
+[-] SKIPPED
+```
+
+Contoh:
+
+```text
+[x] TASK-001 Initialize project
+[~] TASK-002 Configure database
+[ ] TASK-003 Create migrations
+```
+
+---
+
+# 3. Priority
+
+Priority:
+
+```text
+P0 = Critical
+P1 = High
+P2 = Medium
+P3 = Low / Enhancement
+```
+
+P0 harus diselesaikan sebelum MVP dianggap siap.
+
+---
+
+# 4. Development Phases
+
+Roadmap utama:
+
+```text
+PHASE 0   Project Foundation
+
+PHASE 1   Database Foundation
+
+PHASE 2   Authentication & Authorization
+
+PHASE 3   Master Data
+
+PHASE 4   Inventory Core
+
+PHASE 5   Asset Condition Monitoring
+
+PHASE 6   QR Asset System
+
+PHASE 7   Asset Assignment & Movement
+
+PHASE 8   Maintenance Core
+
+PHASE 9   Preventive Maintenance
+
+PHASE 10  Dashboard
+
+PHASE 11  Ticket System
+
+PHASE 12  Notifications
+
+PHASE 13  Reports & Export
+
+PHASE 14  Audit & Administration
+
+PHASE 15  Testing & Security
+
+PHASE 16  Production Readiness
+
+PHASE 17  Advanced Features
+```
+
+---
+
+# PHASE 0 — PROJECT FOUNDATION
+
+Goal:
+
+```text
+Create stable development foundation.
+```
+
+---
+
+## [x] TASK-001 — Initialize Repository
+
+**Priority:** P0
+
+Create project repository.
+
+Recommended:
+
+```text
+office-inventory/
+```
+
+Create:
+
+```text
+apps/
+packages/
+docs/
+```
+
+Acceptance:
+
+```text
+Repository initialized
+.gitignore exists
+docs available
+project structure follows CODING_STANDARDS.md
+```
+
+---
+
+## [x] TASK-002 — Initialize Frontend
+
+**Priority:** P0
+
+Create:
+
+```text
+apps/web
+```
+
+Stack:
+
+```text
+React
+Vite
+TypeScript
+```
+
+Verify:
+
+```text
+npm run dev
+npm run build
+```
+
+Acceptance:
+
+```text
+Frontend starts
+Production build succeeds
+No TypeScript error
+```
+
+---
+
+## [x] TASK-003 — Initialize Backend
+
+**Priority:** P0
+
+Create:
+
+```text
+apps/api
+```
+
+Stack:
+
+```text
+Node.js
+Express
+TypeScript
+```
+
+Create:
+
+```text
+GET /api/v1/health
+```
+
+Expected:
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "healthy"
+  }
+}
+```
+
+Acceptance:
+
+```text
+API starts
+Health endpoint works
+TypeScript build succeeds
+```
+
+---
+
+## [x] TASK-004 — Configure Root Scripts
+
+**Priority:** P1
+
+Create scripts:
+
+```text
+dev
+build
+lint
+typecheck
+test
+format
+```
+
+If monorepo:
+
+```text
+dev:web
+dev:api
+```
+
+Acceptance:
+
+```text
+Frontend/backend can be started predictably
+Build command works
+```
+
+---
+
+## [x] TASK-005 — Configure TypeScript
+
+**Priority:** P0
+
+Enable:
+
+```text
+strict: true
+```
+
+Configure aliases where useful.
+
+Acceptance:
+
+```text
+Frontend typecheck passes
+Backend typecheck passes
+No uncontrolled any usage
+```
+
+---
+
+## [x] TASK-006 — Configure ESLint & Prettier
+
+**Priority:** P1
+
+Acceptance:
+
+```text
+npm run lint
+npm run format
+```
+
+work successfully.
+
+---
+
+## [x] TASK-007 — Environment Configuration
+
+**Priority:** P0
+
+Create:
+
+```text
+.env.example
+```
+
+Initial variables:
+
+```text
+NODE_ENV=
+PORT=
+
+DATABASE_URL=
+
+JWT_SECRET=
+JWT_EXPIRES_IN=
+
+CORS_ORIGIN=
+
+UPLOAD_MAX_SIZE=
+STORAGE_PATH=
+
+VITE_API_URL=
+```
+
+Acceptance:
+
+```text
+No secret committed
+Missing required backend env fails fast
+```
+
+---
+
+# PHASE 1 — DATABASE FOUNDATION
+
+Goal:
+
+```text
+Create reliable PostgreSQL data layer.
+```
+
+---
+
+## [x] TASK-010 — PostgreSQL Connection
+
+**Priority:** P0
+
+Configure PostgreSQL connection.
+
+Acceptance:
+
+```text
+Backend connects to PostgreSQL
+Connection errors handled
+Credentials loaded from environment
+```
+
+---
+
+## [x] TASK-011 — Database Migration System
+
+**Priority:** P0
+
+Configure selected migration tool.
+
+Acceptance:
+
+```text
+Migration can be created
+Migration can be applied
+Migration history is tracked
+```
+
+---
+
+## [x] TASK-012 — Create Core Master Tables
+
+**Priority:** P0
+
+Implement tables according to `DATABASE.md`.
+
+Includes:
+
+```text
+users
+roles
+permissions
+user_roles
+role_permissions
+
+categories
+subcategories
+brands
+departments
+vendors
+
+sites
+buildings
+floors
+rooms
+
+maintenance_types
+```
+
+Acceptance:
+
+```text
+PK/FK correct
+UUID strategy correct
+timestamps available
+indexes added where required
+```
+
+---
+
+## [x] TASK-013 — Create Asset Tables
+
+**Priority:** P0
+
+Create:
+
+```text
+assets
+asset_condition_history
+asset_assignments
+asset_movements
+asset_documents
+```
+
+Acceptance:
+
+```text
+Relations follow DATABASE.md
+Asset code unique
+Serial number constraints follow requirements
+History tables linked correctly
+```
+
+---
+
+## [x] TASK-014 — Create Maintenance Tables
+
+**Priority:** P0
+
+Create:
+
+```text
+maintenance_records
+maintenance_parts
+maintenance_documents
+maintenance_schedules
+```
+
+Acceptance:
+
+```text
+Asset relation correct
+Technician relation correct
+Vendor relation correct
+Cost fields use appropriate numeric type
+```
+
+---
+
+## [x] TASK-015 — Create Ticket Tables
+
+**Priority:** P1
+
+Create:
+
+```text
+tickets
+ticket_comments
+```
+
+---
+
+## [x] TASK-016 — Create System Tables
+
+**Priority:** P1
+
+Create:
+
+```text
+notifications
+audit_logs
+```
+
+---
+
+## [x] TASK-017 — Database Indexes
+
+**Priority:** P1
+
+Review indexes for:
+
+```text
+asset_code
+serial_number
+condition
+status
+category_id
+department_id
+room_id
+pic_id
+
+maintenance_code
+maintenance_status
+scheduled_date
+
+ticket_code
+ticket_status
+
+created_at
+```
+
+Acceptance:
+
+```text
+Common list/filter/search operations have appropriate indexes
+```
+
+---
+
+## [x] TASK-018 — Seed Base Data
+
+**Priority:** P1
+
+Seed:
+
+```text
+SUPER_ADMIN
+IT_ADMIN
+TECHNICIAN
+VIEWER
+```
+
+Seed permissions.
+
+Seed initial master data if required.
+
+Acceptance:
+
+```text
+Seed can run predictably
+No production password hard-coded
+```
+
+---
+
+# PHASE 2 — AUTHENTICATION & AUTHORIZATION
+
+Goal:
+
+```text
+Secure application access.
+```
+
+---
+
+## [x] TASK-020 — User Repository & Service
+
+**Priority:** P0
+
+Implement:
+
+```text
+findUserByUsername()
+findUserById()
+getUserRoles()
+getUserPermissions()
+```
+
+---
+
+## [x] TASK-021 — Password Hashing
+
+**Priority:** P0
+
+Use:
+
+```text
+Argon2id
+```
+
+or approved secure hashing implementation.
+
+Acceptance:
+
+```text
+Plain password never stored
+Password never logged
+```
+
+---
+
+## [x] TASK-022 — Login API
+
+**Priority:** P0
+
+Implement:
+
+```text
+POST /api/v1/auth/login
+```
+
+Acceptance:
+
+```text
+Valid credentials → token/session
+Invalid credentials → 401
+Inactive user → rejected
+Password never returned
+```
+
+---
+
+## [x] TASK-023 — Current User API
+
+**Priority:** P0
+
+Implement:
+
+```text
+GET /api/v1/auth/me
+```
+
+Return:
+
+```text
+user
+roles
+permissions
+```
+
+---
+
+## [x] TASK-024 — Authentication Middleware
+
+**Priority:** P0
+
+Implement:
+
+```text
+authenticate()
+```
+
+Acceptance:
+
+```text
+Missing token → 401
+Invalid token → 401
+Valid token → req.user available
+```
+
+---
+
+## [x] TASK-025 — Permission Middleware
+
+**Priority:** P0
+
+Implement:
+
+```text
+authorize(permission)
+```
+
+Example:
+
+```text
+authorize("asset.update")
+```
+
+Acceptance:
+
+```text
+No permission → 403
+Permission exists → continue
+```
+
+---
+
+## [x] TASK-026 — Frontend Login
+
+**Priority:** P0
+
+Build according to `UI_UX.md`.
+
+Include:
+
+```text
+Username
+Password
+Submit
+Loading
+Error state
+```
+
+---
+
+## [x] TASK-027 — Frontend Auth State
+
+**Priority:** P0
+
+Implement:
+
+```text
+AuthProvider
+Current user
+Permissions
+Logout
+Protected routes
+```
+
+---
+
+## [x] TASK-028 — Permission-Aware UI
+
+**Priority:** P1
+
+Implement helpers:
+
+```text
+can("asset.update")
+can("maintenance.create")
+```
+
+Use for:
+
+```text
+buttons
+menus
+actions
+```
+
+Backend remains authoritative.
+
+---
+
+# PHASE 3 — MASTER DATA
+
+Goal:
+
+```text
+Provide reference data required by inventory.
+```
+
+---
+
+## [x] TASK-030 — Category API
+
+**Priority:** P0
+
+Implement:
+
+```text
+GET
+POST
+PATCH
+```
+
+for categories.
+
+---
+
+## [x] TASK-031 — Subcategory API
+
+**Priority:** P0
+
+Support:
+
+```text
+categoryId
+```
+
+relationship.
+
+---
+
+## [x] TASK-032 — Brand API
+
+**Priority:** P0
+
+---
+
+## [x] TASK-033 — Department API
+
+**Priority:** P0
+
+---
+
+## [x] TASK-034 — Vendor API
+
+**Priority:** P1
+
+---
+
+## [x] TASK-035 — Maintenance Type API
+
+**Priority:** P1
+
+---
+
+## [x] TASK-036 — Location APIs
+
+**Priority:** P0
+
+Implement:
+
+```text
+Sites
+Buildings
+Floors
+Rooms
+```
+
+Dependency:
+
+```text
+Site
+ ↓
+Building
+ ↓
+Floor
+ ↓
+Room
+```
+
+---
+
+## [x] TASK-037 — Master Data UI
+
+**Priority:** P1
+
+Create Administration → Master Data.
+
+Tabs/pages:
+
+```text
+Categories
+Subcategories
+Brands
+Departments
+Locations
+Vendors
+Maintenance Types
+```
+
+---
+
+## [x] TASK-038 — Master Data Form Components
+
+**Priority:** P1
+
+Implement reusable:
+
+```text
+Create
+Edit
+Activate/Deactivate
+Search
+```
+
+---
+
+# PHASE 4 — INVENTORY CORE
+
+Goal:
+
+```text
+Create the central asset registry.
+```
+
+---
+
+## [x] TASK-040 — Asset Repository
+
+**Priority:** P0
+
+Implement:
+
+```text
+findAssets()
+findAssetById()
+findAssetByCode()
+createAsset()
+updateAsset()
+```
+
+Support:
+
+```text
+pagination
+search
+filter
+sorting
+```
+
+---
+
+## [x] TASK-041 — Asset Code Generator
+
+**Priority:** P0
+
+Generate backend code.
+
+Example:
+
+```text
+AST-IT-000001
+```
+
+Requirements:
+
+```text
+Unique
+Concurrency safe
+Never generated frontend-side
+```
+
+---
+
+## [x] TASK-042 — List Assets API
+
+**Priority:** P0
+
+Implement:
+
+```text
+GET /api/v1/assets
+```
+
+Support filters defined in `API.md`.
+
+Acceptance:
+
+```text
+Server pagination works
+Search works
+Filters work
+Sorting works
+```
+
+---
+
+## [x] TASK-043 — Asset Detail API
+
+**Priority:** P0
+
+Implement:
+
+```text
+GET /api/v1/assets/:id
+GET /api/v1/assets/code/:assetCode
+```
+
+---
+
+## [x] TASK-044 — Create Asset API
+
+**Priority:** P0
+
+Implement:
+
+```text
+POST /api/v1/assets
+```
+
+Acceptance:
+
+```text
+Validated
+Permission checked
+Asset code generated
+Audit log created
+```
+
+---
+
+## [x] TASK-045 — Update Asset API
+
+**Priority:** P0
+
+Implement:
+
+```text
+PATCH /api/v1/assets/:id
+```
+
+Generic update must not bypass:
+
+```text
+Condition history
+Movement history
+Assignment history
+```
+
+---
+
+## [x] TASK-046 — Inventory List UI
+
+**Priority:** P0
+
+Build:
+
+```text
+Search
+Filter
+Table
+Pagination
+Sort
+Status badge
+Condition badge
+Add Asset
+```
+
+Desktop:
+
+```text
+Data table
+```
+
+Mobile:
+
+```text
+Responsive list/card
+```
+
+---
+
+## [x] TASK-047 — Asset Form UI
+
+**Priority:** P0
+
+Sections:
+
+```text
+Basic Information
+Classification
+Specification
+Purchase
+Warranty
+Location
+Department
+PIC
+Condition
+Notes
+```
+
+Acceptance:
+
+```text
+React Hook Form
+Zod validation
+Dependent location dropdowns
+Loading state
+Error handling
+```
+
+---
+
+## [x] TASK-048 — Asset Detail UI
+
+**Priority:** P0
+
+Build:
+
+```text
+Header
+Asset Code
+Photo
+Condition
+Status
+PIC
+Location
+Quick Actions
+```
+
+Tabs:
+
+```text
+Overview
+Maintenance
+History
+Documents
+```
+
+---
+
+## [x] TASK-049 — Asset Photo Upload
+
+**Priority:** P1
+
+Implement:
+
+```text
+POST /assets/:id/photo
+```
+
+Frontend:
+
+```text
+Upload
+Preview
+Loading
+Error
+```
+
+---
+
+## [x] TASK-050 — Asset Documents
+
+**Priority:** P1
+
+Implement:
+
+```text
+GET    /assets/:id/documents
+POST   /assets/:id/documents
+DELETE /assets/:id/documents/:documentId
+```
+
+---
+
+# PHASE 5 — CONDITION MONITORING
+
+Goal:
+
+```text
+Make asset health the central operational feature.
+```
+
+---
+
+## [x] TASK-060 — Asset Condition Domain
+
+**Priority:** P0
+
+Implement conditions:
+
+```text
+GOOD
+FAIR
+NEED_ATTENTION
+BROKEN
+CRITICAL
+RETIRED
+```
+
+Centralize enums/constants.
+
+---
+
+## [x] TASK-061 — Update Condition API
+
+**Priority:** P0
+
+Implement:
+
+```text
+PATCH /assets/:id/condition
+```
+
+Transaction:
+
+```text
+Read current state
+ ↓
+Validate
+ ↓
+Update current condition
+ ↓
+Create history
+ ↓
+Create audit
+ ↓
+Commit
+```
+
+---
+
+## [x] TASK-062 — Condition History API
+
+**Priority:** P0
+
+Implement:
+
+```text
+GET /assets/:id/condition-history
+```
+
+---
+
+## [x] TASK-063 — Update Condition UI
+
+**Priority:** P0
+
+Provide quick action from asset detail.
+
+Fields:
+
+```text
+New Condition
+Reason
+Notes
+```
+
+Mobile friendly.
+
+---
+
+## [x] TASK-064 — Condition History UI
+
+**Priority:** P0
+
+Display:
+
+```text
+Old condition
+New condition
+Reason
+Changed by
+Date/time
+```
+
+---
+
+## [x] TASK-065 — Condition Badge System
+
+**Priority:** P0
+
+Create centralized component:
+
+```text
+ConditionBadge
+```
+
+Used consistently across:
+
+```text
+Dashboard
+Inventory
+Asset Detail
+Maintenance
+Reports
+```
+
+---
+
+## [x] TASK-066 — Critical Asset View
+
+**Priority:** P1
+
+Provide filtered inventory view:
+
+```text
+BROKEN
+CRITICAL
+NEED_ATTENTION
+```
+
+---
+
+# PHASE 6 — QR ASSET SYSTEM
+
+Goal:
+
+```text
+Allow IT staff to find assets instantly in the field.
+```
+
+---
+
+## [x] TASK-070 — QR Value Strategy
+
+**Priority:** P0
+
+QR stores:
+
+```text
+assetCode
+```
+
+or approved application lookup URL.
+
+Do not embed full asset data.
+
+---
+
+## [x] TASK-071 — QR API
+
+**Priority:** P0
+
+Implement:
+
+```text
+GET /assets/:id/qr
+```
+
+---
+
+## [x] TASK-072 — QR Lookup API
+
+**Priority:** P0
+
+Implement:
+
+```text
+GET /qr/assets/:assetCode
+```
+
+Response optimized for mobile.
+
+---
+
+## [x] TASK-073 — QR Generator UI
+
+**Priority:** P0
+
+Asset detail:
+
+```text
+View QR
+Print QR
+```
+
+---
+
+## [x] TASK-074 — QR Scanner UI
+
+**Priority:** P0
+
+Implement:
+
+```text
+Camera scan
+Permission handling
+Scanner state
+Invalid QR handling
+```
+
+---
+
+## [x] TASK-075 — Manual Lookup Fallback
+
+**Priority:** P0
+
+If camera unavailable:
+
+```text
+Enter asset code manually
+```
+
+Never make camera the only lookup method.
+
+---
+
+## [x] TASK-076 — Mobile Asset Quick View
+
+**Priority:** P0
+
+After scan show:
+
+```text
+Asset
+Code
+Condition
+Status
+PIC
+Location
+Last Maintenance
+Next Maintenance
+```
+
+Actions:
+
+```text
+View Detail
+Update Condition
+Create Maintenance
+```
+
+based on permission.
+
+---
+
+# PHASE 7 — ASSIGNMENT & MOVEMENT
+
+Goal:
+
+```text
+Track who uses assets and where assets move.
+```
+
+---
+
+## [x] TASK-080 — Assignment API
+
+**Priority:** P1
+
+Implement:
+
+```text
+POST /assets/:id/assignments
+```
+
+---
+
+## [x] TASK-081 — Return Asset API
+
+**Priority:** P1
+
+Implement:
+
+```text
+POST /assets/:id/assignments/return
+```
+
+---
+
+## [x] TASK-082 — Assignment History
+
+**Priority:** P1
+
+Implement:
+
+```text
+GET /assets/:id/assignments
+```
+
+---
+
+## [x] TASK-083 — Asset Movement API
+
+**Priority:** P1
+
+Implement:
+
+```text
+POST /assets/:id/movements
+```
+
+Use transaction.
+
+---
+
+## [x] TASK-084 — Movement History API
+
+**Priority:** P1
+
+Implement:
+
+```text
+GET /assets/:id/movements
+```
+
+---
+
+## [x] TASK-085 — Assignment UI
+
+**Priority:** P1
+
+Actions:
+
+```text
+Assign
+Return
+Change PIC
+```
+
+---
+
+## [x] TASK-086 — Transfer UI
+
+**Priority:** P1
+
+Fields:
+
+```text
+Site
+Building
+Floor
+Room
+Department
+PIC
+Reason
+Notes
+```
+
+---
+
+# PHASE 8 — MAINTENANCE CORE
+
+Goal:
+
+```text
+Manage repair and maintenance lifecycle.
+```
+
+---
+
+## [x] TASK-090 — Maintenance Repository
+
+**Priority:** P0
+
+Implement CRUD persistence and query functions.
+
+---
+
+## [x] TASK-091 — Maintenance Code Generator
+
+**Priority:** P0
+
+Format:
+
+```text
+MNT-2026-000001
+```
+
+Concurrency safe.
+
+---
+
+## [x] TASK-092 — Maintenance List API
+
+**Priority:** P0
+
+Implement:
+
+```text
+GET /maintenance
+```
+
+Support:
+
+```text
+search
+status
+priority
+asset
+technician
+date
+pagination
+sorting
+```
+
+---
+
+## [x] TASK-093 — Maintenance Detail API
+
+**Priority:** P0
+
+Implement:
+
+```text
+GET /maintenance/:id
+```
+
+---
+
+## [x] TASK-094 — Create Maintenance API
+
+**Priority:** P0
+
+Implement:
+
+```text
+POST /maintenance
+```
+
+---
+
+## [x] TASK-095 — Maintenance State Machine
+
+**Priority:** P0
+
+Implement valid transitions:
+
+```text
+OPEN
+ ↓
+ASSIGNED
+ ↓
+IN_PROGRESS
+ ├── WAITING_PART
+ │       ↓
+ │   IN_PROGRESS
+ ↓
+TESTING
+ ↓
+COMPLETED
+```
+
+Support valid cancellation rules.
+
+---
+
+## [x] TASK-096 — Assign Maintenance
+
+**Priority:** P0
+
+Implement:
+
+```text
+POST /maintenance/:id/assign
+```
+
+---
+
+## [x] TASK-097 — Start Maintenance
+
+**Priority:** P0
+
+Implement:
+
+```text
+POST /maintenance/:id/start
+```
+
+---
+
+## [x] TASK-098 — Waiting Part Action
+
+**Priority:** P1
+
+Implement:
+
+```text
+POST /maintenance/:id/waiting-part
+```
+
+---
+
+## [x] TASK-099 — Testing Action
+
+**Priority:** P1
+
+Implement:
+
+```text
+POST /maintenance/:id/testing
+```
+
+---
+
+## [x] TASK-100 — Maintenance Parts
+
+**Priority:** P1
+
+Implement:
+
+```text
+POST   /maintenance/:id/parts
+PATCH  /maintenance/:id/parts/:partId
+DELETE /maintenance/:id/parts/:partId
+```
+
+Server calculates totals.
+
+---
+
+## [x] TASK-101 — Complete Maintenance
+
+**Priority:** P0
+
+Implement:
+
+```text
+POST /maintenance/:id/complete
+```
+
+Transaction must handle:
+
+```text
+Maintenance completion
+Cost calculation
+Asset status
+Asset condition
+Condition history
+Schedule
+Ticket if linked
+Audit log
+```
+
+---
+
+## [x] TASK-102 — Cancel Maintenance
+
+**Priority:** P1
+
+Implement:
+
+```text
+POST /maintenance/:id/cancel
+```
+
+Require reason.
+
+---
+
+## [x] TASK-103 — Maintenance Documents
+
+**Priority:** P1
+
+Support:
+
+```text
+Before Photo
+After Photo
+Invoice
+Service Report
+Other
+```
+
+---
+
+## [x] TASK-104 — Maintenance List UI
+
+**Priority:** P0
+
+Build:
+
+```text
+Search
+Filter
+Status
+Priority
+Technician
+Date
+Pagination
+```
+
+---
+
+## [x] TASK-105 — Maintenance Form UI
+
+**Priority:** P0
+
+Create maintenance from:
+
+```text
+Maintenance page
+Asset detail
+QR quick view
+Ticket
+```
+
+---
+
+## [x] TASK-106 — Maintenance Detail UI
+
+**Priority:** P0
+
+Display:
+
+```text
+Asset
+Problem
+Diagnosis
+Action
+Technician
+Vendor
+Parts
+Cost
+Documents
+Timeline
+Status
+```
+
+---
+
+## [x] TASK-107 — Maintenance Action UI
+
+**Priority:** P0
+
+Contextual actions:
+
+```text
+Assign
+Start
+Waiting Part
+Testing
+Complete
+Cancel
+```
+
+Only show valid actions.
+
+Backend remains authoritative.
+
+---
+
+# PHASE 9 — PREVENTIVE MAINTENANCE
+
+Goal:
+
+```text
+Prevent asset failures through scheduled maintenance.
+```
+
+---
+
+## [x] TASK-110 — Maintenance Schedule API
+
+**Priority:** P1
+
+Implement complete CRUD API for maintenance schedules.
+
+```text
+GET    /maintenance-schedules
+GET    /maintenance-schedules/:id
+POST   /maintenance-schedules
+PATCH  /maintenance-schedules/:id
+PATCH  /maintenance-schedules/:id/status
+```
+
+Fields: Asset, Maintenance Type, Frequency (Daily / Weekly / Monthly /
+Quarterly / Semi Annual / Annual / Custom), Interval, Start Date,
+Next Due Date, Last Maintenance Date, Active, Notes.
+
+Validated with Zod.
+
+---
+
+## [x] TASK-111 — Next Schedule Generator
+
+**Priority:** P1
+
+Automatic next due date calculation.
+
+```text
+Monthly      +1 month
+Quarterly    +3 months
+Semi Annual  +6 months
+Annual       +1 year
+Custom       +interval days
+```
+
+Correctly handles month lengths, leap years, and timezone-safe date math.
+
+---
+
+## [x] TASK-112 — Due API
+
+**Priority:** P1
+
+Expose:
+
+```text
+GET /maintenance-schedules/upcoming
+GET /maintenance-schedules/due-today
+GET /maintenance-schedules/overdue
+GET /maintenance-schedules/completed
+```
+
+Support pagination, filters (asset / type), and human-readable asset info.
+
+---
+
+## [x] TASK-113 — Overdue Detection
+
+**Priority:** P1
+
+Compute overdue days from next due date vs today and expose schedule state:
+
+```text
+UPCOMING
+DUE_TODAY
+OVERDUE
+COMPLETED
+```
+
+---
+
+## [x] TASK-114 — Maintenance Dashboard Widget
+
+**Priority:** P1
+
+Enhance Dashboard with:
+
+```text
+Upcoming Maintenance
+Due Today
+Overdue
+Completed This Month
+Critical Assets
+```
+
+Charts: Maintenance by Status, by Type, Monthly Trend, Upcoming Schedule.
+
+---
+
+## [x] TASK-115 — Maintenance Calendar UI
+
+**Priority:** P1
+
+Month view calendar with color-coded schedules (upcoming / overdue /
+completed). Click a date to see scheduled maintenance. Responsive.
+
+---
+
+## [x] TASK-116 — Automatic Maintenance Generation
+
+**Priority:** P1
+
+When a schedule reaches its due date, automatically generate a Maintenance
+record reusing the existing Maintenance API. Prevent duplicate generation.
+Generated maintenance enters the normal workflow.
+
+---
+
+## [x] TASK-117 — Maintenance Reminder / Notification Domain
+
+**Priority:** P1
+
+Create the reminder domain (stored in the database) with offsets:
+
+```text
+30 days
+14 days
+7 days
+3 days
+1 day
+Due Today
+Overdue
+```
+
+No Email/WhatsApp sending yet; designed so future integrations can reuse it.
+
+---
+
+# PHASE 10 — DASHBOARD
+
+Goal:
+
+```text
+Give IT an immediate view of inventory health.
+```
+
+---
+
+## [x] TASK-120 — Dashboard Summary API
+
+**Priority:** P0
+
+Implement:
+
+```text
+GET /dashboard/summary
+```
+
+Metrics: Total Assets, Good, Fair, Need Attention, Broken, Critical,
+In Maintenance, Maintenance Due Today / Upcoming / Overdue /
+Completed This Month.
+
+---
+
+## [x] TASK-121 — Asset Statistics API
+
+**Priority:** P0
+
+Implement:
+
+```text
+GET /dashboard/asset-stats
+```
+
+Returns assets by status and by category.
+
+---
+
+## [x] TASK-122 — Maintenance Statistics API
+
+**Priority:** P0
+
+Implement:
+
+```text
+GET /dashboard/maintenance
+```
+
+Returns maintenance by status, by type, and monthly trend.
+
+---
+
+## [x] TASK-123 — Condition Analytics
+
+**Priority:** P0
+
+Implement:
+
+```text
+GET /dashboard/condition-analytics
+```
+
+Returns asset condition distribution.
+
+---
+
+## [x] TASK-124 — Asset Age Analytics
+
+**Priority:** P1
+
+Implement:
+
+```text
+GET /dashboard/asset-age
+```
+
+Buckets assets by age (years since purchase).
+
+---
+
+## [x] TASK-125 — Department Analytics
+
+**Priority:** P1
+
+Implement:
+
+```text
+GET /dashboard/department-analytics
+```
+
+Returns assets grouped by department.
+
+---
+
+## [x] TASK-126 — Vendor Analytics
+
+**Priority:** P1
+
+Implement:
+
+```text
+GET /dashboard/vendor-analytics
+```
+
+Returns assets grouped by vendor.
+
+---
+
+## [x] TASK-127 — Dashboard UI
+
+**Priority:** P0
+
+Dashboard is the operational homepage with KPI cards, charts (asset by
+category / department / vendor / age, maintenance trend, condition
+distribution, maintenance status), upcoming & overdue maintenance,
+critical assets, recent activities, and quick actions. Supports loading,
+error, empty, responsive, and auto-refresh states without browser reload.
+
+---
+
+# PHASE 11 — TICKET SYSTEM
+
+Goal:
+
+```text
+Allow IT issues to enter a structured maintenance workflow.
+```
+
+---
+
+## [x] TASK-130 — Ticket Code Generator
+
+**Priority:** P1
+
+Format:
+
+```text
+TKT-2026-000001
+```
+
+---
+
+## [x] TASK-131 — Ticket APIs
+
+**Priority:** P1
+
+Implement:
+
+```text
+GET  /tickets
+POST /tickets
+GET  /tickets/:id
+```
+
+---
+
+## [x] TASK-132 — Ticket Assignment
+
+**Priority:** P1
+
+Implement:
+
+```text
+POST /tickets/:id/assign
+```
+
+---
+
+## [x] TASK-133 — Ticket Workflow
+
+**Priority:** P1
+
+Implement valid state transitions.
+
+---
+
+## [x] TASK-134 — Ticket Comments
+
+**Priority:** P1
+
+Implement:
+
+```text
+GET  /tickets/:id/comments
+POST /tickets/:id/comments
+```
+
+---
+
+## [x] TASK-135 — Ticket to Maintenance
+
+**Priority:** P1
+
+Implement:
+
+```text
+POST /tickets/:id/create-maintenance
+```
+
+Use transaction.
+
+---
+
+## [x] TASK-136 — Ticket UI
+
+**Priority:** P1
+
+Build:
+
+```text
+Ticket List
+Create Ticket
+Ticket Detail
+Comments
+Assignment
+Status
+```
+
+---
+
+# PHASE 12 — NOTIFICATIONS
+
+Goal:
+
+```text
+Surface important maintenance events.
+```
+
+---
+
+## [x] TASK-140 — Notification Service
+
+**Priority:** P1
+
+Centralized Notification Service: create, read, unread count, mark read,
+mark all read, archive, delete. Types (Asset, Maintenance, Schedule, Ticket,
+Assignment, Movement, Reminder, System) with priorities
+(Info, Warning, Critical, Success).
+
+---
+
+## [x] TASK-141 — Notification API
+
+**Priority:** P1
+
+Implement:
+
+```text
+GET   /notifications
+GET   /notifications/unread-count
+PATCH /notifications/:id/read
+PATCH /notifications/read-all
+PATCH /notifications/:id/archive
+DELETE /notifications/:id
+GET   /notifications/settings
+PATCH /notifications/settings
+```
+
+Pagination, filtering, search.
+
+---
+
+## [x] TASK-142 — Notification Event Bus
+
+**Priority:** P1
+
+In-process event bus. Modules publish domain events (asset created/updated,
+assignment changed, movement, maintenance started/completed, ticket
+created/assigned/resolved, schedule due, reminder generated) without
+duplicated notification code.
+
+---
+
+## [x] TASK-143 — Bell Notification UI
+
+**Priority:** P1
+
+Top navigation bell with unread count badge and dropdown showing the latest
+10 notifications with a View All button.
+
+---
+
+## [x] TASK-144 — Notification Center Page
+
+**Priority:** P1
+
+Notifications page with search, filters (type / priority / unread / archived),
+pagination, archive, delete, mark read, and mark all read.
+
+---
+
+## [x] TASK-145 — Realtime Refresh
+
+**Priority:** P1
+
+TanStack Query polling every 30 seconds. Invalidation on user actions. No
+WebSocket.
+
+---
+
+## [x] TASK-146 — Notification Templates
+
+**Priority:** P1
+
+Reusable notification formatter mapping events to emoji titles, messages and
+priorities.
+
+---
+
+## [x] TASK-147 — Permission Integration
+
+**Priority:** P1
+
+Users only receive notifications relevant to them: admins see all, technicians
+see assigned work, requesters see their own tickets. Backed by per-user
+settings.
+
+---
+
+## [x] TASK-148 — Dashboard Integration
+
+**Priority:** P1
+
+Dashboard displays unread notifications, recent activities, and latest alerts.
+
+---
+
+## [x] TASK-149 — Notification Settings
+
+**Priority:** P1
+
+Per-user enable/disable of Asset, Maintenance, Ticket, Reminder, Assignment,
+Movement, System (and Schedule) categories. No Email / WhatsApp yet.
+
+---
+
+# PHASE 13 — REPORTS & EXPORT
+
+Goal:
+
+```text
+Provide operational reporting.
+```
+
+---
+
+## [x] TASK-150 — Inventory Report
+
+**Priority:** P1
+
+Filters:
+
+```text
+Category
+Department
+Location
+Condition
+Status
+```
+
+---
+
+## [x] TASK-151 — Asset Condition Report
+
+**Priority:** P1
+
+---
+
+## [x] TASK-152 — Maintenance Report
+
+**Priority:** P1
+
+---
+
+## [x] TASK-153 — Maintenance Cost Report
+
+**Priority:** P1
+
+---
+
+## [x] TASK-154 — Broken Asset Report
+
+**Priority:** P1
+
+---
+
+## [x] TASK-155 — Movement Report
+
+**Priority:** P2
+
+---
+
+## [x] TASK-156 — Warranty Report
+
+**Priority:** P2
+
+---
+
+## [x] TASK-157 — Asset Aging Report
+
+**Priority:** P2
+
+---
+
+## [x] TASK-158 — XLSX Export
+
+**Priority:** P1
+
+Implement:
+
+```text
+POST /reports/export
+```
+
+Requirements:
+
+```text
+Server-generated data
+Filters respected
+Correct columns
+No browser-only fake export
+```
+
+---
+
+## [x] TASK-159 — Report UI
+
+**Priority:** P1
+
+Build:
+
+```text
+Report selector
+Filters
+Preview
+Export
+Loading
+Error state
+```
+
+---
+
+# PHASE 14 — AUDIT & ADMINISTRATION
+
+Goal:
+
+```text
+Provide accountability and system administration.
+```
+
+---
+
+## [x] TASK-160 — Audit Service
+
+**Priority:** P0
+
+Create reusable audit function.
+
+Capture:
+
+```text
+Actor
+Action
+Entity
+Entity ID
+Relevant change
+Timestamp
+Request ID
+```
+
+---
+
+## [x] TASK-161 — Audit API
+
+**Priority:** P1
+
+Implement:
+
+```text
+GET /audit-logs
+```
+
+Read-only.
+
+---
+
+## [x] TASK-162 — Audit UI
+
+**Priority:** P1
+
+Filters:
+
+```text
+User
+Action
+Entity
+Date
+```
+
+---
+
+## [x] TASK-163 — User Management API
+
+**Priority:** P1
+
+Implement:
+
+```text
+GET   /users
+GET   /users/:id
+POST  /users
+PATCH /users/:id
+PATCH /users/:id/status
+```
+
+---
+
+## [x] TASK-164 — User Management UI
+
+**Priority:** P1
+
+Support:
+
+```text
+Create User
+Edit User
+Role Assignment
+Activate
+Deactivate
+```
+
+---
+
+## [x] TASK-165 — Role Management
+
+**Priority:** P2
+
+If required by PRD:
+
+```text
+Role
+Permission
+Role Permission Mapping
+```
+
+For MVP, predefined roles may be sufficient.
+
+---
+
+# PHASE 15 — TESTING & SECURITY
+
+Goal:
+
+```text
+Verify the application before production.
+```
+
+---
+
+## [x] TASK-170 — Auth Tests
+
+**Priority:** P0
+
+Test:
+
+```text
+Valid login
+Invalid login
+Inactive account
+Missing token
+Invalid token
+Forbidden permission
+```
+
+---
+
+## [x] TASK-171 — Asset API Tests
+
+**Priority:** P0
+
+Test:
+
+```text
+Create
+Read
+Update
+Search
+Filter
+Pagination
+Permissions
+```
+
+---
+
+## [x] TASK-172 — Condition Workflow Tests
+
+**Priority:** P0
+
+Test:
+
+```text
+Condition update
+History creation
+Audit creation
+Invalid condition
+```
+
+---
+
+## [x] TASK-173 — Maintenance Workflow Tests
+
+**Priority:** P0
+
+Test:
+
+```text
+Create
+Assign
+Start
+Waiting Part
+Testing
+Complete
+Invalid transition
+```
+
+---
+
+## [x] TASK-174 — Maintenance Transaction Test
+
+**Priority:** P0
+
+Simulate failure during completion.
+
+Verify:
+
+```text
+No partial maintenance completion
+No partial asset update
+No incorrect history
+```
+
+---
+
+## [x] TASK-175 — QR Tests
+
+**Priority:** P0
+
+Test:
+
+```text
+Valid asset
+Invalid asset
+Camera permission denied
+Manual lookup
+```
+
+---
+
+## [x] TASK-176 — Permission Tests
+
+**Priority:** P0
+
+Test roles:
+
+```text
+SUPER_ADMIN
+IT_ADMIN
+TECHNICIAN
+VIEWER
+```
+
+Verify backend enforcement.
+
+---
+
+## [x] TASK-177 — File Upload Security
+
+**Priority:** P0
+
+Test:
+
+```text
+Invalid MIME
+Oversized file
+Unauthorized upload
+Unsafe filename
+Disallowed extension
+```
+
+---
+
+## [x] TASK-178 — SQL/Input Security
+
+**Priority:** P0
+
+Verify:
+
+```text
+Parameterized queries
+Validated sorting
+Validated filters
+Validated query params
+```
+
+---
+
+## [x] TASK-179 — XSS Review
+
+**Priority:** P1
+
+Review:
+
+```text
+Notes
+Comments
+Asset names
+Uploaded content
+User-generated fields
+```
+
+---
+
+## [x] TASK-180 — Responsive QA
+
+**Priority:** P0
+
+Test:
+
+```text
+Desktop
+Tablet
+Mobile
+```
+
+Priority mobile workflows:
+
+```text
+Login
+QR Scan
+Asset Detail
+Update Condition
+Maintenance
+Photo Upload
+```
+
+---
+
+## [x] TASK-181 — Browser QA
+
+**Priority:** P1
+
+Test:
+
+```text
+Chrome
+Edge
+Android Chrome
+```
+
+---
+
+## [x] TASK-182 — Performance Review
+
+**Priority:** P1
+
+Check:
+
+```text
+Inventory pagination
+Dashboard aggregate queries
+N+1 queries
+Image sizes
+Bundle size
+Large tables
+```
+
+---
+
+## [x] TASK-183 — Error Handling Review
+
+**Priority:** P0
+
+Verify:
+
+```text
+API errors standardized
+Frontend displays useful errors
+No stack trace exposed
+No blank pages
+No silent failures
+```
+
+---
+
+# PHASE 16 — PRODUCTION READINESS
+
+Goal:
+
+```text
+Prepare application for real office use.
+```
+
+---
+
+## [x] TASK-190 — Production Environment
+
+**Priority:** P0
+
+Configure:
+
+```text
+NODE_ENV=production
+DATABASE_URL
+JWT_SECRET
+CORS_ORIGIN
+Storage
+```
+
+---
+
+## [x] TASK-191 — Production Build
+
+**Priority:** P0
+
+Run:
+
+```text
+lint
+typecheck
+test
+build
+```
+
+All must pass.
+
+---
+
+## [x] TASK-192 — Database Backup Strategy
+
+**Priority:** P0
+
+Define:
+
+```text
+Automatic PostgreSQL backup
+Retention
+Restore procedure
+Backup verification
+```
+
+---
+
+## [x] TASK-193 — Upload Backup Strategy
+
+**Priority:** P1
+
+If files stored locally:
+
+```text
+Backup uploaded documents/photos
+```
+
+Prefer production storage strategy that survives application redeployment.
+
+---
+
+## [x] TASK-194 — HTTPS
+
+**Priority:** P0
+
+Production must use:
+
+```text
+HTTPS
+```
+
+Camera access on mobile browser also commonly requires secure context.
+
+---
+
+## [x] TASK-195 — Reverse Proxy
+
+**Priority:** P1
+
+Configure if self-hosted:
+
+```text
+Nginx
+```
+
+or equivalent.
+
+---
+
+## [x] TASK-196 — Production Logging
+
+**Priority:** P0
+
+Verify:
+
+```text
+Structured logs
+Request ID
+No secrets
+Error logging
+```
+
+---
+
+## [x] TASK-197 — Health Monitoring
+
+**Priority:** P1
+
+Monitor:
+
+```text
+API availability
+Database availability
+Storage
+Server resources
+```
+
+---
+
+## [x] TASK-198 — Production Admin Account
+
+**Priority:** P0
+
+Create secure initial admin flow.
+
+Do not ship known default password.
+
+---
+
+## [x] TASK-199 — Deployment Documentation
+
+**Priority:** P1
+
+Update:
+
+```text
+README.md
+```
+
+with deployment procedure.
+
+---
+
+# PHASE 17 — ADVANCED FEATURES
+
+Do only after core application is stable.
+
+---
+
+## [x] TASK-200 — Asset Health Score
+
+**Priority:** P2
+
+Calculate score:
+
+```text
+0 - 100
+```
+
+Possible factors:
+
+```text
+Current condition
+Asset age
+Maintenance frequency
+Repeated failure
+Downtime
+```
+
+Algorithm must be documented.
+
+---
+
+## [x] TASK-201 — Repeated Failure Detection
+
+**Priority:** P2
+
+Detect assets with repeated maintenance.
+
+Example:
+
+```text
+Same asset
+3 corrective maintenance events
+within defined period
+```
+
+---
+
+## [x] TASK-202 — Replacement Recommendation
+
+**Priority:** P3
+
+Recommendation based on:
+
+```text
+Age
+Condition
+Maintenance frequency
+Maintenance cost
+Downtime
+```
+
+Recommendation must remain explainable.
+
+---
+
+## [x] TASK-203 — Advanced Analytics
+
+**Priority:** P3
+
+Potential:
+
+```text
+Failure trends
+Maintenance cost trends
+Category reliability
+Vendor service performance
+Asset age distribution
+```
+
+---
+
+# 18. MVP CUT LINE
+
+The first usable MVP requires:
+
+```text
+PHASE 0
+Project Foundation
+
+PHASE 1
+Database Foundation
+
+PHASE 2
+Authentication
+
+PHASE 3
+Essential Master Data
+
+PHASE 4
+Inventory
+
+PHASE 5
+Condition Monitoring
+
+PHASE 6
+QR
+
+PHASE 8
+Maintenance Core
+
+PHASE 10
+Dashboard
+
+PHASE 14
+Audit Core
+
+PHASE 15
+Critical Tests
+```
+
+MVP does not require:
+
+```text
+Advanced Analytics
+Replacement Recommendation
+Complex Notifications
+Full Ticket System
+Advanced Reports
+Custom Role Builder
+```
+
+---
+
+# 19. Recommended Build Order
+
+Do not simply build by menu order.
+
+Recommended dependency order:
+
+```text
+PROJECT
+   ↓
+DATABASE
+   ↓
+AUTH
+   ↓
+MASTER DATA
+   ↓
+ASSET CORE
+   ↓
+CONDITION
+   ↓
+QR
+   ↓
+MAINTENANCE
+   ↓
+DASHBOARD
+   ↓
+ASSIGNMENT / MOVEMENT
+   ↓
+PREVENTIVE MAINTENANCE
+   ↓
+TICKETS
+   ↓
+NOTIFICATIONS
+   ↓
+REPORTS
+   ↓
+ADMIN
+   ↓
+TEST
+   ↓
+PRODUCTION
+```
+
+---
+
+# 20. First Development Sprint
+
+Recommended first sprint:
+
+```text
+TASK-001
+Initialize repository
+
+TASK-002
+Frontend
+
+TASK-003
+Backend
+
+TASK-005
+TypeScript
+
+TASK-006
+Lint / Format
+
+TASK-007
+Environment
+
+TASK-010
+PostgreSQL
+
+TASK-011
+Migration
+
+TASK-012
+Master tables
+
+TASK-013
+Asset tables
+
+TASK-018
+Seed roles
+```
+
+Target:
+
+```text
+Frontend running
++
+API running
++
+PostgreSQL connected
++
+Migrations working
++
+Core schema exists
+```
+
+---
+
+# 21. Second Development Sprint
+
+Focus:
+
+```text
+AUTHENTICATION
+```
+
+Tasks:
+
+```text
+TASK-020
+TASK-021
+TASK-022
+TASK-023
+TASK-024
+TASK-025
+TASK-026
+TASK-027
+TASK-028
+```
+
+Target:
+
+```text
+User can login
+ ↓
+Frontend knows current user
+ ↓
+Protected routes work
+ ↓
+Backend permissions work
+```
+
+---
+
+# 22. Third Development Sprint
+
+Focus:
+
+```text
+INVENTORY
+```
+
+Tasks:
+
+```text
+TASK-030 → TASK-038
+TASK-040 → TASK-048
+```
+
+Target:
+
+```text
+IT can create asset
+ ↓
+Asset gets unique code
+ ↓
+Asset appears in inventory
+ ↓
+Search/filter works
+ ↓
+Asset detail works
+```
+
+At this point the application starts becoming practically usable.
+
+---
+
+# 23. Fourth Development Sprint
+
+Focus:
+
+```text
+CONDITION + QR
+```
+
+Tasks:
+
+```text
+TASK-060 → TASK-066
+TASK-070 → TASK-076
+```
+
+Target:
+
+```text
+Scan Asset
+ ↓
+See Current Condition
+ ↓
+Update Condition
+ ↓
+History Created
+ ↓
+Audit Created
+```
+
+This is one of the core workflows of the system.
+
+---
+
+# 24. Fifth Development Sprint
+
+Focus:
+
+```text
+MAINTENANCE
+```
+
+Tasks:
+
+```text
+TASK-090 → TASK-107
+```
+
+Target workflow:
+
+```text
+Asset Problem
+ ↓
+Create Maintenance
+ ↓
+Assign Technician
+ ↓
+Start Work
+ ↓
+Diagnosis
+ ↓
+Parts
+ ↓
+Testing
+ ↓
+Complete
+ ↓
+Asset Condition Updated
+ ↓
+History + Audit
+```
+
+---
+
+# 25. Sixth Development Sprint
+
+Focus:
+
+```text
+DASHBOARD
+```
+
+Tasks:
+
+```text
+TASK-120 → TASK-126
+```
+
+Target:
+
+When IT opens application they immediately know:
+
+```text
+How many assets exist?
+
+How many are healthy?
+
+Which assets need attention?
+
+Which assets are broken?
+
+Which assets are critical?
+
+What maintenance is overdue?
+
+What happened recently?
+```
+
+---
+
+# 26. Critical User Journey
+
+The most important complete user journey:
+
+```text
+LOGIN
+  ↓
+DASHBOARD
+  ↓
+SEE CRITICAL ASSET
+  ↓
+OPEN ASSET
+  ↓
+VIEW HISTORY
+  ↓
+CREATE MAINTENANCE
+  ↓
+ASSIGN TECHNICIAN
+  ↓
+START MAINTENANCE
+  ↓
+REPAIR
+  ↓
+TEST
+  ↓
+COMPLETE
+  ↓
+UPDATE CONDITION
+  ↓
+AUDIT + HISTORY
+```
+
+This journey must work reliably before adding advanced features.
+
+---
+
+# 27. QR User Journey
+
+```text
+IT Staff
+   ↓
+Open Scanner
+   ↓
+Scan Asset QR
+   ↓
+Asset Quick View
+   ↓
+Condition = BROKEN
+   ↓
+Create Maintenance
+   ↓
+Maintenance Record Created
+```
+
+Target:
+
+```text
+Minimal clicks
+Mobile friendly
+Fast response
+```
+
+---
+
+# 28. Task Execution Rule
+
+Before starting each task:
+
+```text
+READ
+Relevant docs
+
+↓
+
+CHECK
+Dependencies
+
+↓
+
+INSPECT
+Existing code
+
+↓
+
+PLAN
+Minimal implementation
+
+↓
+
+CODE
+
+↓
+
+TEST
+
+↓
+
+TYPECHECK
+
+↓
+
+BUILD
+
+↓
+
+REPORT
+```
+
+---
+
+# 29. Coding Agent Task Prompt Pattern
+
+When giving a task to a coding agent, use:
+
+```text
+Read first:
+
+docs/PRD.md
+docs/DATABASE.md
+docs/UI_UX.md
+docs/API.md
+docs/CODING_STANDARDS.md
+docs/TASK.md
+
+Implement TASK-XXX only.
+
+Requirements:
+- Follow existing architecture.
+- Do not modify unrelated features.
+- Do not change API contract unless required.
+- Do not change database schema without migration.
+- Do not introduce unnecessary dependencies.
+- Preserve existing functionality.
+- Follow TypeScript strict mode.
+- Validate all external input.
+- Enforce backend permissions.
+- Add audit logging where required.
+
+After implementation:
+1. Run lint.
+2. Run typecheck.
+3. Run relevant tests.
+4. Run build.
+5. Fix errors caused by this task.
+
+Report:
+- Files created.
+- Files modified.
+- Database migrations.
+- Endpoints added.
+- Tests performed.
+- Build result.
+- Remaining issues.
+
+Do not begin another TASK automatically.
+```
+
+---
+
+# 30. Task Dependency Rule
+
+Never start a task if its required foundation is incomplete.
+
+Example:
+
+```text
+QR Scanner
+```
+
+depends on:
+
+```text
+Asset
++
+Asset Code
++
+Asset Lookup API
+```
+
+Do not build fake QR flow just to visually complete the screen.
+
+---
+
+# 31. Mock Data Rule
+
+Mock data allowed during early UI development.
+
+Once real API for a feature exists:
+
+```text
+REMOVE
+temporary mock integration
+```
+
+Do not accidentally deploy dashboard with hard-coded numbers.
+
+---
+
+# 32. No Fake Completion
+
+A task is not complete merely because:
+
+```text
+UI exists
+```
+
+Example:
+
+```text
+"Complete Maintenance" button
+```
+
+is not TASK completion if:
+
+```text
+API does nothing
+Transaction missing
+Asset condition not updated
+History missing
+Audit missing
+```
+
+Task completion means full required behavior works.
+
+---
+
+# 33. Verification Commands
+
+Before marking implementation complete:
+
+```text
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+```
+
+If a command does not exist yet, create/document it during foundation work.
+
+---
+
+# 34. Regression Protection
+
+After every major phase verify:
+
+```text
+Login
+
+Dashboard
+
+Inventory List
+
+Asset Detail
+
+Condition Update
+
+QR Lookup
+
+Maintenance
+```
+
+Once these exist.
+
+Core workflow must never silently break.
+
+---
+
+# 35. Database Change Rule
+
+If task requires database change:
+
+```text
+Update DATABASE.md if design changes
+
+↓
+
+Create migration
+
+↓
+
+Update types
+
+↓
+
+Update repository
+
+↓
+
+Update service
+
+↓
+
+Update API if required
+
+↓
+
+Test migration
+```
+
+Never directly edit production database as implementation strategy.
+
+---
+
+# 36. API Change Rule
+
+If endpoint contract changes:
+
+```text
+Update API.md
+
+↓
+
+Backend
+
+↓
+
+Frontend
+
+↓
+
+Tests
+```
+
+Do not allow frontend/backend contract drift.
+
+---
+
+# 37. UI Change Rule
+
+If major user flow changes:
+
+```text
+Update UI_UX.md
+
+↓
+
+Implement UI
+
+↓
+
+Verify mobile
+
+↓
+
+Verify permissions
+
+↓
+
+Verify error/loading states
+```
+
+---
+
+# 38. Definition of MVP Ready
+
+MVP is ready when IT can reliably:
+
+```text
+Login
+
+View Dashboard
+
+Register Asset
+
+Search Asset
+
+Filter Asset
+
+Open Asset
+
+Scan QR
+
+View Current Condition
+
+Update Condition
+
+View Condition History
+
+Create Maintenance
+
+Assign Technician
+
+Start Maintenance
+
+Record Diagnosis
+
+Complete Maintenance
+
+Update Asset Condition
+
+View Maintenance History
+
+See Critical Assets
+
+See Upcoming/Overdue Maintenance
+```
+
+And system records:
+
+```text
+WHO
+did
+
+WHAT
+
+to
+
+WHICH ASSET
+
+WHEN
+
+and where applicable
+
+WHY
+```
+
+---
+
+# 39. MVP Quality Gate
+
+Before MVP release:
+
+```text
+[ ] No critical TypeScript errors
+
+[ ] No build errors
+
+[ ] No known P0 bug
+
+[ ] Authentication works
+
+[ ] Backend authorization works
+
+[ ] Asset history works
+
+[ ] Maintenance transaction works
+
+[ ] Audit logging works
+
+[ ] QR manual fallback works
+
+[ ] Mobile core workflow works
+
+[ ] PostgreSQL backup tested
+
+[ ] HTTPS enabled
+
+[ ] Production secrets configured
+
+[ ] No hard-coded credentials
+
+[ ] No hard-coded localhost
+
+[ ] Error handling tested
+```
+
+---
+
+# 40. Project Completion Strategy
+
+Development progression:
+
+```text
+FOUNDATION
+     ↓
+DATA
+     ↓
+SECURITY
+     ↓
+INVENTORY
+     ↓
+CONDITION
+     ↓
+QR
+     ↓
+MAINTENANCE
+     ↓
+DASHBOARD
+     ↓
+OPERATIONS
+     ↓
+REPORTING
+     ↓
+HARDENING
+     ↓
+PRODUCTION
+```
+
+Do not reverse this into:
+
+```text
+Beautiful Dashboard
+      ↓
+Charts
+      ↓
+Animations
+      ↓
+AI Features
+      ↓
+...
+      ↓
+Database later
+```
+
+Core system integrity comes first.
+
+---
+
+# 41. Final Project Rule
+
+The application must always answer four questions about an asset:
+
+```text
+1. WHAT IS IT?
+
+Asset identity
+Specification
+Category
+Serial number
+
+2. WHERE IS IT?
+
+Site
+Building
+Floor
+Room
+Department
+PIC
+
+3. HOW IS IT?
+
+Condition
+Status
+Maintenance state
+Warranty
+
+4. WHAT HAPPENED TO IT?
+
+Condition history
+Assignment history
+Movement history
+Maintenance history
+Ticket history
+Audit history
+```
+
+The primary goal is not merely storing inventory.
+
+The goal is:
+
+```text
+KNOW THE ASSET
+      ↓
+KNOW ITS CONDITION
+      ↓
+KNOW ITS HISTORY
+      ↓
+ACT BEFORE IT BECOMES A PROBLEM
+```
+
+---
+
+# 42. Documentation Status
+
+```text
+PRD.md                 COMPLETE
+DATABASE.md            COMPLETE
+UI_UX.md               COMPLETE
+API.md                 COMPLETE
+CODING_STANDARDS.md    COMPLETE
+TASK.md                 COMPLETE
+
+README.md               NEXT
+.env.example            NEXT
+```
+
+The planning foundation is now complete.
+
+Development should not begin by guessing requirements.
+
+Development begins from:
+
+```text
+TASK-001
+```
+
+and proceeds according to dependencies defined in this document.

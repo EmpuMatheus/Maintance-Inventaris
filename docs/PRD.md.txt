@@ -1,0 +1,1252 @@
+# OFFICE INVENTORY MAINTENANCE SYSTEM
+
+## Product Requirements Document (PRD)
+
+**Project Name:** Office Inventory Maintenance System
+**Version:** 1.0
+**Primary User:** Tim IT
+**Platform:** Web Application
+**Primary Focus:** Monitoring kondisi dan maintenance seluruh inventaris kantor
+
+---
+
+# 1. Project Overview
+
+Office Inventory Maintenance System adalah aplikasi berbasis web yang digunakan oleh Tim IT untuk mengelola, memonitor, dan mencatat kondisi seluruh inventaris kantor.
+
+Sistem tidak hanya berfungsi sebagai daftar aset, tetapi sebagai pusat informasi lifecycle inventaris mulai dari:
+
+**Registrasi Aset → Penempatan → Penggunaan → Monitoring Kondisi → Pelaporan Kerusakan → Maintenance → Riwayat → Disposal**
+
+Setiap aset memiliki identitas unik dan QR Code sehingga Tim IT dapat membuka informasi aset dengan cepat menggunakan smartphone.
+
+---
+
+# 2. Objectives
+
+Tujuan utama sistem:
+
+1. Mengetahui seluruh inventaris yang dimiliki perusahaan.
+2. Mengetahui lokasi setiap aset.
+3. Mengetahui siapa pengguna/PIC aset.
+4. Mengetahui kondisi aset terkini.
+5. Mengetahui aset yang sedang rusak.
+6. Mengetahui aset yang sedang maintenance.
+7. Menyimpan histori maintenance.
+8. Menyimpan histori perpindahan aset.
+9. Mengontrol jadwal preventive maintenance.
+10. Menganalisis biaya maintenance.
+11. Mempermudah audit inventaris.
+12. Mengurangi kehilangan informasi mengenai aset.
+13. Mempermudah Tim IT melakukan pengecekan melalui QR Code.
+
+---
+
+# 3. Inventory Scope
+
+Sistem dapat digunakan untuk seluruh inventaris kantor.
+
+Contoh kategori:
+
+### IT Equipment
+
+* Laptop
+* Desktop PC
+* Mini PC
+* Monitor
+* Printer
+* Scanner
+* Server
+* NAS
+* UPS
+* Router
+* Switch
+* Access Point
+* CCTV
+* NVR/DVR
+* Keyboard
+* Mouse
+* Projector
+
+### Office Equipment
+
+* Meja
+* Kursi
+* Lemari
+* AC
+* Televisi
+* Telepon
+* Mesin penghancur kertas
+* Mesin absensi
+
+### Operational Equipment
+
+* Mesin
+* Peralatan teknis
+* Tools
+* Peralatan gudang
+* Peralatan produksi
+
+Kategori tidak bersifat hard-coded.
+
+Admin dapat menambah, mengubah, dan menonaktifkan kategori inventaris.
+
+---
+
+# 4. User Roles
+
+## 4.1 Super Admin
+
+Memiliki akses penuh terhadap sistem.
+
+Permission:
+
+* Manage user
+* Manage role
+* Manage inventory
+* Manage master data
+* Manage maintenance
+* Manage ticket
+* Manage vendor
+* Manage report
+* Manage system configuration
+* View audit log
+
+---
+
+## 4.2 IT Admin
+
+User utama aplikasi.
+
+Permission:
+
+* Tambah inventaris
+* Edit inventaris
+* Update kondisi
+* Scan QR
+* Memproses ticket
+* Membuat maintenance
+* Menyelesaikan maintenance
+* Memindahkan aset
+* Mengubah PIC
+* Upload dokumentasi
+* Melihat dashboard
+* Export report
+
+---
+
+## 4.3 Technician
+
+Digunakan apabila maintenance dikerjakan oleh teknisi internal.
+
+Permission:
+
+* Melihat pekerjaan maintenance
+* Update progress
+* Input diagnosis
+* Input tindakan
+* Input sparepart
+* Upload foto
+* Menyelesaikan pekerjaan
+
+---
+
+## 4.4 Viewer / Management
+
+Read-only access.
+
+Dapat melihat:
+
+* Dashboard
+* Kondisi aset
+* Maintenance
+* Report
+* Biaya maintenance
+
+Tidak dapat mengubah data.
+
+---
+
+# 5. Inventory Identification
+
+Setiap inventaris memiliki:
+
+* Internal Asset ID
+* Asset Code
+* QR Code
+
+Contoh:
+
+`AST-IT-000001`
+
+`AST-OFFICE-000002`
+
+`AST-NET-000003`
+
+Asset Code harus unik.
+
+QR Code berisi identifier atau URL menuju halaman detail aset.
+
+Contoh:
+
+`/assets/AST-IT-000001`
+
+---
+
+# 6. Inventory Master
+
+Setiap aset minimal memiliki informasi:
+
+### Identification
+
+* Asset Code
+* Asset Name
+* Category
+* Sub Category
+* Brand
+* Model
+* Serial Number
+* Manufacturer
+
+### Purchase Information
+
+* Purchase Date
+* Purchase Price
+* Vendor
+* Invoice Number
+* Warranty Start
+* Warranty End
+
+### Placement
+
+* Site
+* Building
+* Floor
+* Room
+* Department
+* PIC / User
+
+### Technical Information
+
+* Specification
+* Notes
+* Attachment
+* Photo
+
+### Status
+
+* Asset Status
+* Asset Condition
+* Maintenance Status
+
+---
+
+# 7. Asset Status
+
+Status lifecycle aset:
+
+* Available
+* Assigned
+* In Use
+* In Maintenance
+* Broken
+* Spare
+* Lost
+* Retired
+* Disposed
+
+Status dapat dikembangkan melalui konfigurasi sistem.
+
+---
+
+# 8. Asset Condition
+
+Kondisi aset:
+
+### GOOD
+
+Aset bekerja normal dan tidak memiliki masalah.
+
+### FAIR
+
+Aset masih dapat digunakan tetapi memiliki indikasi penurunan kondisi.
+
+### NEED ATTENTION
+
+Aset membutuhkan pengecekan atau maintenance.
+
+### BROKEN
+
+Aset tidak dapat digunakan secara normal.
+
+### CRITICAL
+
+Kerusakan berat atau membutuhkan tindakan segera.
+
+### RETIRED
+
+Aset sudah tidak direkomendasikan untuk digunakan.
+
+---
+
+# 9. Condition Monitoring
+
+Monitoring kondisi merupakan fitur utama aplikasi.
+
+Setiap perubahan kondisi harus menghasilkan history.
+
+Contoh:
+
+`GOOD → FAIR → NEED ATTENTION → MAINTENANCE → GOOD`
+
+History menyimpan:
+
+* Previous Condition
+* New Condition
+* Changed By
+* Date
+* Reason
+* Notes
+* Attachment
+
+Dengan demikian kondisi aset tidak hanya menunjukkan kondisi saat ini tetapi juga perjalanan kondisi aset.
+
+---
+
+# 10. Asset Health Score
+
+Sistem dapat memberikan Health Score pada aset.
+
+Range:
+
+`0 - 100`
+
+Contoh:
+
+| Score  | Condition |
+| ------ | --------- |
+| 90–100 | Excellent |
+| 75–89  | Good      |
+| 60–74  | Fair      |
+| 40–59  | Poor      |
+| 0–39   | Critical  |
+
+Health Score dapat dihitung berdasarkan:
+
+* Umur aset
+* Jumlah kerusakan
+* Frekuensi maintenance
+* Severity kerusakan
+* Waktu penggunaan
+* Maintenance terakhir
+
+Fitur ini dapat dikembangkan pada fase lanjutan.
+
+---
+
+# 11. QR Code System
+
+Setiap aset memiliki QR Code.
+
+QR dapat:
+
+* Dicetak
+* Ditempel pada aset
+* Discan melalui smartphone
+
+Setelah QR discan, sistem membuka:
+
+## Asset Quick View
+
+Menampilkan:
+
+* Foto
+* Asset Code
+* Asset Name
+* Category
+* Location
+* PIC
+* Condition
+* Status
+* Last Maintenance
+* Next Maintenance
+
+Action:
+
+* Report Issue
+* Update Condition
+* Start Maintenance
+* View History
+
+---
+
+# 12. Maintenance Management
+
+Sistem mendukung dua jenis maintenance.
+
+## Preventive Maintenance
+
+Maintenance terjadwal untuk mencegah kerusakan.
+
+Contoh:
+
+* Cleaning PC
+* Cleaning printer
+* UPS inspection
+* Server inspection
+* CCTV inspection
+* AC maintenance
+
+Interval dapat berupa:
+
+* Monthly
+* Quarterly
+* Every 6 Months
+* Yearly
+* Custom
+
+---
+
+## Corrective Maintenance
+
+Maintenance karena terdapat masalah atau kerusakan.
+
+Contoh:
+
+`Laptop tidak menyala`
+
+Tim IT melakukan:
+
+`Diagnosis → Repair → Testing → Completed`
+
+---
+
+# 13. Maintenance Workflow
+
+Workflow:
+
+`OPEN`
+
+↓
+
+`ASSIGNED`
+
+↓
+
+`IN PROGRESS`
+
+↓
+
+`WAITING PART`
+
+↓
+
+`TESTING`
+
+↓
+
+`COMPLETED`
+
+atau
+
+`CANCELLED`
+
+---
+
+# 14. Maintenance Record
+
+Setiap maintenance menyimpan:
+
+* Maintenance ID
+* Asset
+* Maintenance Type
+* Problem
+* Diagnosis
+* Action Taken
+* Technician
+* Vendor
+* Start Date
+* Finish Date
+* Downtime
+* Sparepart
+* Cost
+* Before Photo
+* After Photo
+* Notes
+* Status
+
+---
+
+# 15. Sparepart Tracking
+
+Maintenance dapat memiliki sparepart.
+
+Contoh:
+
+Laptop:
+
+* SSD
+* RAM
+* Battery
+* Keyboard
+* LCD
+
+Printer:
+
+* Printhead
+* Roller
+* Ink Waste Pad
+
+Network:
+
+* Adapter
+* SFP
+* Power Supply
+
+Record:
+
+* Part Name
+* Part Number
+* Quantity
+* Price
+* Vendor
+
+---
+
+# 16. Issue / Ticket System
+
+User atau Tim IT dapat membuat laporan kerusakan.
+
+Ticket memiliki:
+
+* Ticket Number
+* Asset
+* Reporter
+* Problem
+* Description
+* Priority
+* Attachment
+* Created Date
+* Assigned Technician
+* Status
+
+Priority:
+
+* Low
+* Medium
+* High
+* Critical
+
+---
+
+# 17. Ticket Workflow
+
+`OPEN`
+
+↓
+
+`ASSIGNED`
+
+↓
+
+`IN PROGRESS`
+
+↓
+
+`RESOLVED`
+
+↓
+
+`CLOSED`
+
+Ticket dapat dikonversi menjadi Maintenance Record.
+
+Dengan demikian tidak perlu memasukkan data kerusakan dua kali.
+
+---
+
+# 18. Asset Transfer
+
+Sistem mencatat perpindahan inventaris.
+
+Contoh:
+
+`IT Room → Accounting`
+
+atau:
+
+`User A → User B`
+
+Transfer record:
+
+* Asset
+* Previous Location
+* New Location
+* Previous PIC
+* New PIC
+* Transfer Date
+* Reason
+* Approved By
+* Notes
+
+Semua perpindahan masuk ke Asset History.
+
+---
+
+# 19. Asset Timeline
+
+Setiap aset mempunyai timeline.
+
+Contoh:
+
+**12 Jan 2025**
+Asset registered
+
+**15 Jan 2025**
+Assigned to User A
+
+**20 Jun 2025**
+Moved to Accounting
+
+**15 Nov 2025**
+Reported issue
+
+**16 Nov 2025**
+Maintenance started
+
+**17 Nov 2025**
+SSD replaced
+
+**17 Nov 2025**
+Maintenance completed
+
+**18 Nov 2025**
+Condition changed to GOOD
+
+Timeline menjadi sumber utama untuk melihat lifecycle sebuah aset.
+
+---
+
+# 20. Dashboard
+
+Dashboard harus memberikan gambaran cepat mengenai kondisi inventaris.
+
+## Summary Cards
+
+* Total Assets
+* Good Assets
+* Need Attention
+* Broken
+* In Maintenance
+* Critical Assets
+
+---
+
+## Asset Condition Overview
+
+Visualisasi:
+
+* Good
+* Fair
+* Need Attention
+* Broken
+* Critical
+
+---
+
+## Maintenance Overview
+
+Menampilkan:
+
+* Maintenance Today
+* Upcoming Maintenance
+* Overdue Maintenance
+* Completed This Month
+
+---
+
+## Recent Issues
+
+Menampilkan ticket terbaru.
+
+---
+
+## Recent Maintenance
+
+Menampilkan aktivitas maintenance terbaru.
+
+---
+
+## Critical Assets
+
+Daftar aset yang membutuhkan perhatian segera.
+
+---
+
+# 21. Maintenance Calendar
+
+Calendar digunakan untuk melihat jadwal maintenance.
+
+View:
+
+* Monthly
+* Weekly
+* Daily
+
+Indicator:
+
+* Scheduled
+* Due Soon
+* Overdue
+* Completed
+
+---
+
+# 22. Search
+
+Global Search dapat mencari berdasarkan:
+
+* Asset Code
+* Asset Name
+* Serial Number
+* User
+* Department
+* Location
+* Category
+
+Contoh:
+
+`ThinkPad`
+
+`AST-IT-00021`
+
+`Accounting`
+
+---
+
+# 23. Filter
+
+Inventory dapat difilter berdasarkan:
+
+* Category
+* Location
+* Department
+* PIC
+* Status
+* Condition
+* Brand
+* Purchase Year
+* Warranty
+* Maintenance Status
+
+---
+
+# 24. Warranty Monitoring
+
+Sistem mencatat warranty.
+
+Dashboard dapat memberikan warning:
+
+`Warranty Expiring Soon`
+
+Contoh threshold:
+
+* 90 days
+* 60 days
+* 30 days
+* 7 days
+
+---
+
+# 25. Notification System
+
+Notification dapat diberikan untuk:
+
+* Maintenance due
+* Maintenance overdue
+* Warranty expiring
+* Critical asset
+* New ticket
+* Ticket assigned
+* Maintenance completed
+
+Tahap awal menggunakan in-app notification.
+
+Pengembangan selanjutnya dapat menggunakan:
+
+* Email
+* WhatsApp
+* Telegram
+
+---
+
+# 26. Reports
+
+Report utama:
+
+### Inventory Report
+
+Daftar seluruh aset.
+
+### Asset Condition Report
+
+Kondisi seluruh inventaris.
+
+### Maintenance Report
+
+Riwayat maintenance.
+
+### Maintenance Cost Report
+
+Biaya maintenance.
+
+### Broken Asset Report
+
+Aset yang mengalami kerusakan.
+
+### Asset Movement Report
+
+Riwayat perpindahan.
+
+### Warranty Report
+
+Status garansi.
+
+### Asset Aging Report
+
+Umur aset.
+
+---
+
+# 27. Excel Export
+
+Data dapat diexport ke Excel.
+
+Contoh workbook:
+
+`inventory_report.xlsx`
+
+Sheets:
+
+1. Inventory Summary
+2. Asset Detail
+3. Asset Condition
+4. Maintenance History
+5. Maintenance Cost
+6. Asset Movement
+7. Warranty
+8. Broken Assets
+
+---
+
+# 28. Document Attachment
+
+Aset dapat memiliki attachment:
+
+* Invoice
+* Warranty
+* Manual
+* Purchase Document
+* Maintenance Document
+* Photo
+
+Format:
+
+* PDF
+* JPG
+* PNG
+* WEBP
+
+---
+
+# 29. Audit Log
+
+Semua aktivitas penting harus tercatat.
+
+Contoh:
+
+`User A changed AST-00001 condition from GOOD to BROKEN`
+
+`User B moved AST-00002 from IT Room to Accounting`
+
+`User C completed maintenance MNT-00021`
+
+Audit log menyimpan:
+
+* User
+* Action
+* Entity
+* Entity ID
+* Previous Data
+* New Data
+* Timestamp
+
+---
+
+# 30. Dashboard Alert
+
+Dashboard memberikan warning untuk kondisi tertentu.
+
+### CRITICAL
+
+Aset critical.
+
+### OVERDUE
+
+Maintenance melewati jadwal.
+
+### WARRANTY
+
+Garansi hampir habis.
+
+### REPEATED FAILURE
+
+Aset mengalami kerusakan berulang.
+
+---
+
+# 31. Repeated Failure Detection
+
+Sistem mendeteksi aset yang sering mengalami kerusakan.
+
+Contoh rule:
+
+`≥ 3 corrective maintenance dalam 6 bulan`
+
+System memberikan flag:
+
+`REPEATED FAILURE`
+
+Informasi ini membantu Tim IT menentukan apakah aset masih layak diperbaiki atau sebaiknya diganti.
+
+---
+
+# 32. Asset Replacement Recommendation
+
+Fase lanjutan dapat memberikan rekomendasi:
+
+`KEEP`
+
+`MONITOR`
+
+`REPAIR`
+
+`REPLACE`
+
+Berdasarkan:
+
+* Asset age
+* Maintenance frequency
+* Maintenance cost
+* Condition
+* Downtime
+* Health Score
+
+---
+
+# 33. Responsive Design
+
+Application harus dapat digunakan pada:
+
+### Desktop
+
+Untuk:
+
+* Dashboard
+* Master data
+* Reporting
+* Administration
+
+### Mobile
+
+Untuk:
+
+* QR Scan
+* Asset inspection
+* Update condition
+* Maintenance
+* Upload photo
+
+Mobile interface harus menjadi prioritas untuk aktivitas lapangan.
+
+---
+
+# 34. Proposed Technology Stack
+
+## Frontend
+
+React
+
+Vite
+
+Tailwind CSS
+
+React Router
+
+TanStack Query
+
+React Hook Form
+
+Zod
+
+Sonner
+
+Lucide Icons
+
+---
+
+## Backend
+
+Node.js
+
+Express.js
+
+REST API
+
+JWT Authentication
+
+---
+
+## Database
+
+PostgreSQL
+
+---
+
+## File Storage
+
+Tahap awal:
+
+Local Storage / Server Storage
+
+Production:
+
+S3-compatible Object Storage atau Supabase Storage.
+
+---
+
+# 35. Proposed Application Structure
+
+Main navigation:
+
+`Dashboard`
+
+`Inventory`
+
+`Maintenance`
+
+`Tickets`
+
+`Calendar`
+
+`Reports`
+
+`Master Data`
+
+`Administration`
+
+---
+
+# 36. Inventory Detail Page
+
+Asset Detail menjadi salah satu halaman terpenting.
+
+Header:
+
+`Asset Name`
+
+`Asset Code`
+
+`Condition Badge`
+
+`Status Badge`
+
+Tabs:
+
+### Overview
+
+Informasi utama aset.
+
+### Maintenance
+
+Riwayat maintenance.
+
+### Issues
+
+Riwayat ticket.
+
+### Movement
+
+Riwayat perpindahan.
+
+### Documents
+
+Dokumen dan foto.
+
+### Timeline
+
+Seluruh lifecycle aset.
+
+---
+
+# 37. Master Data
+
+Master data meliputi:
+
+* Asset Category
+* Asset Sub Category
+* Brand
+* Vendor
+* Site
+* Building
+* Floor
+* Room
+* Department
+* User / PIC
+* Maintenance Type
+* Asset Status
+* Asset Condition
+
+---
+
+# 38. Security
+
+Minimum security requirement:
+
+* Authentication
+* JWT session
+* Password hashing
+* Role Based Access Control
+* API authorization
+* Input validation
+* File upload validation
+* Audit logging
+* Rate limiting
+
+Password tidak boleh disimpan dalam plain text.
+
+---
+
+# 39. Backup
+
+Database harus memiliki mekanisme backup.
+
+Minimum:
+
+`Daily Database Backup`
+
+Recommended:
+
+`Daily + Weekly Backup`
+
+Attachment juga harus masuk strategi backup.
+
+---
+
+# 40. MVP Scope
+
+Untuk versi pertama, fokus pada fitur yang benar-benar dibutuhkan Tim IT.
+
+### Phase 1 — MVP
+
+* Login
+* Dashboard
+* Inventory CRUD
+* Category
+* Location
+* Department
+* PIC
+* Asset Condition
+* Asset Status
+* QR Code
+* QR Scan
+* Condition Update
+* Maintenance Record
+* Maintenance History
+* Asset Timeline
+* Search
+* Filter
+* Excel Export
+* Audit Log
+
+### Phase 2
+
+* Ticket System
+* Preventive Maintenance Schedule
+* Maintenance Calendar
+* Notification
+* Warranty Monitoring
+* Sparepart Tracking
+* Asset Transfer
+
+### Phase 3
+
+* Asset Health Score
+* Repeated Failure Detection
+* Cost Analysis
+* Replacement Recommendation
+* Advanced Analytics
+
+---
+
+# 41. Core Design Principle
+
+Sistem harus menjawab pertanyaan berikut dalam beberapa detik:
+
+**Barang ini apa?**
+
+**Barang ini ada di mana?**
+
+**Siapa yang menggunakan?**
+
+**Bagaimana kondisinya?**
+
+**Pernah rusak apa saja?**
+
+**Kapan terakhir maintenance?**
+
+**Kapan harus maintenance lagi?**
+
+**Berapa biaya yang sudah dikeluarkan?**
+
+**Apakah masih layak dipakai?**
+
+Jika informasi tersebut dapat ditemukan dengan cepat, maka sistem telah memenuhi tujuan utamanya.
+
+---
+
+# 42. Expected Result
+
+Hasil akhir yang diharapkan adalah satu sistem terpusat yang memungkinkan Tim IT melakukan:
+
+`REGISTER`
+
+↓
+
+`IDENTIFY`
+
+↓
+
+`ASSIGN`
+
+↓
+
+`MONITOR`
+
+↓
+
+`INSPECT`
+
+↓
+
+`MAINTAIN`
+
+↓
+
+`TRACK`
+
+↓
+
+`ANALYZE`
+
+seluruh lifecycle inventaris kantor.

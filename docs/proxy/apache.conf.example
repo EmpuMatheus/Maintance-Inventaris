@@ -1,0 +1,45 @@
+# Apache example — reverse proxy for the Office Inventory system.
+# Enable: a2enmod proxy proxy_http proxy_wstunnel rewrite ssl headers
+
+<VirtualHost *:80>
+    ServerName inventory.example.com
+    # Redirect HTTP -> HTTPS
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName inventory.example.com
+
+    SSLEngine on
+    SSLCertificateFile    /etc/letsencrypt/live/inventory.example.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/inventory.example.com/privkey.pem
+
+    # Forward the real client IP and scheme to the Node app
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "https"
+    ProxyPass        /api/  http://127.0.0.1:3000/api/
+    ProxyPassReverse /api/  http://127.0.0.1:3000/api/
+
+    # Uploaded files served from storage (with a static alias for efficiency)
+    Alias /uploads/ /opt/office-inventory/storage/uploads/
+    <Directory "/opt/office-inventory/storage/uploads/">
+        Require all granted
+    </Directory>
+
+    # SPA: fall back to index.html for client-side routes
+    DocumentRoot /opt/office-inventory/apps/web/dist
+    <Directory "/opt/office-inventory/apps/web/dist">
+        Options -Indexes +FollowSymLinks
+        AllowOverride None
+        Require all granted
+        RewriteEngine On
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule . /index.html [L]
+    </Directory>
+
+    # Limits for uploads
+    LimitRequestBody 20971520
+</VirtualHost>

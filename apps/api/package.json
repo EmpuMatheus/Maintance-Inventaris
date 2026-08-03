@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
+    "build": "tsc --noEmit && node scripts/build.mjs",
+    "start": "node dist/server.cjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

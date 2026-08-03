@@ -11,6 +11,7 @@ export interface LoginResult {
     name: string;
     roles: string[];
     permissions: string[];
+    mustChangePassword: boolean;
   };
 }
 
@@ -53,6 +54,7 @@ export async function login(username: string, password: string): Promise<LoginRe
       name: user.name,
       roles,
       permissions,
+      mustChangePassword: user.mustChangePassword,
     },
   };
 }

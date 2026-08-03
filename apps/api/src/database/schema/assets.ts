@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, date, numeric, integer } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, date, numeric, integer, boolean, index } from 'drizzle-orm/pg-core';
 import { assetCategories, assetSubcategories, brands, vendors, sites, buildings, floors, rooms, departments } from './master-data';
 import { users } from './auth';
 
@@ -28,6 +28,8 @@ export const assets = pgTable('assets', {
   status: varchar('status', { length: 50 }).notNull().default('AVAILABLE'),
   condition: varchar('condition', { length: 50 }).notNull().default('GOOD'),
   healthScore: integer('health_score'),
+  healthScoreUpdatedAt: timestamp('health_score_updated_at', { withTimezone: true }),
+  repeatedFailure: boolean('repeated_failure').default(false).notNull(),
   qrCode: text('qr_code'),
   photoUrl: text('photo_url'),
   notes: text('notes'),
@@ -35,7 +37,10 @@ export const assets = pgTable('assets', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
-});
+}, (table) => ({
+  conditionIdx: index('assets_condition_idx').on(table.condition),
+  healthScoreIdx: index('assets_health_score_idx').on(table.healthScore),
+}));
 
 export const assetConditionHistory = pgTable('asset_condition_history', {
   id: uuid('id').defaultRandom().primaryKey(),

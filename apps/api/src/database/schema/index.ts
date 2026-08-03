@@ -5,3 +5,4 @@ export * from './maintenance';
 export * from './tickets';
 export * from './system';
 export * from './counters';
+export * from './analytics';

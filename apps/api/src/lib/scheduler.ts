@@ -2,6 +2,7 @@ import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import * as scheduleService from '@/modules/maintenance-schedules/schedule.service';
 import * as reminderService from '@/modules/reminders/reminder.service';
+import * as analyticsService from '@/modules/analytics/analytics.service';
 
 let timer: NodeJS.Timeout | null = null;
 
@@ -18,6 +19,15 @@ async function run() {
     if (created > 0) logger.info({ created }, 'Maintenance reminders generated');
   } catch (error) {
     logger.error({ error }, 'Maintenance reminder generation failed');
+  }
+
+  try {
+    const result = await analyticsService.recalculateAll();
+    if (result.updated > 0) {
+      logger.info({ updated: result.updated, events: result.events }, 'Analytics health scores recalculated');
+    }
+  } catch (error) {
+    logger.error({ error }, 'Analytics recalculation failed');
   }
 }
 

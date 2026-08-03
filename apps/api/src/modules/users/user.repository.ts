@@ -164,7 +164,11 @@ export async function setActive(id: string, isActive: boolean) {
 
 export async function setPassword(id: string, passwordHash: string) {
   const db = getDb();
-  const rows = await db.update(users).set({ passwordHash, updatedAt: sql`now()` }).where(eq(users.id, sql`${id}::uuid`)).returning();
+  const rows = await db
+    .update(users)
+    .set({ passwordHash, mustChangePassword: false, updatedAt: sql`now()` })
+    .where(eq(users.id, sql`${id}::uuid`))
+    .returning();
   return (rows as Row[])[0] ?? null;
 }
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Package, LayoutDashboard, ClipboardList, Database, Wrench, Scan, LogOut, Menu, User,
-  ChevronDown, ChevronRight, CalendarClock, CalendarDays, TicketCheck, BarChart3, Settings2,
+  ChevronDown, ChevronRight, CalendarClock, CalendarDays, TicketCheck, BarChart3, Settings2, TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
@@ -124,6 +124,17 @@ export default function AppLayout() {
         >
           <TicketCheck className="h-4 w-4 shrink-0" /> Tickets
         </button>
+
+        {can('analytics.read') && (
+          <button
+            onClick={() => go('/analytics')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              isActive('/analytics') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <TrendingUp className="h-4 w-4 shrink-0" /> Analytics
+          </button>
+        )}
 
         {can('report.read') && (
           <div>

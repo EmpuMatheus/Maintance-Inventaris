@@ -1,39 +1,44 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import LoginPage from '@/features/auth/pages/LoginPage';
-import MasterDataPage from '@/features/master-data/pages/MasterDataPage';
-import InventoryListPage from '@/features/inventory/pages/InventoryListPage';
-import AssetFormPage from '@/features/inventory/pages/AssetFormPage';
-import AssetDetailPage from '@/features/inventory/pages/AssetDetailPage';
-import ScanPage from '@/features/qr/pages/ScanPage';
-import MaintenanceListPage from '@/features/maintenance/pages/MaintenanceListPage';
-import MaintenanceFormPage from '@/features/maintenance/pages/MaintenanceFormPage';
-import MaintenanceDetailPage from '@/features/maintenance/pages/MaintenanceDetailPage';
-import SchedulesPage from '@/features/maintenance-schedules/pages/SchedulesPage';
-import CalendarPage from '@/features/maintenance-schedules/pages/CalendarPage';
-import NewSchedulePage from '@/features/maintenance-schedules/pages/NewSchedulePage';
-import DashboardPage from '@/features/dashboard/pages/DashboardPage';
-import TicketListPage from '@/features/tickets/pages/TicketListPage';
-import TicketFormPage from '@/features/tickets/pages/TicketFormPage';
-import TicketDetailPage from '@/features/tickets/pages/TicketDetailPage';
-import NotificationsPage from '@/features/notifications/pages/NotificationsPage';
-import InventoryReportPage from '@/features/reports/pages/InventoryReportPage';
-import MaintenanceReportPage from '@/features/reports/pages/MaintenanceReportPage';
-import MaintenanceCostReportPage from '@/features/reports/pages/MaintenanceCostReportPage';
-import AssetConditionReportPage from '@/features/reports/pages/AssetConditionReportPage';
-import BrokenAssetReportPage from '@/features/reports/pages/BrokenAssetReportPage';
-import MovementReportPage from '@/features/reports/pages/MovementReportPage';
-import WarrantyReportPage from '@/features/reports/pages/WarrantyReportPage';
-import AssetAgingReportPage from '@/features/reports/pages/AssetAgingReportPage';
-import AuditListPage from '@/features/audit/pages/AuditListPage';
-import AuditDetailPage from '@/features/audit/pages/AuditDetailPage';
-import UserListPage from '@/features/users/pages/UserListPage';
-import UserFormPage from '@/features/users/pages/UserFormPage';
-import UserDetailPage from '@/features/users/pages/UserDetailPage';
-import RoleListPage from '@/features/roles/pages/RoleListPage';
-import RoleFormPage from '@/features/roles/pages/RoleFormPage';
-import RoleDetailPage from '@/features/roles/pages/RoleDetailPage';
+import { lazy, Suspense } from 'react';
+import { Loader2 } from 'lucide-react';
 import AppLayout from '@/components/layout/AppLayout';
 import ProtectedRoute from '@/features/auth/components/ProtectedRoute';
+
+const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'));
+const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage'));
+const MasterDataPage = lazy(() => import('@/features/master-data/pages/MasterDataPage'));
+const InventoryListPage = lazy(() => import('@/features/inventory/pages/InventoryListPage'));
+const AssetFormPage = lazy(() => import('@/features/inventory/pages/AssetFormPage'));
+const AssetDetailPage = lazy(() => import('@/features/inventory/pages/AssetDetailPage'));
+const ScanPage = lazy(() => import('@/features/qr/pages/ScanPage'));
+const MaintenanceListPage = lazy(() => import('@/features/maintenance/pages/MaintenanceListPage'));
+const MaintenanceFormPage = lazy(() => import('@/features/maintenance/pages/MaintenanceFormPage'));
+const MaintenanceDetailPage = lazy(() => import('@/features/maintenance/pages/MaintenanceDetailPage'));
+const SchedulesPage = lazy(() => import('@/features/maintenance-schedules/pages/SchedulesPage'));
+const NewSchedulePage = lazy(() => import('@/features/maintenance-schedules/pages/NewSchedulePage'));
+const CalendarPage = lazy(() => import('@/features/maintenance-schedules/pages/CalendarPage'));
+const TicketListPage = lazy(() => import('@/features/tickets/pages/TicketListPage'));
+const TicketFormPage = lazy(() => import('@/features/tickets/pages/TicketFormPage'));
+const TicketDetailPage = lazy(() => import('@/features/tickets/pages/TicketDetailPage'));
+const NotificationsPage = lazy(() => import('@/features/notifications/pages/NotificationsPage'));
+const InventoryReportPage = lazy(() => import('@/features/reports/pages/InventoryReportPage'));
+const MaintenanceReportPage = lazy(() => import('@/features/reports/pages/MaintenanceReportPage'));
+const MaintenanceCostReportPage = lazy(() => import('@/features/reports/pages/MaintenanceCostReportPage'));
+const AssetConditionReportPage = lazy(() => import('@/features/reports/pages/AssetConditionReportPage'));
+const BrokenAssetReportPage = lazy(() => import('@/features/reports/pages/BrokenAssetReportPage'));
+const MovementReportPage = lazy(() => import('@/features/reports/pages/MovementReportPage'));
+const WarrantyReportPage = lazy(() => import('@/features/reports/pages/WarrantyReportPage'));
+const AssetAgingReportPage = lazy(() => import('@/features/reports/pages/AssetAgingReportPage'));
+const AuditListPage = lazy(() => import('@/features/audit/pages/AuditListPage'));
+const AuditDetailPage = lazy(() => import('@/features/audit/pages/AuditDetailPage'));
+const UserListPage = lazy(() => import('@/features/users/pages/UserListPage'));
+const UserFormPage = lazy(() => import('@/features/users/pages/UserFormPage'));
+const UserDetailPage = lazy(() => import('@/features/users/pages/UserDetailPage'));
+const RoleListPage = lazy(() => import('@/features/roles/pages/RoleListPage'));
+const RoleFormPage = lazy(() => import('@/features/roles/pages/RoleFormPage'));
+const RoleDetailPage = lazy(() => import('@/features/roles/pages/RoleDetailPage'));
+const AnalyticsDashboardPage = lazy(() => import('@/features/analytics/pages/AnalyticsDashboardPage'));
+const NotFoundPage = lazy(() => import('@/features/misc/NotFoundPage'));
 
 const protectedLayout = (
   <ProtectedRoute>
@@ -68,6 +73,7 @@ const router = createBrowserRouter([
       { path: 'tickets/:id', element: <TicketDetailPage /> },
       { path: 'tickets/:id/edit', element: <TicketFormPage /> },
       { path: 'notifications', element: <NotificationsPage /> },
+      { path: 'analytics', element: <AnalyticsDashboardPage /> },
       { path: 'reports/inventory', element: <InventoryReportPage /> },
       { path: 'reports/maintenance', element: <MaintenanceReportPage /> },
       { path: 'reports/maintenance-cost', element: <MaintenanceCostReportPage /> },
@@ -87,8 +93,24 @@ const router = createBrowserRouter([
       { path: 'roles/:id', element: <RoleDetailPage /> },
     ],
   },
+  {
+    path: '*',
+    element: <NotFoundPage />,
+  },
 ]);
 
+function PageLoader() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+    </div>
+  );
+}
+
 export function AppRouter() {
-  return <RouterProvider router={router} />;
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <RouterProvider router={router} />
+    </Suspense>
+  );
 }

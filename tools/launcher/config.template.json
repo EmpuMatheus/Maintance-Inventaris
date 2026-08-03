@@ -1,0 +1,21 @@
+{
+  "port": 3000,
+  "autoStart": true,
+  "browser": "default",
+  "logLevel": "info",
+  "nodePath": "",
+  "database": {
+    "url": "postgresql://USERNAME:PASSWORD@localhost:5432/office_inventory"
+  },
+  "sap": {
+    "enabled": false,
+    "url": "",
+    "username": "",
+    "password": ""
+  },
+  "backup": {
+    "enabled": false,
+    "intervalMinutes": 1440,
+    "retentionDays": 14
+  }
+}

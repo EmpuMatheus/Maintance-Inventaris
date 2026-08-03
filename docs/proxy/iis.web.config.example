@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  IIS example — reverse proxy for the Office Inventory system.
+  Requires the "URL Rewrite" and "ARR (Application Request Routing)" modules.
+  Bindings: HTTPS with your certificate; HTTP binding redirects below.
+-->
+<configuration>
+  <system.webServer>
+    <rewrite>
+      <rules>
+        <!-- Redirect HTTP -> HTTPS -->
+        <rule name="Force HTTPS" stopProcessing="true">
+          <match url="(.*)" />
+          <conditions>
+            <add input="{HTTPS}" pattern="off" ignoreCase="true" />
+          </conditions>
+          <action type="Redirect" url="https://{HTTP_HOST}/{R:1}" redirectType="Permanent" />
+        </rule>
+
+        <!-- API proxy -> http://localhost:3000 -->
+        <rule name="Proxy API" stopProcessing="true">
+          <match url="^api/(.*)" />
+          <action type="Rewrite" url="http://localhost:3000/api/{R:1}" />
+          <serverVariables>
+            <set name="HTTP_X_FORWARDED_PROTO" value="https" />
+          </serverVariables>
+        </rule>
+
+        <!-- SPA fallback: any path that is not a real file -> index.html -->
+        <rule name="SPA Fallback" stopProcessing="true">
+          <match url=".*" />
+          <conditions logicalGrouping="MatchAll">
+            <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="true" />
+            <add input="{REQUEST_FILENAME}" matchType="IsDirectory" negate="true" />
+            <add input="{URL}" pattern="^/uploads/" negate="true" />
+            <add input="{URL}" pattern="^/api/" negate="true" />
+          </conditions>
+          <action type="Rewrite" url="/index.html" />
+        </rule>
+      </rules>
+    </rewrite>
+
+    <!-- Static cache for the built SPA -->
+    <staticContent>
+      <clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="30.00:00:00" />
+    </staticContent>
+  </system.webServer>
+</configuration>
+
+<!--
+  Serving uploaded files: either map a virtual directory "uploads" to
+  D:\path\to\storage\uploads, or proxy /uploads to the Node server.
+-->

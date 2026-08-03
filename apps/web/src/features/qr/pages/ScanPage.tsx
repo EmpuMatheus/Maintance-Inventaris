@@ -49,7 +49,7 @@ export default function ScanPage() {
       setScannerActive(false);
       toast.error('Unable to access camera. Please use manual lookup.');
     }
-  }, []);
+  }, [lookupMut]);
 
   const stopScanner = useCallback(() => {
     if (scannerRef.current) {

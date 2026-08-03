@@ -10,6 +10,7 @@ export interface UserRow {
   email: string | null;
   passwordHash: string | null;
   isActive: boolean;
+  mustChangePassword: boolean;
 }
 
 export async function findUserByUsername(username: string): Promise<UserRow | undefined> {
@@ -23,6 +24,7 @@ export async function findUserByUsername(username: string): Promise<UserRow | un
       email: users.email,
       passwordHash: users.passwordHash,
       isActive: users.isActive,
+      mustChangePassword: users.mustChangePassword,
     })
     .from(users)
     .where(eq(users.username, username))
@@ -41,6 +43,7 @@ export async function findUserById(id: string): Promise<UserRow | undefined> {
       email: users.email,
       passwordHash: users.passwordHash,
       isActive: users.isActive,
+      mustChangePassword: users.mustChangePassword,
     })
     .from(users)
     .where(eq(users.id, sql`${id}::uuid`))

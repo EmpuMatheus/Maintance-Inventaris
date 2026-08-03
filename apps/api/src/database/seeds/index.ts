@@ -43,6 +43,8 @@ const PERMISSIONS = [
   { code: 'audit.read', name: 'Read Audit Log' },
   { code: 'notification.read', name: 'Read Notification' },
   { code: 'settings.manage', name: 'Manage System Settings' },
+  { code: 'backup.manage', name: 'Manage Backups' },
+  { code: 'analytics.read', name: 'Read Analytics' },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
@@ -55,6 +57,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'master_data.read', 'master_data.manage',
     'report.read', 'report.export',
     'user.read', 'user.create', 'user.update', 'role.read', 'audit.read', 'notification.read',
+    'analytics.read',
   ],
   TECHNICIAN: [
     'asset.read',
@@ -65,6 +68,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   VIEWER: [
     'asset.read', 'maintenance.read', 'ticket.read',
     'master_data.read', 'report.read', 'audit.read', 'notification.read',
+    'analytics.read',
   ],
 };
 
@@ -107,41 +111,81 @@ async function seed() {
     }
     logger.info('Seeded role-permission mappings');
 
-    const devUsername = process.env.DEV_ADMIN_USERNAME || 'admin';
-    const devPassword = process.env.DEV_ADMIN_PASSWORD || 'admin123';
-    const passwordHash = await argon2.hash(devPassword, { type: argon2.argon2id });
+    if (env.isProduction) {
+      const username = env.PROD_ADMIN_USERNAME;
+      const password = env.PROD_ADMIN_PASSWORD;
+      const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
 
-    await sql`
-      INSERT INTO users (id, employee_code, name, email, username, password_hash, is_active, created_at, updated_at)
-      VALUES (
-        gen_random_uuid(),
-        ${devUsername},
-        ${'Development Admin'},
-        ${devUsername + '@office.local'},
-        ${devUsername},
-        ${passwordHash},
-        true,
-        ${now},
-        ${now}
-      )
-      ON CONFLICT (username) DO UPDATE SET
-        name = EXCLUDED.name,
-        password_hash = EXCLUDED.password_hash,
-        updated_at = ${now}
-    `;
-
-    const superAdminRole = await sql`SELECT id FROM roles WHERE name = 'SUPER_ADMIN' LIMIT 1`;
-    if (superAdminRole.length > 0) {
       await sql`
-        INSERT INTO user_roles (id, user_id, role_id, created_at)
-        SELECT gen_random_uuid(), u.id, ${superAdminRole[0].id}, ${now}
-        FROM users u
-        WHERE u.username = ${devUsername}
-        ON CONFLICT DO NOTHING
+        INSERT INTO users (id, employee_code, name, email, username, password_hash, is_active, must_change_password, created_at, updated_at)
+        VALUES (
+          gen_random_uuid(),
+          ${username},
+          ${env.PROD_ADMIN_NAME},
+          ${username + '@office.local'},
+          ${username},
+          ${passwordHash},
+          true,
+          true,
+          ${now},
+          ${now}
+        )
+        ON CONFLICT (username) DO NOTHING
       `;
-    }
 
-    logger.info({ username: devUsername }, 'Development admin user created');
+      const superAdminRole = await sql`SELECT id FROM roles WHERE name = 'SUPER_ADMIN' LIMIT 1`;
+      if (superAdminRole.length > 0) {
+        await sql`
+          INSERT INTO user_roles (id, user_id, role_id, created_at)
+          SELECT gen_random_uuid(), u.id, ${superAdminRole[0].id}, ${now}
+          FROM users u
+          WHERE u.username = ${username}
+          ON CONFLICT DO NOTHING
+        `;
+      }
+      logger.info(
+        { username, mustChangePassword: true },
+        'Production admin user created (password change required on first login)',
+      );
+    } else {
+      const devUsername = process.env.DEV_ADMIN_USERNAME || 'admin';
+      const devPassword = process.env.DEV_ADMIN_PASSWORD || 'admin123';
+      const passwordHash = await argon2.hash(devPassword, { type: argon2.argon2id });
+
+      await sql`
+        INSERT INTO users (id, employee_code, name, email, username, password_hash, is_active, must_change_password, created_at, updated_at)
+        VALUES (
+          gen_random_uuid(),
+          ${devUsername},
+          ${'Development Admin'},
+          ${devUsername + '@office.local'},
+          ${devUsername},
+          ${passwordHash},
+          true,
+          false,
+          ${now},
+          ${now}
+        )
+        ON CONFLICT (username) DO UPDATE SET
+          name = EXCLUDED.name,
+          password_hash = EXCLUDED.password_hash,
+          must_change_password = false,
+          updated_at = ${now}
+      `;
+
+      const superAdminRole = await sql`SELECT id FROM roles WHERE name = 'SUPER_ADMIN' LIMIT 1`;
+      if (superAdminRole.length > 0) {
+        await sql`
+          INSERT INTO user_roles (id, user_id, role_id, created_at)
+          SELECT gen_random_uuid(), u.id, ${superAdminRole[0].id}, ${now}
+          FROM users u
+          WHERE u.username = ${devUsername}
+          ON CONFLICT DO NOTHING
+        `;
+      }
+
+      logger.info({ username: devUsername }, 'Development admin user created');
+    }
 
     logger.info('Database seed completed successfully');
   } catch (error) {

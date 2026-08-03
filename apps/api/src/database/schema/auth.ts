@@ -12,6 +12,7 @@ export const users = pgTable('users', {
   phone: varchar('phone', { length: 30 }),
   position: varchar('position', { length: 100 }),
   isActive: boolean('is_active').default(true).notNull(),
+  mustChangePassword: boolean('must_change_password').default(false).notNull(),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
   createdBy: uuid('created_by'),

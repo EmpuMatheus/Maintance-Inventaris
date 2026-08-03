@@ -12,6 +12,14 @@
     "dev:web": "npm run dev -w apps/web",
     "dev:api": "npm run dev -w apps/api",
     "build": "npm run build -w packages/shared && npm run build -w apps/web && npm run build -w apps/api",
+    "build:prod": "node scripts/build-prod.mjs",
+    "start:prod": "node scripts/start-prod.mjs",
+    "check:prod": "node scripts/check-prod.mjs",
+    "build:launcher": "node scripts/build-launcher.mjs",
+    "build:dev-launcher": "node scripts/build-dev-launcher.mjs",
+    "package:release": "node scripts/package-release.mjs",
+    "build:installer": "node scripts/build-installer.mjs",
+    "generate:icon": "node scripts/generate-icon.mjs",
     "lint": "eslint . --ext .ts,.tsx --ignore-pattern dist --ignore-pattern node_modules",
     "typecheck": "npm run typecheck -w packages/shared && npm run typecheck -w apps/web && npm run typecheck -w apps/api",
     "test": "npm run test -w apps/web -- --passWithNoTests && npm run test -w apps/api",
@@ -19,7 +27,8 @@
     "db:generate": "npm run db:generate -w apps/api",
     "db:migrate": "npm run db:migrate -w apps/api",
     "db:studio": "npm run db:studio -w apps/api",
-    "db:seed": "npm run db:seed -w apps/api"
+    "db:seed": "npm run db:seed -w apps/api",
+    "db:seed:prod": "node scripts/seed-prod.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
@@ -30,6 +39,7 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.0",
     "globals": "^15.0.0",
+    "postject": "^1.0.0-alpha.6",
     "prettier": "^3.4.0",
     "prettier-plugin-tailwindcss": "^0.6.0",
     "typescript-eslint": "^8.0.0"
