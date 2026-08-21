@@ -2,30 +2,85 @@ import { getDb } from '@/database/client';
 import {
   assets,
   assetCategories,
-  assetConditionHistory,
-  assetMovements,
-  assetAssignments,
   departments,
   vendors,
-  rooms,
   maintenanceRecords,
   maintenanceTypes,
   tickets,
 } from '@/database/schema';
-import { alias } from 'drizzle-orm/pg-core';
-import { sql, eq, and, gte, count, desc } from 'drizzle-orm';
+import { sql, eq, and, gte, count, desc, inArray } from 'drizzle-orm';
 import * as scheduleService from '@/modules/maintenance-schedules/schedule.service';
-import { unreadCount as getUnreadCount } from '@/modules/notifications/notification.service';
+import { unreadCount as getUnreadCount, list as listNotifications } from '@/modules/notifications/notification.service';
 import type { DueFilters } from '@/modules/maintenance-schedules/schedule.repository';
+import type { AssetScope } from '@/middleware/scope';
+import type { SQL } from 'drizzle-orm';
 
-const toRooms = alias(rooms, 'to_rooms');
+/** Builds a WHERE fragment that constrains an assets query to the given scope. */
+function buildAssetScopeCondition(scope: AssetScope): SQL | undefined {
+  if (scope.ownUserId) return eq(assets.currentPicId, sql`${scope.ownUserId}::uuid`);
+  if (scope.categoryIds && scope.categoryIds.length > 0) return inArray(assets.categoryId, scope.categoryIds);
+  return undefined;
+}
 
-export async function getSummary(userId?: string) {
+/**
+ * Full WHERE for asset-scoped dashboard queries. Keeps every widget consistent
+ * with the Inventory list: soft-deleted and RETIRED assets are always excluded,
+ * and ADMIN/TECHNICIAN are limited to their categories via the shared scope.
+ */
+function assetBaseCondition(scope: AssetScope, extra: SQL[] = []): SQL | undefined {
+  return and(
+    sql`${assets.deletedAt} IS NULL`,
+    sql`${assets.status} != 'RETIRED'`,
+    buildAssetScopeCondition(scope),
+    ...extra,
+  );
+}
+
+/** Builds a WHERE fragment that constrains a tickets query to the scope's categories. */
+function buildTicketCategoryCondition(scope: AssetScope): SQL | undefined {
+  if (scope.categoryIds && scope.categoryIds.length > 0) return inArray(assets.categoryId, scope.categoryIds);
+  return undefined;
+}
+
+function dueFilters(scope: AssetScope, extra: Record<string, unknown> = {}): DueFilters & Record<string, unknown> {
+  return scope.categoryIds?.length ? { ...extra, categoryIds: scope.categoryIds } : extra;
+}
+
+export async function getMySummary(userId: string) {
+  const db = getDb();
+  const myAssetsWhere = and(sql`${assets.deletedAt} IS NULL`, eq(assets.currentPicId, sql`${userId}::uuid`));
+  const myOpenTicketsWhere = and(
+    sql`${tickets.status} IN ('OPEN', 'ASSIGNED', 'IN_PROGRESS', 'ON_HOLD')`,
+    eq(tickets.reporterId, sql`${userId}::uuid`),
+  );
+
+  const [assetCount, ticketCount, maintCount] = await Promise.all([
+    db.select({ value: count() }).from(assets).where(myAssetsWhere),
+    db.select({ value: count() }).from(tickets).where(myOpenTicketsWhere),
+    db
+      .select({ value: count() })
+      .from(maintenanceRecords)
+      .innerJoin(assets, eq(maintenanceRecords.assetId, assets.id))
+      .where(eq(assets.currentPicId, sql`${userId}::uuid`)),
+  ]);
+
+  const recent = await listNotifications(userId, { page: 1, limit: 5 });
+
+  return {
+    myAssets: Number(assetCount[0]?.value ?? 0),
+    myOpenTickets: Number(ticketCount[0]?.value ?? 0),
+    myMaintenance: Number(maintCount[0]?.value ?? 0),
+    notificationsUnread: await getUnreadCount(userId),
+    recentNotifications: recent.data,
+  };
+}
+
+export async function getSummary(userId?: string, scope: AssetScope = {}) {
   const db = getDb();
   const rows = await db
     .select({ condition: assets.condition, status: assets.status })
     .from(assets)
-    .where(sql`${assets.deletedAt} IS NULL`);
+    .where(assetBaseCondition(scope));
 
   let total = 0;
   let good = 0;
@@ -46,9 +101,9 @@ export async function getSummary(userId?: string) {
   }
 
   const [dueToday, upcoming, overdue] = await Promise.all([
-    scheduleService.dueToday({ limit: 1 }),
-    scheduleService.upcoming({ days: 365, limit: 1 }),
-    scheduleService.overdue({ limit: 1 }),
+    scheduleService.dueToday(dueFilters(scope, { limit: 1 })),
+    scheduleService.upcoming({ days: 365, limit: 1, ...dueFilters(scope) }),
+    scheduleService.overdue(dueFilters(scope, { limit: 1 })),
   ]);
 
   return {
@@ -57,30 +112,40 @@ export async function getSummary(userId?: string) {
       dueToday: dueToday.meta.total,
       upcoming: upcoming.meta.total,
       overdue: overdue.meta.total,
-      completedThisMonth: await countCompletedThisMonth(),
+      completedThisMonth: await countCompletedThisMonth(scope),
     },
-    tickets: await getTicketStats(),
+    tickets: await getTicketStats(scope),
     notifications: { unread: userId ? await getUnreadCount(userId) : 0 },
   };
 }
 
-export async function getTicketStats() {
+export async function getTicketStats(scope: AssetScope = {}) {
   const db = getDb();
   const active = sql`${tickets.status} IN ('OPEN', 'ASSIGNED', 'IN_PROGRESS', 'ON_HOLD')`;
+  const categoryCond = buildTicketCategoryCondition(scope);
 
-  const openResult = await db.select({ value: count() }).from(tickets).where(active);
+  const openResult = await db
+    .select({ value: count() })
+    .from(tickets)
+    .leftJoin(assets, eq(tickets.assetId, assets.id))
+    .where(and(active, categoryCond));
   const criticalResult = await db
     .select({ value: count() })
     .from(tickets)
-    .where(and(active, eq(tickets.priority, 'CRITICAL')));
+    .leftJoin(assets, eq(tickets.assetId, assets.id))
+    .where(and(active, eq(tickets.priority, 'CRITICAL'), categoryCond));
   const resolvedTodayResult = await db
     .select({ value: count() })
     .from(tickets)
-    .where(sql`${tickets.resolvedAt}::date = current_date`);
+    .leftJoin(assets, eq(tickets.assetId, assets.id))
+    .where(and(sql`${tickets.resolvedAt}::date = current_date`, categoryCond));
   const avgResult = await db.execute(
     sql`SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (${tickets.resolvedAt} - ${tickets.reportedAt})) / 3600), 0)::float AS value
         FROM ${tickets}
-        WHERE ${tickets.resolvedAt} IS NOT NULL AND ${tickets.reportedAt} IS NOT NULL`,
+        LEFT JOIN ${assets} ON ${tickets.assetId} = ${assets.id}
+        WHERE ${tickets.resolvedAt} IS NOT NULL AND ${tickets.reportedAt} IS NOT NULL${
+          categoryCond ? sql` AND ${categoryCond}` : sql``
+        }`,
   );
 
   const avgRow = (avgResult as any[])[0];
@@ -92,18 +157,23 @@ export async function getTicketStats() {
   };
 }
 
-export async function getMaintenanceStats() {
+export async function getMaintenanceStats(scope: AssetScope = {}) {
   const db = getDb();
+  const categoryCond = scope.categoryIds?.length ? inArray(assets.categoryId, scope.categoryIds) : undefined;
 
   const byStatusRows = await db
     .select({ status: maintenanceRecords.status, value: count() })
     .from(maintenanceRecords)
+    .leftJoin(assets, eq(maintenanceRecords.assetId, assets.id))
+    .where(categoryCond)
     .groupBy(maintenanceRecords.status);
 
   const byTypeRows = await db
     .select({ name: maintenanceTypes.name, value: count() })
     .from(maintenanceRecords)
     .leftJoin(maintenanceTypes, eq(maintenanceRecords.maintenanceTypeId, maintenanceTypes.id))
+    .leftJoin(assets, eq(maintenanceRecords.assetId, assets.id))
+    .where(categoryCond)
     .groupBy(maintenanceTypes.name);
 
   const trendRows = await db
@@ -112,6 +182,8 @@ export async function getMaintenanceStats() {
       value: count(),
     })
     .from(maintenanceRecords)
+    .leftJoin(assets, eq(maintenanceRecords.assetId, assets.id))
+    .where(categoryCond)
     .groupBy(sql`to_char(${maintenanceRecords.createdAt}, 'YYYY-MM')`);
 
   return {
@@ -121,12 +193,12 @@ export async function getMaintenanceStats() {
   };
 }
 
-export async function getUpcomingSchedules(params: { days?: number } & DueFilters) {
-  const result = await scheduleService.upcoming(params);
+export async function getUpcomingSchedules(params: { days?: number } & DueFilters, scope: AssetScope = {}) {
+  const result = await scheduleService.upcoming({ ...params, ...dueFilters(scope) });
   return { data: result.data, meta: result.meta };
 }
 
-export async function getCriticalAssets() {
+export async function getCriticalAssets(scope: AssetScope = {}) {
   const db = getDb();
   const rows = await db
     .select({
@@ -138,19 +210,16 @@ export async function getCriticalAssets() {
     })
     .from(assets)
     .where(
-      and(
-        sql`${assets.deletedAt} IS NULL`,
-        sql`${assets.condition} IN ('BROKEN', 'CRITICAL', 'NEED_ATTENTION')`,
-      ),
+      assetBaseCondition(scope, [sql`${assets.condition} IN ('BROKEN', 'CRITICAL', 'NEED_ATTENTION')`]),
     )
     .orderBy(sql`CASE ${assets.condition} WHEN 'CRITICAL' THEN 0 WHEN 'BROKEN' THEN 1 WHEN 'NEED_ATTENTION' THEN 2 ELSE 3 END`)
     .limit(20);
   return rows as any[];
 }
 
-export async function getAssetStats() {
+export async function getAssetStats(scope: AssetScope = {}) {
   const db = getDb();
-  const where = sql`${assets.deletedAt} IS NULL`;
+  const where = assetBaseCondition(scope);
 
   const byStatusRows = await db
     .select({ status: assets.status, value: count() })
@@ -171,22 +240,22 @@ export async function getAssetStats() {
   };
 }
 
-export async function getConditionAnalytics() {
+export async function getConditionAnalytics(scope: AssetScope = {}) {
   const db = getDb();
   const rows = await db
     .select({ condition: assets.condition, value: count() })
     .from(assets)
-    .where(sql`${assets.deletedAt} IS NULL`)
+    .where(assetBaseCondition(scope))
     .groupBy(assets.condition);
   return { byCondition: rows.map((r) => ({ condition: r.condition, value: Number(r.value) })) };
 }
 
-export async function getAssetAgeAnalytics() {
+export async function getAssetAgeAnalytics(scope: AssetScope = {}) {
   const db = getDb();
   const rows = await db
     .select({ purchaseDate: assets.purchaseDate })
     .from(assets)
-    .where(sql`${assets.deletedAt} IS NULL`);
+    .where(assetBaseCondition(scope));
 
   const buckets = ['< 1 year', '1-2 years', '2-3 years', '3-5 years', '5-10 years', '> 10 years'];
   const counts = new Map<string, number>(buckets.map((b) => [b, 0]));
@@ -213,24 +282,24 @@ export async function getAssetAgeAnalytics() {
   return { byAge: data };
 }
 
-export async function getDepartmentAnalytics() {
+export async function getDepartmentAnalytics(scope: AssetScope = {}) {
   const db = getDb();
   const rows = await db
     .select({ name: departments.name, value: count() })
     .from(assets)
     .leftJoin(departments, eq(assets.departmentId, departments.id))
-    .where(sql`${assets.deletedAt} IS NULL`)
+    .where(assetBaseCondition(scope))
     .groupBy(departments.name);
   return { byDepartment: rows.map((r) => ({ department: r.name ?? 'Unassigned', value: Number(r.value) })) };
 }
 
-export async function getVendorAnalytics() {
+export async function getVendorAnalytics(scope: AssetScope = {}) {
   const db = getDb();
   const rows = await db
     .select({ name: vendors.name, value: count() })
     .from(assets)
     .leftJoin(vendors, eq(assets.vendorId, vendors.id))
-    .where(sql`${assets.deletedAt} IS NULL`)
+    .where(assetBaseCondition(scope))
     .groupBy(vendors.name);
   return { byVendor: rows.map((r) => ({ vendor: r.name ?? 'Unassigned', value: Number(r.value) })) };
 }
@@ -243,105 +312,54 @@ export interface RecentActivityItem {
   createdAt: string;
 }
 
-export async function getRecentActivity(limit = 20) {
+/**
+ * Returns only the latest "Maintenance created" activities within the user's
+ * asset scope, newest first. Scope rules mirror the maintenance module:
+ * own-user scope -> asset.current_pic_id, category scope -> asset.category_id.
+ * Queries maintenance records directly (each one is a creation event) and
+ * applies the limit in SQL so no unrelated activity is ever fetched.
+ */
+export async function getRecentActivity(limit = 3, scope: AssetScope = {}) {
   const db = getDb();
+  const conditions: SQL[] = [];
+  if (scope.ownUserId) conditions.push(eq(assets.currentPicId, sql`${scope.ownUserId}::uuid`));
+  if (scope.categoryIds && scope.categoryIds.length > 0) {
+    conditions.push(inArray(assets.categoryId, scope.categoryIds));
+  }
 
-  const [maint, conds, moves, asns] = await Promise.all([
-    db
-      .select({
-        id: maintenanceRecords.id,
-        code: maintenanceRecords.maintenanceCode,
-        status: maintenanceRecords.status,
-        assetCode: assets.assetCode,
-        createdAt: maintenanceRecords.createdAt,
-      })
-      .from(maintenanceRecords)
-      .leftJoin(assets, eq(maintenanceRecords.assetId, assets.id))
-      .orderBy(desc(maintenanceRecords.createdAt))
-      .limit(50),
-    db
-      .select({
-        id: assetConditionHistory.id,
-        prev: assetConditionHistory.previousCondition,
-        next: assetConditionHistory.newCondition,
-        assetCode: assets.assetCode,
-        createdAt: assetConditionHistory.createdAt,
-      })
-      .from(assetConditionHistory)
-      .leftJoin(assets, eq(assetConditionHistory.assetId, assets.id))
-      .orderBy(desc(assetConditionHistory.createdAt))
-      .limit(50),
-    db
-      .select({
-        id: assetMovements.id,
-        assetCode: assets.assetCode,
-        fromRoom: rooms.name,
-        toRoom: toRooms.name,
-        createdAt: assetMovements.createdAt,
-      })
-      .from(assetMovements)
-      .leftJoin(assets, eq(assetMovements.assetId, assets.id))
-      .leftJoin(rooms, eq(assetMovements.fromRoomId, rooms.id))
-      .leftJoin(toRooms, eq(assetMovements.toRoomId, toRooms.id))
-      .orderBy(desc(assetMovements.createdAt))
-      .limit(50),
-    db
-      .select({
-        id: assetAssignments.id,
-        assetCode: assets.assetCode,
-        status: assetAssignments.status,
-        createdAt: assetAssignments.createdAt,
-      })
-      .from(assetAssignments)
-      .leftJoin(assets, eq(assetAssignments.assetId, assets.id))
-      .orderBy(desc(assetAssignments.createdAt))
-      .limit(50),
-  ]);
+  const rows = await db
+    .select({
+      code: maintenanceRecords.maintenanceCode,
+      assetCode: assets.assetCode,
+      createdAt: maintenanceRecords.createdAt,
+    })
+    .from(maintenanceRecords)
+    .leftJoin(assets, eq(maintenanceRecords.assetId, assets.id))
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(maintenanceRecords.createdAt))
+    .limit(Math.max(1, Math.min(limit, 50)));
 
-  const events: RecentActivityItem[] = [
-    ...maint.map((r) => ({
-      type: r.status === 'COMPLETED' ? 'MAINTENANCE_COMPLETED' : 'MAINTENANCE_CREATED',
-      title: r.status === 'COMPLETED' ? 'Maintenance completed' : 'Maintenance created',
-      description: r.code ?? '',
-      reference: r.assetCode,
-      createdAt: String(r.createdAt),
-    })),
-    ...conds.map((r) => ({
-      type: 'CONDITION_CHANGED',
-      title: 'Condition changed',
-      description: `${r.prev} → ${r.next}`,
-      reference: r.assetCode,
-      createdAt: String(r.createdAt),
-    })),
-    ...moves.map((r) => ({
-      type: 'ASSET_MOVED',
-      title: 'Asset moved',
-      description: `${r.fromRoom ?? '-'} → ${r.toRoom ?? '-'}`,
-      reference: r.assetCode,
-      createdAt: String(r.createdAt),
-    })),
-    ...asns.map((r) => ({
-      type: 'ASSET_ASSIGNED',
-      title: r.status === 'RETURNED' ? 'Asset returned' : 'Asset assigned',
-      description: '',
-      reference: r.assetCode,
-      createdAt: String(r.createdAt),
-    })),
-  ];
-
-  events.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  return events.slice(0, limit);
+  return rows.map((r) => ({
+    type: 'MAINTENANCE_CREATED',
+    title: 'Maintenance created',
+    description: r.code ?? '',
+    reference: r.assetCode,
+    createdAt: String(r.createdAt),
+  }));
 }
 
-async function countCompletedThisMonth(): Promise<number> {
+async function countCompletedThisMonth(scope: AssetScope = {}): Promise<number> {
   const db = getDb();
+  const categoryCond = scope.categoryIds?.length ? inArray(assets.categoryId, scope.categoryIds) : undefined;
   const rows = await db
     .select({ value: count() })
     .from(maintenanceRecords)
+    .leftJoin(assets, eq(maintenanceRecords.assetId, assets.id))
     .where(
       and(
         eq(maintenanceRecords.status, 'COMPLETED'),
         gte(maintenanceRecords.finishDate, sql`date_trunc('month', now())`),
+        categoryCond,
       ),
     );
   return Number(rows[0]?.value ?? 0);

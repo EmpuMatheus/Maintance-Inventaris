@@ -1,17 +1,20 @@
 import { Router } from 'express';
 import { authenticate } from '@/middleware/authenticate';
+import { authorize } from '@/middleware/authorize';
 import * as ctrl from './notification.controller';
 
 const router = Router();
 
+const auth = [authenticate, authorize('notification.read')];
+
 // Personal notification endpoints — always scoped to the authenticated user.
-router.get('/', authenticate, ctrl.listController);
-router.get('/unread-count', authenticate, ctrl.unreadCountController);
-router.get('/settings', authenticate, ctrl.getSettingsController);
-router.patch('/settings', authenticate, ctrl.updateSettingsController);
-router.patch('/read-all', authenticate, ctrl.markAllReadController);
-router.patch('/:id/read', authenticate, ctrl.markReadController);
-router.patch('/:id/archive', authenticate, ctrl.archiveController);
-router.delete('/:id', authenticate, ctrl.deleteController);
+router.get('/', ...auth, ctrl.listController);
+router.get('/unread-count', ...auth, ctrl.unreadCountController);
+router.get('/settings', ...auth, ctrl.getSettingsController);
+router.patch('/settings', ...auth, ctrl.updateSettingsController);
+router.patch('/read-all', ...auth, ctrl.markAllReadController);
+router.patch('/:id/read', ...auth, ctrl.markReadController);
+router.patch('/:id/archive', ...auth, ctrl.archiveController);
+router.delete('/:id', ...auth, ctrl.deleteController);
 
 export default router;

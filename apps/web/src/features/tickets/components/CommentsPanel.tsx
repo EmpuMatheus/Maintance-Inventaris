@@ -12,18 +12,20 @@ export default function CommentsPanel({
   canComment,
   isSubmitting,
   onAddComment,
+  allowInternal = true,
 }: {
   comments: TicketComment[];
   canComment: boolean;
   isSubmitting: boolean;
   onAddComment: (comment: string, isInternal: boolean) => void;
+  allowInternal?: boolean;
 }) {
   const [text, setText] = useState('');
   const [isInternal, setIsInternal] = useState(false);
 
   const submit = () => {
     if (!text.trim()) return;
-    onAddComment(text.trim(), isInternal);
+    onAddComment(text.trim(), isInternal && allowInternal);
     setText('');
     setIsInternal(false);
   };
@@ -40,10 +42,12 @@ export default function CommentsPanel({
             className="block w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
           <div className="mt-2 flex items-center justify-between gap-2">
-            <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-500">
-              <input type="checkbox" checked={isInternal} onChange={(e) => setIsInternal(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
-              <Lock className="h-3 w-3" /> Internal note
-            </label>
+            {allowInternal && (
+              <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-500">
+                <input type="checkbox" checked={isInternal} onChange={(e) => setIsInternal(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
+                <Lock className="h-3 w-3" /> Internal note
+              </label>
+            )}
             <button
               onClick={submit}
               disabled={!text.trim() || isSubmitting}

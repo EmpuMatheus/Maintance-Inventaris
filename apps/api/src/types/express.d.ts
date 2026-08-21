@@ -9,6 +9,7 @@ declare global {
         name: string;
         roles: string[];
         permissions: string[];
+        categoryIds?: string[];
       };
     }
   }

@@ -7,7 +7,7 @@ import {
   maintenanceRecords,
   maintenanceReminders,
 } from '@/database/schema';
-import { eq, and, sql, desc, asc, count, gte, lte } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, count, gte, lte, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { toDateString } from './schedule.date';
 
@@ -67,6 +67,7 @@ export interface ScheduleFilters {
   assetId?: string;
   typeId?: string;
   isActive?: boolean;
+  categoryIds?: string[];
 }
 
 export async function findMany(filters: ScheduleFilters) {
@@ -83,6 +84,9 @@ export async function findMany(filters: ScheduleFilters) {
   if (filters.assetId) conditions.push(eq(maintenanceSchedules.assetId, sql`${filters.assetId}::uuid`));
   if (filters.typeId) conditions.push(eq(maintenanceSchedules.maintenanceTypeId, sql`${filters.typeId}::uuid`));
   if (filters.isActive !== undefined) conditions.push(eq(maintenanceSchedules.isActive, filters.isActive));
+  if (filters.categoryIds && filters.categoryIds.length > 0) {
+    conditions.push(inArray(assets.categoryId, filters.categoryIds));
+  }
 
   const where = conditions.length ? and(...conditions) : undefined;
 
@@ -189,6 +193,7 @@ export interface DueFilters {
   limit?: number;
   assetId?: string;
   typeId?: string;
+  categoryIds?: string[];
 }
 
 async function findDuePage(
@@ -200,6 +205,9 @@ async function findDuePage(
   const page = Math.max(1, filters.page ?? 1);
   const limit = Math.min(100, Math.max(1, filters.limit ?? 25));
   const offset = (page - 1) * limit;
+  if (filters.categoryIds && filters.categoryIds.length > 0) {
+    conditions.push(inArray(assets.categoryId, filters.categoryIds));
+  }
   const where = conditions.length ? and(...conditions) : undefined;
 
   const rows = await db
@@ -212,7 +220,11 @@ async function findDuePage(
     .limit(limit)
     .offset(offset);
 
-  const totalResult = await db.select({ value: count() }).from(maintenanceSchedules).where(where);
+  const totalResult = await db
+    .select({ value: count() })
+    .from(maintenanceSchedules)
+    .leftJoin(assets, eq(maintenanceSchedules.assetId, assets.id))
+    .where(where);
   const total = Number(totalResult[0]?.value ?? 0);
 
   return {

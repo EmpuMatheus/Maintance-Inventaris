@@ -9,6 +9,7 @@ export interface MasterDataRecord {
   buildingId?: string;
   floorId?: string;
   categoryId?: string;
+  category?: string;
   contactPerson?: string | null;
   phone?: string | null;
   email?: string | null;

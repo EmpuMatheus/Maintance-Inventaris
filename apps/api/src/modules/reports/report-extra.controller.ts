@@ -3,6 +3,7 @@ import * as brokenSvc from './report-broken-asset.service';
 import * as movementSvc from './report-movement.service';
 import * as warrantySvc from './report-warranty.service';
 import * as agingSvc from './report-asset-aging.service';
+import { scopeCategoryIds } from './report-scope';
 
 function qStr(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
@@ -19,6 +20,7 @@ export async function brokenAssetController(req: Request, res: Response, next: N
       limit: qNum(req.query.limit),
       keyword: qStr(req.query.keyword),
       categoryId: qStr(req.query.categoryId),
+      categoryIds: scopeCategoryIds(req),
       departmentId: qStr(req.query.departmentId),
       siteId: qStr(req.query.siteId),
       buildingId: qStr(req.query.buildingId),
@@ -38,6 +40,7 @@ export async function movementController(req: Request, res: Response, next: Next
       page: qNum(req.query.page),
       limit: qNum(req.query.limit),
       keyword: qStr(req.query.keyword),
+      categoryIds: scopeCategoryIds(req),
       assetId: qStr(req.query.assetId),
       departmentId: qStr(req.query.departmentId),
       siteId: qStr(req.query.siteId),
@@ -60,6 +63,7 @@ export async function warrantyController(req: Request, res: Response, next: Next
       limit: qNum(req.query.limit),
       keyword: qStr(req.query.keyword),
       categoryId: qStr(req.query.categoryId),
+      categoryIds: scopeCategoryIds(req),
       departmentId: qStr(req.query.departmentId),
       siteId: qStr(req.query.siteId),
       buildingId: qStr(req.query.buildingId),
@@ -82,6 +86,7 @@ export async function assetAgingController(req: Request, res: Response, next: Ne
       limit: qNum(req.query.limit),
       keyword: qStr(req.query.keyword),
       categoryId: qStr(req.query.categoryId),
+      categoryIds: scopeCategoryIds(req),
       departmentId: qStr(req.query.departmentId),
       siteId: qStr(req.query.siteId),
       buildingId: qStr(req.query.buildingId),

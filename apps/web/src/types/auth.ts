@@ -4,6 +4,7 @@ export interface AuthUser {
   name: string;
   roles: string[];
   permissions: string[];
+  categoryIds?: string[];
 }
 
 export interface LoginRequest {

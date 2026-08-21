@@ -61,9 +61,12 @@ export function apiPut<T>(endpoint: string, body: unknown): Promise<T> {
   }).then((r) => handleResponse<T>(r));
 }
 
-export function apiDelete<T>(endpoint: string): Promise<T> {
-  return fetch(`${config.apiUrl}${endpoint}`, { method: 'DELETE', headers: getAuthHeaders(true) })
-    .then((r) => handleResponse<T>(r));
+export function apiDelete<T>(endpoint: string, body?: unknown): Promise<T> {
+  return fetch(`${config.apiUrl}${endpoint}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(body !== undefined),
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  }).then((r) => handleResponse<T>(r));
 }
 
 export function apiUpload<T>(endpoint: string, method: string, fd: FormData): Promise<T> {

@@ -5,7 +5,10 @@ import { auditFromRequest } from '@/modules/audit/audit.service';
 
 function scopeFor(user?: Request['user']): TicketScope | undefined {
   if (!user) return undefined;
-  if (user.permissions.includes('ticket.update')) return undefined;
+  if (user.roles.includes('SUPER_ADMIN')) return undefined;
+  if (user.roles.includes('ADMIN') || user.roles.includes('TECHNICIAN')) {
+    return { categoryIds: user.categoryIds ?? [] };
+  }
   return { userId: user.id };
 }
 
@@ -43,21 +46,21 @@ export async function listController(req: Request, res: Response, next: NextFunc
 
 export async function getByIdController(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await svc.getById(req.params.id as string);
+    const data = await svc.getById(req.params.id as string, req.user);
     res.json({ success: true, data });
   } catch (e) { next(e); }
 }
 
 export async function getByCodeController(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await svc.getByCode(req.params.code as string);
+    const data = await svc.getByCode(req.params.code as string, req.user);
     res.json({ success: true, data });
   } catch (e) { next(e); }
 }
 
 export async function createController(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await svc.create(req.body, req.user?.id);
+    const data = await svc.create(req.body, req.user);
     auditFromRequest(req, {
       module: 'TICKET',
       action: 'CREATE',
@@ -142,28 +145,28 @@ export async function cancelController(req: Request, res: Response, next: NextFu
 
 export async function getCommentsController(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await svc.getComments(req.params.id as string);
+    const data = await svc.getComments(req.params.id as string, req.user);
     res.json({ success: true, data });
   } catch (e) { next(e); }
 }
 
 export async function addCommentController(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await svc.addComment(req.params.id as string, req.body.comment as string, req.body.isInternal === true, req.user?.id);
+    const data = await svc.addComment(req.params.id as string, req.body.comment as string, req.body.isInternal === true, req.user);
     res.status(201).json({ success: true, data });
   } catch (e) { next(e); }
 }
 
 export async function getAssignmentsController(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await svc.getAssignments(req.params.id as string);
+    const data = await svc.getAssignments(req.params.id as string, req.user);
     res.json({ success: true, data });
   } catch (e) { next(e); }
 }
 
 export async function createMaintenanceController(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await svc.createMaintenanceFromTicket(req.params.id as string, req.body, req.user?.id);
+    const data = await svc.createMaintenanceFromTicket(req.params.id as string, req.body, req.user);
     res.status(201).json({ success: true, data });
   } catch (e) { next(e); }
 }

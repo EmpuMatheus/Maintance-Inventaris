@@ -6,6 +6,7 @@ export interface MovementFilters {
   page?: number;
   limit?: number;
   keyword?: string;
+  categoryIds?: string[];
   assetId?: string;
   departmentId?: string;
   siteId?: string;
@@ -35,6 +36,7 @@ const CTE = `
       a.asset_code,
       a.asset_name,
       a.department_id AS asset_department_id,
+      a.category_id AS asset_category_id,
       a.site_id AS asset_site_id,
       a.building_id AS asset_building_id,
       a.floor_id AS asset_floor_id,
@@ -64,6 +66,7 @@ const CTE = `
       a.asset_code,
       a.asset_name,
       a.department_id,
+      a.category_id,
       a.site_id,
       a.building_id,
       a.floor_id,
@@ -86,6 +89,10 @@ function buildWhere(filters: MovementFilters): SQL[] {
   if (filters.keyword) {
     const p = `%${filters.keyword}%`;
     conditions.push(sql`(combined.asset_code ILIKE ${p} OR combined.asset_name ILIKE ${p})`);
+  }
+  if (filters.categoryIds && filters.categoryIds.length > 0) {
+    const ids = filters.categoryIds.map((c) => `'${c}'`).join(',');
+    conditions.push(sql`combined.asset_category_id IN (${sql.raw(ids)})`);
   }
   if (filters.assetId) conditions.push(sql`combined.asset_id = ${filters.assetId}::uuid`);
   if (filters.departmentId) conditions.push(sql`combined.asset_department_id = ${filters.departmentId}::uuid`);

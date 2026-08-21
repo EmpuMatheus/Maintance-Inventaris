@@ -11,7 +11,7 @@ import {
   rooms,
   maintenanceTypes,
 } from '@/database/schema';
-import { eq, like, and, sql, asc, desc, count } from 'drizzle-orm';
+import { eq, like, and, or, sql, asc, desc, count } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 
@@ -63,7 +63,8 @@ export async function list(
     const searchConditions = cfg.searchColumns.map((col) =>
       like(cfg.table[col as keyof typeof cfg.table] as unknown as SQL, searchPattern),
     );
-    conditions.push(sql`(${and(...searchConditions)})`);
+    // OR semantics: match any of the searchable columns (e.g. code OR name).
+    conditions.push(sql`(${or(...searchConditions)})`);
   }
 
   if (cfg.parentFilter && options.parentId) {
@@ -84,13 +85,36 @@ export async function list(
 
   const orderFn = options.order === 'asc' ? asc : desc;
 
-  const rows = await db
-    .select()
-    .from(cfg.table)
-    .where(where)
-    .orderBy(orderFn(sortCol))
-    .limit(limit)
-    .offset(offset);
+  let rows: Row[];
+  if (resource === 'subcategories') {
+    // Subcategory rows include the owning category name (joined).
+    rows = (await db
+      .select({
+        id: assetSubcategories.id,
+        categoryId: assetSubcategories.categoryId,
+        code: assetSubcategories.code,
+        name: assetSubcategories.name,
+        description: assetSubcategories.description,
+        isActive: assetSubcategories.isActive,
+        createdAt: assetSubcategories.createdAt,
+        updatedAt: assetSubcategories.updatedAt,
+        category: assetCategories.name,
+      })
+      .from(assetSubcategories)
+      .leftJoin(assetCategories, eq(assetSubcategories.categoryId, assetCategories.id))
+      .where(where)
+      .orderBy(orderFn(sortCol))
+      .limit(limit)
+      .offset(offset)) as Row[];
+  } else {
+    rows = (await db
+      .select()
+      .from(cfg.table)
+      .where(where)
+      .orderBy(orderFn(sortCol))
+      .limit(limit)
+      .offset(offset)) as Row[];
+  }
 
   const totalResult = await db
     .select({ value: count() })
@@ -117,11 +141,31 @@ export async function getById(resource: string, id: string): Promise<Row | undef
   if (!cfg) throw new Error(`Unknown resource: ${resource}`);
 
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(cfg.table)
-    .where(eq(cfg.table['id' as keyof typeof cfg.table] as unknown as SQL, sql`${id}::uuid`))
-    .limit(1);
+  let rows: Row[];
+  if (resource === 'subcategories') {
+    rows = (await db
+      .select({
+        id: assetSubcategories.id,
+        categoryId: assetSubcategories.categoryId,
+        code: assetSubcategories.code,
+        name: assetSubcategories.name,
+        description: assetSubcategories.description,
+        isActive: assetSubcategories.isActive,
+        createdAt: assetSubcategories.createdAt,
+        updatedAt: assetSubcategories.updatedAt,
+        category: assetCategories.name,
+      })
+      .from(assetSubcategories)
+      .leftJoin(assetCategories, eq(assetSubcategories.categoryId, assetCategories.id))
+      .where(eq(assetSubcategories.id, sql`${id}::uuid`))
+      .limit(1)) as Row[];
+  } else {
+    rows = (await db
+      .select()
+      .from(cfg.table)
+      .where(eq(cfg.table['id' as keyof typeof cfg.table] as unknown as SQL, sql`${id}::uuid`))
+      .limit(1)) as Row[];
+  }
 
   return rows[0] as Row | undefined;
 }
@@ -162,4 +206,21 @@ export async function deactivate(
   id: string,
 ): Promise<Row | undefined> {
   return update(resource, id, { isActive: false } as Record<string, unknown>);
+}
+
+/** Hard-deletes a master data row (used for category cleanup). */
+export async function remove(
+  resource: string,
+  id: string,
+): Promise<Row | undefined> {
+  const cfg = TABLES[resource];
+  if (!cfg) throw new Error(`Unknown resource: ${resource}`);
+
+  const db = getDb();
+  const rows = await db
+    .delete(cfg.table)
+    .where(eq(cfg.table['id' as keyof typeof cfg.table] as unknown as SQL, sql`${id}::uuid`))
+    .returning();
+
+  return rows[0] as Row | undefined;
 }

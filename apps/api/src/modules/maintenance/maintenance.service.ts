@@ -4,6 +4,7 @@ import { getDb } from '@/database/client';
 import { maintenanceRecords, assets as assetsTable, assetConditionHistory, users } from '@/database/schema';
 import { sql, eq } from 'drizzle-orm';
 import { eventBus } from '@/lib/event-bus';
+import { canAccessAsset, type AssetScope } from '@/middleware/scope';
 
 function str(v: unknown): string | null | undefined {
   if (v === undefined || v === null) return undefined;
@@ -37,7 +38,26 @@ async function generateCode(): Promise<string> {
   return `MNT-${year}-${String(num).padStart(6, '0')}`;
 }
 
-export async function list(params: Record<string, any>) {
+/**
+ * Users with own-scoped or category-scoped access may only view maintenance
+ * records whose asset is within their scope.
+ */
+async function assertOwnMaintenance(id: string, scope?: AssetScope) {
+  if (!scope?.ownUserId && !scope?.categoryIds) return;
+  const db = getDb();
+  const rows = await db
+    .select({ assetPicId: assetsTable.currentPicId, categoryId: assetsTable.categoryId })
+    .from(maintenanceRecords)
+    .leftJoin(assetsTable, eq(maintenanceRecords.assetId, assetsTable.id))
+    .where(eq(maintenanceRecords.id, sql`${id}::uuid`))
+    .limit(1);
+  if (!rows.length) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
+  if (!canAccessAsset(scope, { currentPicId: rows[0].assetPicId, categoryId: rows[0].categoryId })) {
+    throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
+  }
+}
+
+export async function list(params: Record<string, any>, scope?: AssetScope) {
   return repo.findMany({
     page: params.page ? Number(params.page) : undefined,
     limit: params.limit ? Number(params.limit) : undefined,
@@ -47,25 +67,49 @@ export async function list(params: Record<string, any>) {
     assetId: str(params.assetId) ?? undefined,
     technicianId: str(params.technicianId) ?? undefined,
     typeId: str(params.typeId) ?? undefined,
+    ownUserId: scope?.ownUserId,
+    categoryIds: scope?.categoryIds,
   });
 }
 
-export async function getById(id: string) {
+export async function getById(id: string, scope?: AssetScope) {
   const row = await repo.findDetails(id);
   if (!row) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
+  await assertOwnMaintenance(id, scope);
   return row;
 }
 
-export async function getByCode(code: string) {
+export async function getByCode(code: string, scope?: AssetScope) {
   const row = await repo.findByCode(code);
   if (!row) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
+  await assertOwnMaintenance(row.id as string, scope);
   return row;
 }
 
-export async function create(body: Record<string, unknown>, userId?: string) {
+export async function getParts(maintenanceId: string, scope?: AssetScope) {
+  await assertOwnMaintenance(maintenanceId, scope);
+  return repo.getParts(maintenanceId);
+}
+
+export async function getDocuments(maintenanceId: string, scope?: AssetScope) {
+  await assertOwnMaintenance(maintenanceId, scope);
+  return repo.getDocuments(maintenanceId);
+}
+
+export async function create(body: Record<string, unknown>, userId?: string, scope?: AssetScope) {
   const db = getDb();
-  const [asset] = await db.select({ id: assetsTable.id }).from(assetsTable).where(eq(assetsTable.id, sql`${body.assetId as string}::uuid`)).limit(1);
+  const [asset] = await db
+    .select({ id: assetsTable.id, status: assetsTable.status, categoryId: assetsTable.categoryId, currentPicId: assetsTable.currentPicId })
+    .from(assetsTable)
+    .where(eq(assetsTable.id, sql`${body.assetId as string}::uuid`))
+    .limit(1);
   if (!asset) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
+  if (asset.status === 'RETIRED') {
+    throw new AppError(409, 'CONFLICT', 'Cannot create maintenance for a retired asset.');
+  }
+  if (!canAccessAsset(scope ?? {}, asset as { categoryId?: unknown; currentPicId?: unknown })) {
+    throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
+  }
 
   const code = await generateCode();
   const [record] = await db.insert(maintenanceRecords).values({

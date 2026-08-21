@@ -83,9 +83,9 @@ Default roles:
 
 ```text
 SUPER_ADMIN
-IT_ADMIN
+ADMIN
 TECHNICIAN
-VIEWER
+USER
 ```
 
 Authorization menggunakan permission-based access control.

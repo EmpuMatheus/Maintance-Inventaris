@@ -6,6 +6,7 @@ import * as repo from './ticket.repository';
 import { TICKET_TRANSITIONS } from './ticket.types';
 import type { TicketStatus } from './ticket.types';
 import type { TicketFilters, TicketScope } from './ticket.repository';
+import { resolveAssetScope, canAccessAsset, type ScopeUser } from '@/middleware/scope';
 import * as maintenanceService from '@/modules/maintenance/maintenance.service';
 import { eventBus } from '@/lib/event-bus';
 
@@ -54,13 +55,38 @@ async function assertTicketExists(id: string): Promise<RawTicket> {
   return ticket as unknown as RawTicket;
 }
 
+/**
+ * Users with full `ticket.read` can access any ticket. Everyone else may only
+ * access tickets within their scope (reported/assigned for USER, or belonging
+ * to their asset categories for ADMIN/TECHNICIAN), otherwise the ticket is
+ * treated as not found to avoid leaking its existence.
+ */
+function assertTicketAccess(
+  ticket: { reporterId?: string | null; assignedTo?: string | null; assetCategoryId?: string | null },
+  user?: ScopeUser,
+) {
+  if (!user) return;
+  const scope = resolveAssetScope(user);
+  if (!scope.ownUserId && !scope.categoryIds) return;
+  if (scope.ownUserId) {
+    if (ticket.reporterId === scope.ownUserId || ticket.assignedTo === scope.ownUserId) return;
+    throw new AppError(404, 'NOT_FOUND', 'Ticket not found.');
+  }
+  if (scope.categoryIds && scope.categoryIds.length > 0) {
+    if (ticket.assetCategoryId && scope.categoryIds.includes(ticket.assetCategoryId)) return;
+    throw new AppError(404, 'NOT_FOUND', 'Ticket not found.');
+  }
+  throw new AppError(404, 'NOT_FOUND', 'Ticket not found.');
+}
+
 export async function list(filters: TicketFilters, scope?: TicketScope) {
   return repo.findMany(filters, scope);
 }
 
-export async function getById(id: string) {
+export async function getById(id: string, user?: ScopeUser) {
   const ticket = await repo.findById(id);
   if (!ticket) throw new AppError(404, 'NOT_FOUND', 'Ticket not found.');
+  assertTicketAccess(ticket, user);
   const [comments, assignments, maintenance] = await Promise.all([
     repo.getComments(id),
     repo.getAssignments(id),
@@ -69,9 +95,10 @@ export async function getById(id: string) {
   return { ...ticket, comments, assignments, maintenance };
 }
 
-export async function getByCode(code: string) {
+export async function getByCode(code: string, user?: ScopeUser) {
   const ticket = await repo.findByCode(code);
   if (!ticket) throw new AppError(404, 'NOT_FOUND', 'Ticket not found.');
+  assertTicketAccess(ticket, user);
   const [comments, assignments, maintenance] = await Promise.all([
     repo.getComments(ticket.id),
     repo.getAssignments(ticket.id),
@@ -80,11 +107,25 @@ export async function getByCode(code: string) {
   return { ...ticket, comments, assignments, maintenance };
 }
 
-export async function create(body: Record<string, unknown>, userId?: string) {
+export async function create(body: Record<string, unknown>, user?: ScopeUser) {
+  const userId = user?.id;
   if (body.assetId) {
     const db = getDb();
-    const asset = await db.select({ id: assets.id }).from(assets).where(eq(assets.id, sql`${body.assetId as string}::uuid`)).limit(1);
+    const asset = await db
+      .select({ id: assets.id, currentPicId: assets.currentPicId, categoryId: assets.categoryId, status: assets.status })
+      .from(assets)
+      .where(eq(assets.id, sql`${body.assetId as string}::uuid`))
+      .limit(1);
     if (!asset[0]) throw new AppError(400, 'VALIDATION_ERROR', 'Related asset not found.');
+    if (asset[0].status === 'RETIRED') {
+      throw new AppError(409, 'CONFLICT', 'Cannot create a ticket for a retired asset.');
+    }
+
+    // Users with only own-scoped access may only create tickets for assets
+    // within their scope (assigned to them, or in their category).
+    if (!canAccessAsset(resolveAssetScope(user), asset[0] as { categoryId?: unknown; currentPicId?: unknown })) {
+      throw new AppError(403, 'FORBIDDEN', 'You can only create tickets for assets you have access to.');
+    }
   }
 
   const code = await generateCode();
@@ -228,24 +269,27 @@ export async function cancel(id: string, reason: string, userId?: string) {
   return repo.findById(id);
 }
 
-export async function addComment(id: string, comment: string, isInternal: boolean, userId?: string) {
-  await assertTicketExists(id);
+export async function addComment(id: string, comment: string, isInternal: boolean, user?: ScopeUser) {
+  const ticket = await assertTicketExists(id);
+  assertTicketAccess(ticket, user);
   return repo.addComment({
     ticketId: sql`${id}::uuid`,
-    userId: userId ? sql`${userId}::uuid` : undefined,
+    userId: user?.id ? sql`${user.id}::uuid` : undefined,
     type: isInternal ? 'INTERNAL' : 'COMMENT',
     comment,
     isInternal,
   });
 }
 
-export async function getComments(id: string) {
-  await assertTicketExists(id);
+export async function getComments(id: string, user?: ScopeUser) {
+  const ticket = await assertTicketExists(id);
+  assertTicketAccess(ticket, user);
   return repo.getComments(id);
 }
 
-export async function getAssignments(id: string) {
-  await assertTicketExists(id);
+export async function getAssignments(id: string, user?: ScopeUser) {
+  const ticket = await assertTicketExists(id);
+  assertTicketAccess(ticket, user);
   return repo.getAssignments(id);
 }
 
@@ -255,7 +299,7 @@ export async function getAssignments(id: string) {
  * The ticket must reference an asset, and duplicate generation is prevented by
  * checking for an existing maintenance already linked to the ticket.
  */
-export async function createMaintenanceFromTicket(id: string, body: Record<string, unknown>, userId?: string) {
+export async function createMaintenanceFromTicket(id: string, body: Record<string, unknown>, user?: ScopeUser) {
   const ticket = await assertTicketExists(id);
 
   const existing = await repo.findMaintenanceForTicket(id);
@@ -279,10 +323,11 @@ export async function createMaintenanceFromTicket(id: string, body: Record<strin
       notes: `Created from ticket ${ticket.ticketCode}.`,
       ticketId: ticket.id,
     },
-    userId,
+    user?.id,
+    resolveAssetScope(user),
   );
 
-  await addSystemComment(id, `Maintenance ${record.maintenanceCode} created from ticket.`, userId);
+  await addSystemComment(id, `Maintenance ${record.maintenanceCode} created from ticket.`, user?.id);
   return { ticket: await repo.findById(id), maintenance: record };
 }
 

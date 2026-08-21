@@ -34,6 +34,13 @@ export function formatNotificationEvent(event: NotificationEvent): FormattedNoti
           priority: s(event.data, 'newCondition') === 'BROKEN' || s(event.data, 'newCondition') === 'CRITICAL' ? 'CRITICAL' : 'WARNING',
         };
       }
+      if (event.action === 'retired') {
+        return {
+          title: '🗑️ Asset Retired',
+          message: `${asset} was retired (${s(event.data, 'retireReason') || 'other'}).`,
+          priority: 'WARNING',
+        };
+      }
       break;
 
     case 'ASSIGNMENT':

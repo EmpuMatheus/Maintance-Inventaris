@@ -1,13 +1,15 @@
 import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Loader2, Package, Upload, Trash2, FileText, Image, Activity, QrCode, User, MapPin, ArrowLeftRight } from 'lucide-react';
+import { ArrowLeft, Pencil, Loader2, Package, Upload, Trash2, XCircle, FileText, Image, Activity, QrCode, User, MapPin, ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { getAsset, uploadPhoto, listDocuments, uploadDocument, deleteDocument, assignAsset, returnAsset, getAssignmentHistory, transferAsset, getMovementHistory, listMaster } from '../api/inventory';
+import { getAsset, uploadPhoto, listDocuments, uploadDocument, deleteDocument, assignAsset, returnAsset, getAssignmentHistory, transferAsset, getMovementHistory, listMaster, retireAsset, deleteAssetPermanently } from '../api/inventory';
 import { apiGet, apiPatch } from '@/lib/api-client';
 import ConditionBadge from '@/components/ui/ConditionBadge';
 import QrModal from '@/features/qr/components/QrModal';
+import RetireDialog from '../components/RetireDialog';
+import DeleteDialog from '../components/DeleteDialog';
 import { listSchedules } from '@/features/maintenance-schedules/api/schedules';
 
 const ASGN_STYLES: Record<string, string> = { ACTIVE: 'bg-green-50 text-green-700', RETURNED: 'bg-slate-100 text-slate-500' };
@@ -30,6 +32,8 @@ export default function AssetDetailPage() {
   const [asnForm, setAsnForm] = useState({ userId: '', departmentId: '', assignedDate: '', notes: '' });
   const [retForm, setRetForm] = useState({ returnedDate: '', notes: '' });
   const [trfForm, setTrfForm] = useState({ siteId: '', buildingId: '', floorId: '', roomId: '', reason: '', notes: '' });
+  const [showRetire, setShowRetire] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['asset', id], queryFn: () => getAsset(id!), enabled: !!id,
@@ -94,6 +98,16 @@ export default function AssetDetailPage() {
     onSuccess: () => { toast.success('Asset transferred'); setShowTransfer(false); qc.invalidateQueries({ queryKey: ['asset', id] }); refetchMH(); },
     onError: (e: Error) => toast.error(e.message),
   });
+  const retireMut = useMutation({
+    mutationFn: (b: { reason: string; notes?: string }) => retireAsset(id!, b),
+    onSuccess: () => { toast.success('Asset retired.'); setShowRetire(false); qc.invalidateQueries({ queryKey: ['asset', id] }); qc.invalidateQueries({ queryKey: ['assets'] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (b: { notes?: string }) => deleteAssetPermanently(id!, b),
+    onSuccess: () => { toast.success('Asset permanently deleted.'); setShowDelete(false); qc.invalidateQueries({ queryKey: ['assets'] }); navigate('/inventory'); },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) { setUploading(true); photoMut.mutate(f, { onSettled: () => setUploading(false) }); } };
   const handleDoc = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) { setUploading(true); docMut.mutate({ file: f, type: docType }, { onSettled: () => setUploading(false) }); } e.target.value = ''; };
@@ -131,17 +145,32 @@ export default function AssetDetailPage() {
               <p className="font-mono text-sm text-slate-400">{a.assetCode}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <ConditionBadge condition={a.condition} size="lg" />
-                <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-medium ${a.status === 'ASSIGNED' ? 'bg-indigo-50 text-indigo-700' : a.status === 'AVAILABLE' ? 'bg-blue-50 text-blue-700' : a.status === 'IN_USE' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{a.status?.replace(/_/g, ' ')}</span>
+                <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-medium ${a.status === 'RETIRED' ? 'bg-slate-200 text-slate-600' : a.status === 'ASSIGNED' ? 'bg-indigo-50 text-indigo-700' : a.status === 'AVAILABLE' ? 'bg-blue-50 text-blue-700' : a.status === 'IN_USE' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{a.status?.replace(/_/g, ' ')}</span>
                 {can('asset.update') && <button onClick={() => { setCondForm({ condition: a.condition || '', reason: '', notes: '' }); setShowCond(true); }} className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"><Activity className="h-3.5 w-3.5" /> Update Condition</button>}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setShowQr(true)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"><QrCode className="h-4 w-4" /> QR</button>
-            {can('asset.update') && <button onClick={() => navigate(`/assets/${id}/edit`)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"><Pencil className="h-4 w-4" /> Edit</button>}
+            {can('asset.update') && a.status !== 'RETIRED' && <button onClick={() => navigate(`/assets/${id}/edit`)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"><Pencil className="h-4 w-4" /> Edit</button>}
+            {can('asset.retire') && a.status !== 'RETIRED' && <button onClick={() => setShowRetire(true)} className="inline-flex items-center gap-2 rounded-lg border border-amber-300 px-3 py-2 text-sm text-amber-700 hover:bg-amber-50"><Trash2 className="h-4 w-4" /> Retire</button>}
+            {can('asset.delete') && <button onClick={() => setShowDelete(true)} className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50"><XCircle className="h-4 w-4" /> Delete Permanently</button>}
           </div>
         </div>
       </div>
+
+      {a.status === 'RETIRED' && (
+        <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <p className="text-sm font-semibold text-slate-700">Asset Retired</p>
+          <p className="mt-1 text-xs text-slate-500">This asset has been retired and is no longer available for assignment, transfer, maintenance or tickets.</p>
+          <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+            <div><span className="font-medium text-slate-500">Reason: </span>{a.retireReason?.replace(/_/g, ' ') || '-'}</div>
+            <div><span className="font-medium text-slate-500">Retired by: </span>{a.retiredByName || '-'}</div>
+            <div><span className="font-medium text-slate-500">Date: </span>{a.retiredAt ? new Date(a.retiredAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</div>
+          </div>
+          {a.retireNote && <p className="mt-2 text-xs text-slate-500"><span className="font-medium text-slate-500">Notes: </span>{a.retireNote}</p>}
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Asset Info */}
@@ -159,20 +188,20 @@ export default function AssetDetailPage() {
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">Assignment</h2>
           {activeAsn ? (
             <>
-              <InfoRow label="Assigned To" value={activeAsn.userId || '-'} />
-              <InfoRow label="Department" value={activeAsn.departmentId || '-'} />
+              <InfoRow label="Assigned To" value={activeAsn.userName || '-'} />
+              <InfoRow label="Department" value={activeAsn.departmentName || '-'} />
               <InfoRow label="Assigned Since" value={activeAsn.assignedDate} />
               <div className="mt-3 flex gap-2">
-                {can('asset.assign') && <button onClick={() => { setRetForm({ returnedDate: new Date().toISOString().slice(0, 10), notes: '' }); setShowReturn(true); }} className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">Return Asset</button>}
+                {can('asset.assign') && a.status !== 'RETIRED' && <button onClick={() => { setRetForm({ returnedDate: new Date().toISOString().slice(0, 10), notes: '' }); setShowReturn(true); }} className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">Return Asset</button>}
               </div>
             </>
           ) : (
             <>
               <p className="mb-3 text-sm text-slate-400">Not currently assigned.</p>
-              {can('asset.assign') && <button onClick={() => { setAsnForm({ userId: '', departmentId: '', assignedDate: new Date().toISOString().slice(0, 10), notes: '' }); setShowAssign(true); }} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"><User className="h-4 w-4" /> Assign Asset</button>}
+              {can('asset.assign') && a.status !== 'RETIRED' && <button onClick={() => { setAsnForm({ userId: '', departmentId: '', assignedDate: new Date().toISOString().slice(0, 10), notes: '' }); setShowAssign(true); }} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"><User className="h-4 w-4" /> Assign Asset</button>}
             </>
           )}
-          {can('asset.transfer') && <div className="mt-2"><button onClick={() => { setTrfForm({ siteId: '', buildingId: '', floorId: '', roomId: '', reason: '', notes: '' }); setShowTransfer(true); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"><MapPin className="h-4 w-4" /> Transfer Location</button></div>}
+          {can('asset.transfer') && a.status !== 'RETIRED' && <div className="mt-2"><button onClick={() => { setTrfForm({ siteId: '', buildingId: '', floorId: '', roomId: '', reason: '', notes: '' }); setShowTransfer(true); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"><MapPin className="h-4 w-4" /> Transfer Location</button></div>}
         </div>
 
         {/* Purchase & Warranty */}
@@ -198,7 +227,7 @@ export default function AssetDetailPage() {
         <div className="rounded-lg border border-slate-200 bg-white p-5">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Preventive Maintenance</h2>
-            <button onClick={() => navigate('/maintenance/schedules')} className="text-xs font-medium text-indigo-600 hover:underline">Schedules</button>
+            {a.status !== 'RETIRED' && <button onClick={() => navigate('/maintenance/schedules')} className="text-xs font-medium text-indigo-600 hover:underline">Schedules</button>}
           </div>
           {scheduleData.length === 0 ? (
             <p className="text-sm text-slate-400">No preventive maintenance schedule for this asset.</p>
@@ -249,9 +278,11 @@ export default function AssetDetailPage() {
           <div className="space-y-3">{asnData.map((h: any, i: number) => (
             <div key={h.id || i} className="relative pl-5 before:absolute before:left-1.5 before:top-2 before:h-2 before:w-2 before:rounded-full before:bg-slate-300">
               <div className="mb-1 text-xs text-slate-400">{h.assignedDate}{h.returnedDate ? ` → ${h.returnedDate}` : ' → Present'}</div>
-              <p className="text-sm font-medium text-slate-700">{h.userId || 'Unknown User'}</p>
-              {h.departmentId && <p className="text-xs text-slate-500">{h.departmentId}</p>}
-              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ASGN_STYLES[h.status] || ''}`}>{h.status}</span>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-slate-700">{h.userName || 'Unknown User'}</p>
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ASGN_STYLES[h.status] || 'bg-slate-100 text-slate-500'}`}>{h.status}</span>
+              </div>
+              {h.departmentName && <p className="text-xs text-slate-500">{h.departmentName}</p>}
             </div>
           ))}</div>
         </div>
@@ -264,7 +295,7 @@ export default function AssetDetailPage() {
         <div className="space-y-3">{movData.map((h: any, i: number) => (
           <div key={h.id || i} className="rounded-lg border border-slate-100 p-3">
             <div className="mb-1 text-xs text-slate-400">{h.movementDate || new Date(h.createdAt).toLocaleDateString('en-GB')}</div>
-            <div className="flex items-center gap-2 text-sm"><span className="text-slate-500">{h.fromRoomId || '-'}</span><ArrowLeftRight className="h-3 w-3 text-slate-300" /><span className="font-medium text-slate-700">{h.toRoomId || '-'}</span></div>
+            <div className="flex items-center gap-2 text-sm"><span className="text-slate-500">{h.fromRoomName || '-'}</span><ArrowLeftRight className="h-3 w-3 text-slate-300" /><span className="font-medium text-slate-700">{h.toRoomName || '-'}</span></div>
             {h.reason && <p className="mt-1 text-xs text-slate-500">{h.reason}</p>}
           </div>
         ))}</div>
@@ -302,6 +333,24 @@ export default function AssetDetailPage() {
       </div>
 
       {showQr && <QrModal assetCode={a.assetCode} assetName={a.assetName} onClose={() => setShowQr(false)} />}
+
+      <RetireDialog
+        open={showRetire}
+        assetCode={a.assetCode}
+        assetName={a.assetName}
+        isSubmitting={retireMut.isPending}
+        onClose={() => setShowRetire(false)}
+        onConfirm={(payload) => retireMut.mutate(payload)}
+      />
+
+      <DeleteDialog
+        open={showDelete}
+        assetCode={a.assetCode}
+        assetName={a.assetName}
+        isSubmitting={deleteMut.isPending}
+        onClose={() => setShowDelete(false)}
+        onConfirm={(payload) => deleteMut.mutate(payload)}
+      />
 
       {/* Condition Modal */}
       {showCond && (
@@ -371,7 +420,7 @@ export default function AssetDetailPage() {
             <div className="border-b border-slate-200 px-6 py-4"><h3 className="text-lg font-semibold text-slate-900">Return Asset</h3></div>
             <div className="space-y-4 px-6 py-4">
               <div className="rounded-lg bg-slate-50 px-4 py-3"><p className="text-xs font-medium uppercase tracking-wider text-slate-400">Asset</p><p className="font-mono text-sm text-slate-700">{a.assetCode}</p><p className="text-sm text-slate-600">{a.assetName}</p></div>
-              {activeAsn && <div className="rounded-lg bg-slate-50 px-4 py-3"><p className="text-xs text-slate-400">Currently assigned to</p><p className="text-sm font-medium text-slate-700">{activeAsn.userId || '-'} {activeAsn.departmentId ? `(${activeAsn.departmentId})` : ''}</p></div>}
+              {activeAsn && <div className="rounded-lg bg-slate-50 px-4 py-3"><p className="text-xs text-slate-400">Currently assigned to</p><p className="text-sm font-medium text-slate-700">{activeAsn.userName || '-'} {activeAsn.departmentName ? `(${activeAsn.departmentName})` : ''}</p></div>}
               <div><label className="block text-sm font-medium text-slate-700">Return Date</label><input type="date" value={retForm.returnedDate} onChange={(e) => setRetForm(p => ({ ...p, returnedDate: e.target.value }))} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" /></div>
               <div><label className="block text-sm font-medium text-slate-700">Notes</label><textarea value={retForm.notes} onChange={(e) => setRetForm(p => ({ ...p, notes: e.target.value }))} rows={2} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" /></div>
             </div>

@@ -7,7 +7,7 @@ import { assets } from './assets';
  */
 export const analyticsEvents = pgTable('analytics_events', {
   id: uuid('id').defaultRandom().primaryKey(),
-  assetId: uuid('asset_id').references(() => assets.id),
+  assetId: uuid('asset_id').references(() => assets.id, { onDelete: 'cascade' }),
   eventType: varchar('event_type', { length: 100 }).notNull(),
   severity: varchar('severity', { length: 20 }).notNull().default('INFO'),
   title: varchar('title', { length: 200 }).notNull(),

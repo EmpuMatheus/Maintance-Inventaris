@@ -99,7 +99,8 @@ export default function UserDetailPage() {
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-5">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">Access</h2>
-          <InfoRow label="Roles" value={u.roles.join(', ') || '-'} />
+          <InfoRow label="Role" value={u.roles.join(', ') || '-'} />
+          <InfoRow label="Category" value={u.categories.join(', ') || '-'} />
           <InfoRow label="Last Login" value={formatDateTime(u.lastLoginAt)} />
           <InfoRow label="Created" value={formatDateTime(u.createdAt)} />
           <InfoRow label="Updated" value={formatDateTime(u.updatedAt)} />

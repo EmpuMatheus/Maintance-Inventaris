@@ -5,18 +5,18 @@ import { getCurrentUser } from '@/modules/auth/auth.service';
 import * as userSvc from '@/modules/users/user.service';
 
 const sql = postgres(env.DATABASE_URL, { max: 1 });
-let viewerRoleId: string;
-let viewerId: string;
+let userRoleId: string;
+let userId: string;
 
 beforeAll(async () => {
-  const rows = await sql`SELECT id FROM roles WHERE name = 'VIEWER' LIMIT 1`;
-  viewerRoleId = rows[0].id as string;
+  const rows = await sql`SELECT id FROM roles WHERE name = 'USER' LIMIT 1`;
+  userRoleId = rows[0].id as string;
 });
 
 afterAll(async () => {
-  if (viewerId) {
-    await sql`DELETE FROM user_roles WHERE user_id = ${viewerId}`;
-    await sql`DELETE FROM users WHERE id = ${viewerId}`;
+  if (userId) {
+    await sql`DELETE FROM user_roles WHERE user_id = ${userId}`;
+    await sql`DELETE FROM users WHERE id = ${userId}`;
   }
   await sql.end();
 });
@@ -29,14 +29,23 @@ describe('Permissions', () => {
     expect(me.permissions).toContain('role.read');
   });
 
-  it('a viewer receives only read permissions', async () => {
-    const u = await userSvc.create({ employeeCode: 'QA_VIEW', name: 'QA Viewer', username: `qaviewer${Date.now().toString(36)}`, password: 'password123', roles: [viewerRoleId] });
-    viewerId = u.id;
+  it('a user receives only own-scoped permissions', async () => {
+    const u = await userSvc.create({ employeeCode: 'QA_USER', name: 'QA User', username: `qauser${Date.now().toString(36)}`, password: 'password123', roleId: userRoleId });
+    userId = u.id;
     const me = await getCurrentUser(u.id);
-    expect(me.permissions).toContain('asset.read');
-    expect(me.permissions).toContain('audit.read');
+    expect(me.permissions).toContain('asset.read.own');
+    expect(me.permissions).toContain('maintenance.read.own');
+    expect(me.permissions).toContain('ticket.create');
+    expect(me.permissions).toContain('ticket.read.own');
+    expect(me.permissions).toContain('ticket.comment.own');
+    expect(me.permissions).toContain('notification.read');
+    expect(me.permissions).toContain('profile.update');
+    expect(me.permissions).not.toContain('asset.read');
+    expect(me.permissions).not.toContain('maintenance.read');
+    expect(me.permissions).not.toContain('ticket.read');
     expect(me.permissions).not.toContain('asset.create');
     expect(me.permissions).not.toContain('user.create');
-    expect(me.permissions).not.toContain('report.export');
+    expect(me.permissions).not.toContain('analytics.read');
+    expect(me.permissions).not.toContain('master_data.read');
   });
 });

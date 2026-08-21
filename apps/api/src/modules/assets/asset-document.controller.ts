@@ -3,6 +3,21 @@ import { getDb } from '@/database/client';
 import { assets, assetDocuments } from '@/database/schema';
 import { eq, sql } from 'drizzle-orm';
 import { AppError } from '@/middleware/error-handler';
+import { resolveAssetScope, canAccessAsset } from '@/middleware/scope';
+
+async function assertAssetReadable(id: string, req: Request) {
+  const scope = resolveAssetScope(req.user);
+  if (!scope.ownUserId && !scope.categoryIds) return;
+  const db = getDb();
+  const rows = await db
+    .select({ id: assets.id, categoryId: assets.categoryId, currentPicId: assets.currentPicId })
+    .from(assets)
+    .where(eq(assets.id, sql`${id}::uuid`))
+    .limit(1);
+  if (!canAccessAsset(scope, rows[0] as { categoryId?: unknown; currentPicId?: unknown })) {
+    throw new AppError(403, 'FORBIDDEN', 'You do not have permission to view this asset.');
+  }
+}
 
 export async function uploadPhoto(req: Request, res: Response, next: NextFunction) {
   try {
@@ -26,6 +41,7 @@ export async function uploadPhoto(req: Request, res: Response, next: NextFunctio
 export async function listDocuments(req: Request, res: Response, next: NextFunction) {
   try {
     const id = req.params.id as string;
+    await assertAssetReadable(id, req);
     const db = getDb();
     const rows = await db.select().from(assetDocuments).where(eq(assetDocuments.assetId, sql`${id}::uuid`)).orderBy(assetDocuments.createdAt);
     res.json({ success: true, data: rows });

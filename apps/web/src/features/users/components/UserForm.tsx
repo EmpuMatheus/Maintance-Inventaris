@@ -4,9 +4,12 @@ import { z } from 'zod';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { listMaster } from '@/features/inventory/api/inventory';
 import RoleSelector from './RoleSelector';
-import type { RoleOption, User } from '../types';
+import type { CategoryOption, RoleOption, User } from '../types';
+
+const CATEGORY_REQUIRED_ROLES = ['ADMIN', 'TECHNICIAN'];
 
 const schema = z.object({
   employeeCode: z.string().min(1, 'Employee code is required.'),
@@ -30,15 +33,21 @@ function inputClass(hasError?: boolean) {
 export default function UserForm({
   user,
   roles,
-  selectedRoles,
-  onRolesChange,
+  categories,
+  roleId,
+  categoryId,
+  onRoleChange,
+  onCategoryChange,
   isSubmitting,
   onSubmit,
 }: {
   user?: User;
   roles: RoleOption[];
-  selectedRoles: string[];
-  onRolesChange: (roles: string[]) => void;
+  categories: CategoryOption[];
+  roleId: string;
+  categoryId: string;
+  onRoleChange: (roleId: string) => void;
+  onCategoryChange: (categoryId: string) => void;
   isSubmitting: boolean;
   onSubmit: (data: Record<string, unknown>) => void;
 }) {
@@ -47,6 +56,9 @@ export default function UserForm({
 
   const { data: departments } = useQuery({ queryKey: ['master', 'departments'], queryFn: () => listMaster('departments') });
   const depts = ((departments as unknown as { data?: { id: string; name: string; code?: string }[] })?.data ?? []) as { id: string; name: string; code?: string }[];
+
+  const selectedRole = roles.find((r) => r.id === roleId);
+  const needsCategory = selectedRole ? CATEGORY_REQUIRED_ROLES.includes(selectedRole.name) : false;
 
   const {
     register,
@@ -67,18 +79,27 @@ export default function UserForm({
   });
 
   const submit = (values: FormValues) => {
+    if (!roleId) {
+      toast.error('Please select a role.');
+      return;
+    }
+    if (needsCategory && !categoryId) {
+      toast.error('This role requires an asset category.');
+      return;
+    }
     const payload: Record<string, unknown> = {
       name: values.name,
       email: values.email || null,
       departmentId: values.departmentId || null,
       phone: values.phone || null,
       position: values.position || null,
+      roleId,
+      categoryId: categoryId || null,
     };
     if (!isEdit) {
       payload.employeeCode = values.employeeCode;
       payload.username = values.username;
       payload.password = values.password;
-      payload.roles = selectedRoles;
     }
     onSubmit(payload);
   };
@@ -137,14 +158,23 @@ export default function UserForm({
           </div>
         </div>
 
-        {!isEdit && (
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Role *</label>
+          <RoleSelector roles={roles} value={roleId} onChange={onRoleChange} />
+        </div>
+
+        {needsCategory && (
           <div>
-            <label className="block text-sm font-medium text-slate-700">Roles</label>
-            <div className="mt-1">
-              <RoleSelector roles={roles} selected={selectedRoles} onChange={onRolesChange} />
-            </div>
+            <label className="block text-sm font-medium text-slate-700">Asset Category *</label>
+            <select value={categoryId} onChange={(e) => onCategoryChange(e.target.value)} className={inputClass()}>
+              <option value="">Select category...</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.code} - {c.name}</option>)}
+            </select>
+            {!categoryId && <p className="mt-1 text-xs text-red-500">This role requires an asset category.</p>}
           </div>
         )}
+
+        {!needsCategory && !roleId && <p className="text-xs text-slate-400">Select a role to continue.</p>}
 
         <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
           <button type="button" onClick={() => navigate(isEdit ? `/users/${user!.id}` : '/users')} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>

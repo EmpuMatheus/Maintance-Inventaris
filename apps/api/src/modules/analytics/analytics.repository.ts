@@ -2,7 +2,11 @@ import { getDb } from '@/database/client';
 import { sql } from 'drizzle-orm';
 import type { AssetAnalyticsRow, AnalyticsEvent, MonthlyTrendPoint } from './analytics.types';
 
-const ASSET_AGGREGATES_SQL = sql`
+const ASSET_AGGREGATES_SQL = (categoryIds?: string[]) => {
+  const categoryClause = categoryIds && categoryIds.length > 0
+    ? sql` AND a.category_id IN ${categoryIds}`
+    : sql``;
+  return sql`
   SELECT
     a.id,
     a.asset_code,
@@ -29,8 +33,9 @@ const ASSET_AGGREGATES_SQL = sql`
     a.health_score,
     a.repeated_failure
   FROM assets a
-  WHERE a.deleted_at IS NULL
-`;
+  WHERE a.deleted_at IS NULL${categoryClause}
+  `;
+};
 
 interface AggregateRow {
   id: string;
@@ -64,9 +69,9 @@ function num(v: string | number | null | undefined): number {
  * Single aggregate query returning per-asset analytics facts. Avoids N+1 by
  * aggregating maintenance, tickets and condition history in one statement.
  */
-export async function getAssetAnalyticsRows(): Promise<AssetAnalyticsRow[]> {
+export async function getAssetAnalyticsRows(categoryIds?: string[]): Promise<AssetAnalyticsRow[]> {
   const db = getDb();
-  const rows = (await db.execute(ASSET_AGGREGATES_SQL)) as unknown as AggregateRow[];
+  const rows = (await db.execute(ASSET_AGGREGATES_SQL(categoryIds))) as unknown as AggregateRow[];
   return rows.map((r) => ({
     id: r.id,
     assetCode: r.asset_code,
@@ -92,27 +97,33 @@ export async function getAssetAnalyticsRows(): Promise<AssetAnalyticsRow[]> {
   }));
 }
 
-export async function getMaintenanceMonthlyTrend(months = 12): Promise<MonthlyTrendPoint[]> {
+export async function getMaintenanceMonthlyTrend(months = 12, categoryIds?: string[]): Promise<MonthlyTrendPoint[]> {
   const db = getDb();
+  const categoryClause = categoryIds && categoryIds.length > 0
+    ? sql` AND mr.asset_id IN (SELECT a.id FROM assets a WHERE a.category_id IN ${categoryIds})`
+    : sql``;
   const rows = (await db.execute(sql`
     SELECT
       to_char(date_trunc('month', created_at), 'YYYY-MM') AS month,
       count(*)::int AS value
-    FROM maintenance_records
-    WHERE created_at >= now() - interval '${sql.raw(String(months))} months'
+    FROM maintenance_records mr
+    WHERE created_at >= now() - interval '${sql.raw(String(months))} months'${categoryClause}
     GROUP BY 1 ORDER BY 1
   `)) as unknown as { month: string; value: number }[];
   return rows.map((r) => ({ month: r.month, label: monthLabel(r.month), value: r.value }));
 }
 
-export async function getTicketMonthlyTrend(months = 12): Promise<MonthlyTrendPoint[]> {
+export async function getTicketMonthlyTrend(months = 12, categoryIds?: string[]): Promise<MonthlyTrendPoint[]> {
   const db = getDb();
+  const categoryClause = categoryIds && categoryIds.length > 0
+    ? sql` AND t.asset_id IN (SELECT a.id FROM assets a WHERE a.category_id IN ${categoryIds})`
+    : sql``;
   const rows = (await db.execute(sql`
     SELECT
       to_char(date_trunc('month', reported_at), 'YYYY-MM') AS month,
       count(*)::int AS value
-    FROM tickets
-    WHERE reported_at >= now() - interval '${sql.raw(String(months))} months'
+    FROM tickets t
+    WHERE reported_at >= now() - interval '${sql.raw(String(months))} months'${categoryClause}
     GROUP BY 1 ORDER BY 1
   `)) as unknown as { month: string; value: number }[];
   return rows.map((r) => ({ month: r.month, label: monthLabel(r.month), value: r.value }));
@@ -124,14 +135,18 @@ function monthLabel(month: string): string {
   return `${names[Number(m) - 1]} ${y.slice(2)}`;
 }
 
-export async function getRecentEvents(limit = 10): Promise<AnalyticsEvent[]> {
+export async function getRecentEvents(limit = 10, categoryIds?: string[]): Promise<AnalyticsEvent[]> {
   const db = getDb();
+  const categoryClause = categoryIds && categoryIds.length > 0
+    ? sql` AND a.category_id IN ${categoryIds}`
+    : sql``;
   const rows = (await db.execute(sql`
     SELECT
       e.id, e.asset_id, e.event_type, e.severity, e.title, e.message, e.created_at,
       a.asset_code, a.asset_name
     FROM analytics_events e
     LEFT JOIN assets a ON a.id = e.asset_id
+    WHERE 1=1${categoryClause}
     ORDER BY e.created_at DESC
     LIMIT ${sql.raw(String(Math.min(limit, 50)))}
   `)) as unknown as {

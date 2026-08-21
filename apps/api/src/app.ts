@@ -24,6 +24,7 @@ import reportRoutes from '@/modules/reports/report.routes';
 import auditRoutes from '@/modules/audit/audit.routes';
 import userRoutes from '@/modules/users/user.routes';
 import roleRoutes from '@/modules/roles/role.routes';
+import profileRoutes from '@/modules/profile/profile.routes';
 import backupRoutes from '@/modules/backup/backup.routes';
 import analyticsRoutes from '@/modules/analytics/analytics.routes';
 
@@ -67,6 +68,7 @@ app.use(`${env.API_PREFIX}/reports`, reportRoutes);
 app.use(`${env.API_PREFIX}/audit`, auditRoutes);
 app.use(`${env.API_PREFIX}/users`, userRoutes);
 app.use(`${env.API_PREFIX}/roles`, roleRoutes);
+app.use(`${env.API_PREFIX}/profile`, profileRoutes);
 app.use(env.API_PREFIX, backupRoutes);
 app.use(env.API_PREFIX, analyticsRoutes);
 

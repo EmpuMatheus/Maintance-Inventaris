@@ -41,8 +41,8 @@ export function setUserPassword(id: string, password: string) {
   return apiPatch<{ success: boolean; data: { success: boolean } }>(`/users/${id}/password`, { password });
 }
 
-export function setUserRoles(id: string, roles: string[]) {
-  return apiPatch<{ success: boolean; data: User }>(`/users/${id}/roles`, { roles });
+export function setUserRole(id: string, roleId: string, categoryId?: string | null) {
+  return apiPatch<{ success: boolean; data: User }>(`/users/${id}/roles`, { roleId, categoryId: categoryId || null });
 }
 
 export const userKeys = {

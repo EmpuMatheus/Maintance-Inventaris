@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createUserSchema, updateUserSchema, setStatusSchema, setPasswordSchema, setRolesSchema } from '@/modules/users/user.schema';
+import { createUserSchema, updateUserSchema, setStatusSchema, setPasswordSchema, setRoleSchema } from '@/modules/users/user.schema';
 
 const UUID = '00000000-0000-0000-0000-000000000001';
 
@@ -10,7 +10,7 @@ describe('User schema validation', () => {
       name: 'John Doe',
       username: 'john',
       password: 'secret123',
-      roles: [UUID],
+      roleId: UUID,
     });
     expect(r.success).toBe(true);
   });
@@ -28,10 +28,11 @@ describe('User schema validation', () => {
     expect(updateUserSchema.safeParse({ email: null }).success).toBe(true);
   });
 
-  it('validates status/password/roles', () => {
+  it('validates status/password/role', () => {
     expect(setStatusSchema.safeParse({ isActive: false }).success).toBe(true);
     expect(setStatusSchema.safeParse({ isActive: 'yes' }).success).toBe(false);
     expect(setPasswordSchema.safeParse({ password: 'newpass1' }).success).toBe(true);
-    expect(setRolesSchema.safeParse({ roles: [UUID] }).success).toBe(true);
+    expect(setRoleSchema.safeParse({ roleId: UUID }).success).toBe(true);
+    expect(setRoleSchema.safeParse({ roleId: UUID, categoryId: UUID }).success).toBe(true);
   });
 });

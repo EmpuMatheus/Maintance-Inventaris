@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as service from './master-data.service';
+import { auditFromRequest } from '@/modules/audit/audit.service';
 
 export function list(resource: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -63,6 +64,16 @@ export function deactivate(resource: string) {
     try {
       const id = req.params.id as string;
       const row = await service.deactivate(resource, id);
+      if (resource === 'categories') {
+        auditFromRequest(req, {
+          module: 'MASTER_DATA',
+          action: 'DELETE',
+          entityType: 'asset_category',
+          entityId: id,
+          description: `Asset category ${row.code} deleted.`,
+          newData: { code: row.code, name: row.name },
+        });
+      }
       res.json({ success: true, data: row });
     } catch (error) {
       next(error);

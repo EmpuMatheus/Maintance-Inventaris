@@ -212,8 +212,8 @@ function toReplacementView(row: AssetAnalyticsRow): AssetReplacement {
   };
 }
 
-export async function getHealthAnalytics(): Promise<{ assets: AssetHealth[]; distribution: { category: HealthCategory; value: number }[] }> {
-  const rows = await repo.getAssetAnalyticsRows();
+export async function getHealthAnalytics(categoryIds?: string[]): Promise<{ assets: AssetHealth[]; distribution: { category: HealthCategory; value: number }[] }> {
+  const rows = await repo.getAssetAnalyticsRows(categoryIds);
   const assets = rows.map(toHealthView);
   const categories: HealthCategory[] = ['Excellent', 'Good', 'Fair', 'Poor', 'Critical'];
   const distribution = categories.map((category) => ({
@@ -223,8 +223,8 @@ export async function getHealthAnalytics(): Promise<{ assets: AssetHealth[]; dis
   return { assets, distribution };
 }
 
-export async function getReplacementAnalytics(): Promise<AssetReplacement[]> {
-  const rows = await repo.getAssetAnalyticsRows();
+export async function getReplacementAnalytics(categoryIds?: string[]): Promise<AssetReplacement[]> {
+  const rows = await repo.getAssetAnalyticsRows(categoryIds);
   return rows.map(toReplacementView).sort((a, b) => rank(b.recommendation) - rank(a.recommendation));
 }
 
@@ -232,26 +232,26 @@ function rank(r: Recommendation): number {
   return ['Keep', 'Monitor', 'Repair', 'Replace Soon', 'Replace Immediately'].indexOf(r);
 }
 
-export async function getFailureAnalytics(): Promise<{ assets: AssetHealth[]; events: Awaited<ReturnType<typeof repo.getRecentEvents>> }> {
-  const rows = await repo.getAssetAnalyticsRows();
+export async function getFailureAnalytics(categoryIds?: string[]): Promise<{ assets: AssetHealth[]; events: Awaited<ReturnType<typeof repo.getRecentEvents>> }> {
+  const rows = await repo.getAssetAnalyticsRows(categoryIds);
   const flagged = rows
     .map(toHealthView)
     .filter((a) => a.repeatedFailure)
     .sort((a, b) => b.failures - a.failures);
-  const events = await repo.getRecentEvents(20);
+  const events = await repo.getRecentEvents(20, categoryIds);
   return { assets: flagged, events };
 }
 
-export async function getTrends() {
+export async function getTrends(categoryIds?: string[]) {
   const [maintenanceTrend, ticketTrend] = await Promise.all([
-    repo.getMaintenanceMonthlyTrend(12),
-    repo.getTicketMonthlyTrend(12),
+    repo.getMaintenanceMonthlyTrend(12, categoryIds),
+    repo.getTicketMonthlyTrend(12, categoryIds),
   ]);
   return { maintenanceTrend, ticketTrend };
 }
 
-export async function getDashboard(): Promise<AnalyticsDashboard> {
-  const rows = await repo.getAssetAnalyticsRows();
+export async function getDashboard(categoryIds?: string[]): Promise<AnalyticsDashboard> {
+  const rows = await repo.getAssetAnalyticsRows(categoryIds);
   const health = rows.map(toHealthView);
   const replacements = rows.map(toReplacementView);
   const categories: HealthCategory[] = ['Excellent', 'Good', 'Fair', 'Poor', 'Critical'];
@@ -305,9 +305,9 @@ export async function getDashboard(): Promise<AnalyticsDashboard> {
     .slice(0, 10);
 
   const [maintenanceTrend, ticketTrend, recentEvents] = await Promise.all([
-    repo.getMaintenanceMonthlyTrend(12),
-    repo.getTicketMonthlyTrend(12),
-    repo.getRecentEvents(10),
+    repo.getMaintenanceMonthlyTrend(12, categoryIds),
+    repo.getTicketMonthlyTrend(12, categoryIds),
+    repo.getRecentEvents(10, categoryIds),
   ]);
 
   return {

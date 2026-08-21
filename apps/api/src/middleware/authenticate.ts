@@ -31,6 +31,7 @@ export async function authenticate(
 
     const roles = await repo.getUserRoles(user.id);
     const permissions = await repo.getUserPermissions(user.id);
+    const categoryIds = await repo.getUserCategories(user.id);
 
     req.user = {
       id: user.id,
@@ -38,6 +39,7 @@ export async function authenticate(
       name: user.name,
       roles,
       permissions,
+      categoryIds,
     };
 
     next();

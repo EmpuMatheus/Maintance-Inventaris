@@ -21,14 +21,13 @@ export const MODULES: ModuleConfig[] = [
     columns: [
       { key: 'code', label: 'Code', sortable: true },
       { key: 'name', label: 'Name', sortable: true },
-      { key: 'description', label: 'Description' },
+      { key: 'category', label: 'Category' },
       { key: 'isActive', label: 'Status' },
     ],
     fields: [
       { key: 'categoryId', label: 'Category', type: 'select', required: true, options: [] },
       { key: 'code', label: 'Code', type: 'text', required: true, placeholder: 'e.g. LAP' },
       { key: 'name', label: 'Name', type: 'text', required: true, placeholder: 'e.g. Laptop' },
-      { key: 'description', label: 'Description', type: 'textarea' },
     ],
   },
   {

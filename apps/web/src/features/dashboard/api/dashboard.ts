@@ -1,5 +1,6 @@
 import { apiGet } from '@/lib/api-client';
 import type { MaintenanceSchedule } from '@/features/maintenance-schedules/types';
+import type { AppNotification } from '@/features/notifications/types';
 
 export interface DashboardSummary {
   assets: {
@@ -71,8 +72,20 @@ export interface RecentActivityItem {
   createdAt: string;
 }
 
+export interface MyDashboardSummary {
+  myAssets: number;
+  myOpenTickets: number;
+  myMaintenance: number;
+  notificationsUnread: number;
+  recentNotifications: AppNotification[];
+}
+
 export function getDashboardSummary() {
   return apiGet<{ success: boolean; data: DashboardSummary }>('/dashboard/summary');
+}
+
+export function getDashboardMySummary() {
+  return apiGet<{ success: boolean; data: MyDashboardSummary }>('/dashboard/my-summary');
 }
 
 export function getDashboardMaintenanceStats() {

@@ -1,5 +1,5 @@
 import { getDb } from '@/database/client';
-import { users, roles, userRoles, permissions, rolePermissions } from '@/database/schema';
+import { users, roles, userRoles, permissions, rolePermissions, userCategories } from '@/database/schema';
 import { eq, sql } from 'drizzle-orm';
 
 export interface UserRow {
@@ -72,4 +72,13 @@ export async function getUserPermissions(userId: string): Promise<string[]> {
     .where(eq(userRoles.userId, sql`${userId}::uuid`));
   const codes = result.map((r) => r.permissionCode);
   return [...new Set(codes)];
+}
+
+export async function getUserCategories(userId: string): Promise<string[]> {
+  const db = getDb();
+  const result = await db
+    .select({ categoryId: userCategories.categoryId })
+    .from(userCategories)
+    .where(eq(userCategories.userId, sql`${userId}::uuid`));
+  return result.map((r) => r.categoryId);
 }

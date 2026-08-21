@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as svc from './schedule.service';
 import { auditFromRequest } from '@/modules/audit/audit.service';
+import { resolveAssetScope } from '@/middleware/scope';
 
 function qStr(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
@@ -10,6 +11,11 @@ function qNum(v: unknown): number | undefined {
   return v !== undefined ? Number(v) : undefined;
 }
 
+function scopeCategoryIds(req: Request): string[] | undefined {
+  const scope = resolveAssetScope(req.user);
+  return scope.categoryIds?.length ? scope.categoryIds : undefined;
+}
+
 function dueParams(req: Request) {
   return {
     days: qNum(req.query.days),
@@ -17,6 +23,7 @@ function dueParams(req: Request) {
     limit: qNum(req.query.limit),
     assetId: qStr(req.query.assetId),
     typeId: qStr(req.query.typeId),
+    categoryIds: scopeCategoryIds(req),
   };
 }
 
@@ -29,6 +36,7 @@ export async function listController(req: Request, res: Response, next: NextFunc
       assetId: qStr(req.query.assetId),
       typeId: qStr(req.query.typeId),
       isActive: req.query.isActive !== undefined ? req.query.isActive === 'true' : undefined,
+      categoryIds: scopeCategoryIds(req),
     });
     res.json({ success: true, ...result });
   } catch (e) { next(e); }
@@ -43,7 +51,7 @@ export async function getByIdController(req: Request, res: Response, next: NextF
 
 export async function createController(req: Request, res: Response, next: NextFunction) {
   try {
-    const row = await svc.create(req.body, req.user?.id);
+    const row = await svc.create(req.body, req.user);
     auditFromRequest(req, {
       module: 'SCHEDULE',
       action: 'CREATE',

@@ -8,6 +8,7 @@ import * as repo from './schedule.repository';
 import { calculateNextDueDate, daysBetween, toDateString, todayString } from './schedule.date';
 import type { ScheduleFrequency, ScheduleState } from './schedule.types';
 import * as maintenanceService from '@/modules/maintenance/maintenance.service';
+import { canAccessAsset, resolveAssetScope, type ScopeUser } from '@/middleware/scope';
 
 export interface ScheduleInput {
   assetId: string;
@@ -24,7 +25,7 @@ export interface ScheduleInput {
 async function assertAssetExists(assetId: string) {
   const db = getDb();
   const rows = await db
-    .select({ id: assets.id, assetCode: assets.assetCode })
+    .select({ id: assets.id, assetCode: assets.assetCode, categoryId: assets.categoryId, currentPicId: assets.currentPicId })
     .from(assets)
     .where(eq(assets.id, sql`${assetId}::uuid`))
     .limit(1);
@@ -53,8 +54,11 @@ export async function getById(id: string) {
   return { ...schedule, ...computeState(schedule, todayString()) };
 }
 
-export async function create(body: ScheduleInput, userId?: string) {
-  await assertAssetExists(body.assetId);
+export async function create(body: ScheduleInput, user?: ScopeUser) {
+  const asset = await assertAssetExists(body.assetId);
+  if (!canAccessAsset(resolveAssetScope(user), asset as { categoryId?: unknown; currentPicId?: unknown })) {
+    throw new AppError(403, 'FORBIDDEN', 'You can only create schedules for assets you have access to.');
+  }
   const startDate = body.startDate || todayString();
   const nextMaintenanceDate = resolveNextDueDate(body);
   const row = await repo.create({
@@ -67,7 +71,7 @@ export async function create(body: ScheduleInput, userId?: string) {
     lastMaintenanceDate: body.lastMaintenanceDate ? sql`${body.lastMaintenanceDate}::date` : undefined,
     reminderDays: body.reminderDays ?? 7,
     notes: body.notes || undefined,
-    createdBy: userId ? sql`${userId}::uuid` : undefined,
+    createdBy: user?.id ? sql`${user.id}::uuid` : undefined,
   });
   return row;
 }

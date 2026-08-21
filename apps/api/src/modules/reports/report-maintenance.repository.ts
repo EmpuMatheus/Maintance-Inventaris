@@ -13,7 +13,7 @@ import {
   users,
 } from '@/database/schema';
 import { alias } from 'drizzle-orm/pg-core';
-import { eq, and, sql, desc, asc, count } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, count, inArray } from 'drizzle-orm';
 import type { SQL, SQLWrapper } from 'drizzle-orm';
 import { toDateString, todayString } from '@/modules/maintenance-schedules/schedule.date';
 
@@ -27,6 +27,7 @@ export interface MaintenanceReportFilters {
   maintenanceTypeId?: string;
   assetId?: string;
   assetCategoryId?: string;
+  categoryIds?: string[];
   priority?: string;
   status?: string;
   technicianId?: string;
@@ -75,6 +76,9 @@ function buildWhere(filters: MaintenanceReportFilters): SQL[] {
   if (filters.maintenanceTypeId) conditions.push(eq(maintenanceRecords.maintenanceTypeId, sql`${filters.maintenanceTypeId}::uuid`));
   if (filters.assetId) conditions.push(eq(maintenanceRecords.assetId, sql`${filters.assetId}::uuid`));
   if (filters.assetCategoryId) conditions.push(eq(assets.categoryId, sql`${filters.assetCategoryId}::uuid`));
+  if (filters.categoryIds && filters.categoryIds.length > 0) {
+    conditions.push(inArray(assets.categoryId, filters.categoryIds));
+  }
   if (filters.priority) conditions.push(eq(maintenanceRecords.priority, sql`${filters.priority}::varchar`));
   if (filters.status) conditions.push(eq(maintenanceRecords.status, sql`${filters.status}::varchar`));
   if (filters.technicianId) conditions.push(eq(maintenanceRecords.technicianId, sql`${filters.technicianId}::uuid`));

@@ -52,7 +52,8 @@ export default function UserListPage() {
     { key: 'employeeCode', label: 'Employee Code', sortable: true, render: (u: User) => <span className="font-mono text-xs text-slate-600">{u.employeeCode}</span> },
     { key: 'email', label: 'Email', render: (u: User) => u.email || '-' },
     { key: 'department', label: 'Department', render: (u: User) => u.department || '-' },
-    { key: 'roles', label: 'Roles', render: (u: User) => <span className="text-xs text-slate-500">{u.roles.join(', ') || '-'}</span> },
+    { key: 'roles', label: 'Role', render: (u: User) => <span className="text-xs text-slate-500">{u.roles.join(', ') || '-'}</span> },
+    { key: 'categories', label: 'Category', render: (u: User) => <span className="text-xs text-slate-500">{u.categories.join(', ') || '-'}</span> },
     { key: 'lastLoginAt', label: 'Last Login', render: (u: User) => <span className="text-xs text-slate-400">{formatDate(u.lastLoginAt)}</span> },
     { key: 'isActive', label: 'Active', render: (u: User) => (
       <span onClick={(e) => e.stopPropagation()}>

@@ -39,7 +39,7 @@ export default function TicketListPage() {
     if (['IN_PROGRESS', 'ON_HOLD'].includes(t.status) && can('ticket.resolve')) {
       items.push({ label: 'Resolve', onClick: () => navigate(`/tickets/${t.id}`) });
     }
-    if (['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'ON_HOLD'].includes(t.status) && can('ticket.create') && t.assetId) {
+    if (['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'ON_HOLD'].includes(t.status) && can('ticket.update') && t.assetId) {
       items.push({ label: 'Create Maintenance', onClick: () => navigate(`/tickets/${t.id}`) });
     }
     return items;

@@ -42,7 +42,7 @@ export async function createController(req: Request, res: Response, next: NextFu
       entityType: 'user',
       entityId: data.id,
       description: `User ${data.username} created.`,
-      newData: { username: data.username, name: data.name, roles: data.roles },
+      newData: { username: data.username, name: data.name, roles: data.roles, categoryId: data.categoryIds?.[0] ?? null },
     });
     res.status(201).json({ success: true, data });
   } catch (e) { next(e); }
@@ -109,14 +109,14 @@ export async function passwordController(req: Request, res: Response, next: Next
 
 export async function rolesController(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await svc.setRoles(req.params.id as string, req.body.roles as string[]);
+    const data = await svc.setRole(req.params.id as string, req.body.roleId as string, req.body.categoryId as string | null | undefined);
     auditFromRequest(req, {
       module: 'USER',
       action: 'ASSIGN',
       entityType: 'user',
       entityId: data.id,
-      description: `Roles updated for user ${data.username}.`,
-      newData: { roles: data.roles },
+      description: `Role updated for user ${data.username}.`,
+      newData: { roles: data.roles, categoryId: data.categoryIds?.[0] ?? null },
     });
     res.json({ success: true, data });
   } catch (e) { next(e); }

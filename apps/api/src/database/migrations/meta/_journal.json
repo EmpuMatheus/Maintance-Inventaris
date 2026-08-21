@@ -57,6 +57,41 @@
       "when": 1785687070460,
       "tag": "0007_furry_blazing_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786078913706,
+      "tag": "0008_low_roxanne_simpson",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786085921459,
+      "tag": "0009_stale_master_mold",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786091266809,
+      "tag": "0010_skinny_mac_gargan",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786092402206,
+      "tag": "0011_first_dexter_bennett",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786096644327,
+      "tag": "0012_tough_leopardon",
+      "breakpoints": true
     }
   ]
 }

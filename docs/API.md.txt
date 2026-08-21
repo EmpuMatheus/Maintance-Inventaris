@@ -298,10 +298,13 @@ Response:
     "user": {
       "id": "uuid",
       "employeeCode": "8000001",
-      "name": "IT Administrator",
-      "username": "itadmin",
+      "name": "Category Administrator",
+      "username": "admin",
       "roles": [
-        "IT_ADMIN"
+        "ADMIN"
+      ],
+      "categoryIds": [
+        "uuid"
       ]
     }
   }
@@ -326,11 +329,11 @@ Response:
   "data": {
     "id": "uuid",
     "employeeCode": "8000001",
-    "name": "IT Administrator",
-    "username": "itadmin",
+    "name": "Category Administrator",
+    "username": "admin",
     "email": "it@example.com",
     "roles": [
-      "IT_ADMIN"
+      "ADMIN"
     ],
     "permissions": [
       "asset.read",
@@ -380,9 +383,9 @@ Default roles:
 
 ```text
 SUPER_ADMIN
-IT_ADMIN
+ADMIN
 TECHNICIAN
-VIEWER
+USER
 ```
 
 Permission menggunakan format:

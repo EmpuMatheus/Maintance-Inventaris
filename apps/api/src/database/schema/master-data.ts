@@ -23,7 +23,8 @@ export const assetCategories = pgTable('asset_categories', {
 
 export const assetSubcategories = pgTable('asset_subcategories', {
   id: uuid('id').defaultRandom().primaryKey(),
-  categoryId: uuid('category_id').notNull().references(() => assetCategories.id),
+  // Development only. Revert to RESTRICT before production.
+  categoryId: uuid('category_id').notNull().references(() => assetCategories.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   code: varchar('code', { length: 50 }).notNull(),
   name: varchar('name', { length: 150 }).notNull(),
   description: text('description'),

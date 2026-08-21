@@ -6,8 +6,11 @@ export const assets = pgTable('assets', {
   id: uuid('id').defaultRandom().primaryKey(),
   assetCode: varchar('asset_code', { length: 50 }).unique().notNull(),
   assetName: varchar('asset_name', { length: 200 }).notNull(),
-  categoryId: uuid('category_id').references(() => assetCategories.id),
-  subcategoryId: uuid('subcategory_id').references(() => assetSubcategories.id),
+  // Development only. Revert to RESTRICT before production.
+  // All FKs referencing asset_categories / asset_subcategories use
+  // ON DELETE CASCADE (and ON UPDATE CASCADE) for dev cleanup.
+  categoryId: uuid('category_id').references(() => assetCategories.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  subcategoryId: uuid('subcategory_id').references(() => assetSubcategories.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   brandId: uuid('brand_id').references(() => brands.id),
   model: varchar('model', { length: 150 }),
   serialNumber: varchar('serial_number', { length: 150 }),
@@ -30,6 +33,10 @@ export const assets = pgTable('assets', {
   healthScore: integer('health_score'),
   healthScoreUpdatedAt: timestamp('health_score_updated_at', { withTimezone: true }),
   repeatedFailure: boolean('repeated_failure').default(false).notNull(),
+  retiredAt: timestamp('retired_at', { withTimezone: true }),
+  retiredBy: uuid('retired_by').references(() => users.id),
+  retireReason: varchar('retire_reason', { length: 100 }),
+  retireNote: text('retire_note'),
   qrCode: text('qr_code'),
   photoUrl: text('photo_url'),
   notes: text('notes'),
@@ -44,7 +51,7 @@ export const assets = pgTable('assets', {
 
 export const assetConditionHistory = pgTable('asset_condition_history', {
   id: uuid('id').defaultRandom().primaryKey(),
-  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   previousCondition: varchar('previous_condition', { length: 50 }).notNull(),
   newCondition: varchar('new_condition', { length: 50 }).notNull(),
   reason: text('reason'),
@@ -57,7 +64,7 @@ export const assetConditionHistory = pgTable('asset_condition_history', {
 
 export const assetAssignments = pgTable('asset_assignments', {
   id: uuid('id').defaultRandom().primaryKey(),
-  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').references(() => users.id),
   departmentId: uuid('department_id').references(() => departments.id),
   assignedDate: date('assigned_date').notNull(),
@@ -72,7 +79,7 @@ export const assetAssignments = pgTable('asset_assignments', {
 export const assetMovements = pgTable('asset_movements', {
   id: uuid('id').defaultRandom().primaryKey(),
   movementCode: varchar('movement_code', { length: 50 }),
-  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   fromSiteId: uuid('from_site_id').references(() => sites.id),
   fromBuildingId: uuid('from_building_id').references(() => buildings.id),
   fromFloorId: uuid('from_floor_id').references(() => floors.id),
@@ -95,7 +102,7 @@ export const assetMovements = pgTable('asset_movements', {
 
 export const assetDocuments = pgTable('asset_documents', {
   id: uuid('id').defaultRandom().primaryKey(),
-  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   documentType: varchar('document_type', { length: 50 }).notNull(),
   fileName: varchar('file_name', { length: 255 }).notNull(),
   fileUrl: text('file_url').notNull(),

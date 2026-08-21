@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as svc from './report-maintenance.service';
+import { scopeCategoryIds } from './report-scope';
 
 function qStr(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
@@ -18,6 +19,7 @@ export async function maintenanceController(req: Request, res: Response, next: N
       maintenanceTypeId: qStr(req.query.maintenanceTypeId),
       assetId: qStr(req.query.assetId),
       assetCategoryId: qStr(req.query.assetCategoryId),
+      categoryIds: scopeCategoryIds(req),
       priority: qStr(req.query.priority),
       status: qStr(req.query.status),
       technicianId: qStr(req.query.technicianId),

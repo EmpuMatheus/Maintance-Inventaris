@@ -23,6 +23,7 @@ export const AUDIT_ACTIONS = [
   'LOGOUT',
   'ASSIGN',
   'TRANSFER',
+  'RETIRE',
   'EXPORT',
   'IMPORT',
   'UPLOAD',

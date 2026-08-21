@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Search, Plus, ChevronLeft, ChevronRight, Loader2, Eye, Pencil } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Search, Plus, ChevronLeft, ChevronRight, Loader2, Eye, Pencil, Trash2, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { listAssets } from '../api/inventory';
+import { listAssets, retireAsset, deleteAssetPermanently } from '../api/inventory';
+import RetireDialog from '../components/RetireDialog';
+import DeleteDialog from '../components/DeleteDialog';
 
 const CONDITION_STYLES: Record<string, string> = {
   GOOD: 'bg-green-50 text-green-700',
@@ -33,10 +36,42 @@ export default function InventoryListPage() {
   const [search, setSearch] = useState('');
   const [condition, setCondition] = useState('');
   const [status, setStatus] = useState('');
+  const [sort, setSort] = useState('createdAt');
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+  const [retireTarget, setRetireTarget] = useState<{ id: string; assetCode: string; assetName: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; assetCode: string; assetName: string } | null>(null);
+  const qc = useQueryClient();
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['assets', { page, search, condition, status }],
-    queryFn: () => listAssets({ page, search: search || undefined, condition: condition || undefined, status: status || undefined }),
+    queryKey: ['assets', { page, search, condition, status, sort, order }],
+    queryFn: () => listAssets({
+      page,
+      search: search || undefined,
+      condition: condition || undefined,
+      status: status || undefined,
+      sort: sort || undefined,
+      order: sort ? order : undefined,
+    }),
+  });
+
+  const retireMut = useMutation({
+    mutationFn: (payload: { reason: string; notes?: string }) => retireAsset(retireTarget!.id, payload),
+    onSuccess: () => {
+      toast.success('Asset retired.');
+      setRetireTarget(null);
+      qc.invalidateQueries({ queryKey: ['assets'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (payload: { notes?: string }) => deleteAssetPermanently(deleteTarget!.id, payload),
+    onSuccess: () => {
+      toast.success('Asset permanently deleted.');
+      setDeleteTarget(null);
+      qc.invalidateQueries({ queryKey: ['assets'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   return (
@@ -77,6 +112,14 @@ export default function InventoryListPage() {
           <option value="SPARE">Spare</option>
           <option value="RETIRED">Retired</option>
         </select>
+        <select value={sort} onChange={(e) => { setSort(e.target.value); setOrder(e.target.value === 'createdAt' ? 'desc' : 'asc'); setPage(1); }} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <option value="createdAt">Newest First</option>
+          <option value="assetCode">Asset Code</option>
+          <option value="assetName">Asset Name</option>
+          <option value="category">Category</option>
+          <option value="condition">Condition</option>
+          <option value="status">Status</option>
+        </select>
       </div>
 
       {/* Desktop table */}
@@ -86,6 +129,7 @@ export default function InventoryListPage() {
             <tr>
               <th className="px-4 py-3 font-medium text-slate-600">Asset Code</th>
               <th className="px-4 py-3 font-medium text-slate-600">Asset Name</th>
+              <th className="px-4 py-3 font-medium text-slate-600">Category</th>
               <th className="px-4 py-3 font-medium text-slate-600">Condition</th>
               <th className="px-4 py-3 font-medium text-slate-600">Status</th>
               <th className="px-4 py-3 font-medium text-slate-600">Actions</th>
@@ -93,24 +137,27 @@ export default function InventoryListPage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {isLoading && (
-              <tr><td colSpan={5} className="px-4 py-12 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" /></td></tr>
+              <tr><td colSpan={6} className="px-4 py-12 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" /></td></tr>
             )}
             {isError && (
-              <tr><td colSpan={5} className="px-4 py-12 text-center text-red-500">{(error as any)?.message || 'Failed to load'}</td></tr>
+              <tr><td colSpan={6} className="px-4 py-12 text-center text-red-500">{(error as any)?.message || 'Failed to load'}</td></tr>
             )}
             {!isLoading && !isError && (!data?.data || data.data.length === 0) && (
-              <tr><td colSpan={5} className="px-4 py-12 text-center text-slate-400">No assets found.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-400">No assets found.</td></tr>
             )}
             {!isLoading && !isError && data?.data?.map((a: any) => (
               <tr key={a.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3 font-mono text-xs text-slate-700">{a.assetCode}</td>
                 <td className="px-4 py-3 font-medium text-slate-900">{a.assetName}</td>
+                <td className="px-4 py-3 text-slate-600">{a.categoryName || '-'}</td>
                 <td className="px-4 py-3"><span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${CONDITION_STYLES[a.condition] || 'bg-slate-100 text-slate-600'}`}>{a.condition?.replace(/_/g, ' ')}</span></td>
                 <td className="px-4 py-3"><span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[a.status] || 'bg-slate-100 text-slate-600'}`}>{a.status?.replace(/_/g, ' ')}</span></td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <button onClick={() => navigate(`/assets/${a.id}`)} className="rounded p-1 text-slate-400 hover:text-indigo-600" title="View"><Eye className="h-4 w-4" /></button>
                     {can('asset.update') && <button onClick={() => navigate(`/assets/${a.id}/edit`)} className="rounded p-1 text-slate-400 hover:text-indigo-600" title="Edit"><Pencil className="h-4 w-4" /></button>}
+                    {can('asset.retire') && <button onClick={() => setRetireTarget({ id: a.id, assetCode: a.assetCode, assetName: a.assetName })} className="rounded p-1 text-slate-400 hover:text-amber-600" title="Retire Asset"><Trash2 className="h-4 w-4" /></button>}
+                    {can('asset.delete') && <button onClick={() => setDeleteTarget({ id: a.id, assetCode: a.assetCode, assetName: a.assetName })} className="rounded p-1 text-slate-400 hover:text-red-600" title="Delete Permanently"><XCircle className="h-4 w-4" /></button>}
                   </div>
                 </td>
               </tr>
@@ -128,10 +175,27 @@ export default function InventoryListPage() {
           <div key={a.id} className="rounded-lg border border-slate-200 bg-white p-4" onClick={() => navigate(`/assets/${a.id}`)}>
             <div className="mb-2 font-mono text-xs text-slate-400">{a.assetCode}</div>
             <div className="mb-2 font-medium text-slate-900">{a.assetName}</div>
+            {a.categoryName && <div className="mb-2 text-xs text-slate-500">{a.categoryName}</div>}
             <div className="flex flex-wrap gap-2">
               <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${CONDITION_STYLES[a.condition] || 'bg-slate-100 text-slate-600'}`}>{a.condition?.replace(/_/g, ' ')}</span>
               <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[a.status] || 'bg-slate-100 text-slate-600'}`}>{a.status?.replace(/_/g, ' ')}</span>
             </div>
+            {can('asset.retire') && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setRetireTarget({ id: a.id, assetCode: a.assetCode, assetName: a.assetName }); }}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Retire
+              </button>
+            )}
+            {can('asset.delete') && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: a.id, assetCode: a.assetCode, assetName: a.assetName }); }}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+              >
+                <XCircle className="h-3.5 w-3.5" /> Delete Permanently
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -145,6 +209,24 @@ export default function InventoryListPage() {
           </div>
         </div>
       )}
+
+      <RetireDialog
+        open={!!retireTarget}
+        assetCode={retireTarget?.assetCode ?? ''}
+        assetName={retireTarget?.assetName ?? ''}
+        isSubmitting={retireMut.isPending}
+        onClose={() => setRetireTarget(null)}
+        onConfirm={(payload) => retireMut.mutate(payload)}
+      />
+
+      <DeleteDialog
+        open={!!deleteTarget}
+        assetCode={deleteTarget?.assetCode ?? ''}
+        assetName={deleteTarget?.assetName ?? ''}
+        isSubmitting={deleteMut.isPending}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={(payload) => deleteMut.mutate(payload)}
+      />
     </div>
   );
 }

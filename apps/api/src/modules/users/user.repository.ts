@@ -1,5 +1,5 @@
 import { getDb } from '@/database/client';
-import { users, departments, roles, userRoles } from '@/database/schema';
+import { users, departments, roles, userRoles, userCategories, assetCategories } from '@/database/schema';
 import { eq, and, sql, desc, asc, count, like, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 
@@ -61,6 +61,7 @@ export async function findMany(filters: UserFilters) {
   const total = Number(totalResult[0]?.value ?? 0);
 
   const roleMap = await rolesForUsers(rows.map((r) => r.id));
+  const categoryMap = await categoriesForUsers(rows.map((r) => r.id));
 
   const data = rows.map((row) => ({
     id: row.id,
@@ -75,6 +76,8 @@ export async function findMany(filters: UserFilters) {
     isActive: row.isActive,
     lastLoginAt: row.lastLoginAt,
     roles: roleMap.get(row.id) ?? [],
+    categoryIds: (categoryMap.get(row.id) ?? []).map((c) => c.id),
+    categories: (categoryMap.get(row.id) ?? []).map((c) => c.name),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }));
@@ -115,6 +118,7 @@ export async function findById(id: string) {
   if (!row) return null;
 
   const roleMap = await rolesForUsers([row.id as string]);
+  const categoryMap = await categoriesForUsers([row.id as string]);
   return {
     id: row.id as string,
     employeeCode: row.employeeCode as string,
@@ -128,6 +132,8 @@ export async function findById(id: string) {
     isActive: row.isActive as boolean,
     lastLoginAt: row.lastLoginAt as Date | null,
     roles: roleMap.get(row.id as string) ?? [],
+    categoryIds: (categoryMap.get(row.id as string) ?? []).map((c) => c.id),
+    categories: (categoryMap.get(row.id as string) ?? []).map((c) => c.name),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -185,6 +191,20 @@ export async function replaceRoles(userId: string, roleIds: string[]) {
   }
 }
 
+export async function replaceCategories(userId: string, categoryIds: string[]) {
+  const db = getDb();
+  await db.delete(userCategories).where(eq(userCategories.userId, sql`${userId}::uuid`));
+  if (categoryIds.length > 0) {
+    await db.insert(userCategories).values(categoryIds.map((categoryId) => ({ id: sql`gen_random_uuid()`, userId: sql`${userId}::uuid`, categoryId: sql`${categoryId}::uuid` })) as any);
+  }
+}
+
+export async function findRoleById(roleId: string) {
+  const db = getDb();
+  const rows = await db.select({ id: roles.id, name: roles.name }).from(roles).where(eq(roles.id, sql`${roleId}::uuid`)).limit(1);
+  return (rows as Row[])[0] ?? null;
+}
+
 export async function validateRoles(roleIds: string[]): Promise<boolean> {
   if (roleIds.length === 0) return true;
   const db = getDb();
@@ -205,6 +225,24 @@ async function rolesForUsers(userIds: string[]): Promise<Map<string, string[]>> 
   for (const r of rows) {
     const list = map.get(r.userId) ?? [];
     list.push(r.roleName);
+    map.set(r.userId, list);
+  }
+  return map;
+}
+
+async function categoriesForUsers(userIds: string[]): Promise<Map<string, { id: string; name: string }[]>> {
+  if (userIds.length === 0) return new Map();
+  const db = getDb();
+  const rows = await db
+    .select({ userId: userCategories.userId, categoryId: userCategories.categoryId, categoryName: assetCategories.name })
+    .from(userCategories)
+    .innerJoin(assetCategories, eq(userCategories.categoryId, assetCategories.id))
+    .where(inArray(userCategories.userId, userIds));
+
+  const map = new Map<string, { id: string; name: string }[]>();
+  for (const r of rows) {
+    const list = map.get(r.userId) ?? [];
+    list.push({ id: r.categoryId, name: r.categoryName });
     map.set(r.userId, list);
   }
   return map;

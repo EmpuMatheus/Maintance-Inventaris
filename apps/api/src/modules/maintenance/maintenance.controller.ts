@@ -1,18 +1,34 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as svc from './maintenance.service';
 import { auditFromRequest } from '@/modules/audit/audit.service';
+import { resolveAssetScope } from '@/middleware/scope';
 
 export async function listController(req: Request, res: Response, next: NextFunction) {
-  try { const r = await svc.list(req.query); res.json({ success: true, ...r }); } catch (e) { next(e); }
+  try {
+    const scope = resolveAssetScope(req.user);
+    const r = await svc.list(req.query, scope);
+    res.json({ success: true, ...r });
+  } catch (e) { next(e); }
 }
 export async function getByIdController(req: Request, res: Response, next: NextFunction) {
-  try { const r = await svc.getById(req.params.id as string); res.json({ success: true, data: r }); } catch (e) { next(e); }
+  try {
+    const scope = resolveAssetScope(req.user);
+    const r = await svc.getById(req.params.id as string, scope);
+    res.json({ success: true, data: r });
+  } catch (e) { next(e); }
 }
 export async function getByCodeController(req: Request, res: Response, next: NextFunction) {
-  try { const r = await svc.getByCode(req.params.code as string); res.json({ success: true, data: r }); } catch (e) { next(e); }
+  try {
+    const scope = resolveAssetScope(req.user);
+    const r = await svc.getByCode(req.params.code as string, scope);
+    res.json({ success: true, data: r });
+  } catch (e) { next(e); }
 }
 export async function createController(req: Request, res: Response, next: NextFunction) {
-  try { const r = await svc.create(req.body, req.user?.id); res.status(201).json({ success: true, data: r }); } catch (e) { next(e); }
+  try {
+    const r = await svc.create(req.body, req.user?.id, resolveAssetScope(req.user));
+    res.status(201).json({ success: true, data: r });
+  } catch (e) { next(e); }
 }
 export async function assignController(req: Request, res: Response, next: NextFunction) {
   try { const r = await svc.assign(req.params.id as string, req.body, req.user?.id); res.json({ success: true, data: r }); } catch (e) { next(e); }
@@ -61,8 +77,16 @@ export async function deletePartController(req: Request, res: Response, next: Ne
   try { await svc.deletePart(req.params.id as string, req.params.partId as string); res.json({ success: true, data: null }); } catch (e) { next(e); }
 }
 export async function getPartsController(req: Request, res: Response, next: NextFunction) {
-  try { const r = await svc.repo.getParts(req.params.id as string); res.json({ success: true, data: r }); } catch (e) { next(e); }
+  try {
+    const scope = resolveAssetScope(req.user);
+    const r = await svc.getParts(req.params.id as string, scope);
+    res.json({ success: true, data: r });
+  } catch (e) { next(e); }
 }
 export async function getDocumentsController(req: Request, res: Response, next: NextFunction) {
-  try { const r = await svc.repo.getDocuments(req.params.id as string); res.json({ success: true, data: r }); } catch (e) { next(e); }
+  try {
+    const scope = resolveAssetScope(req.user);
+    const r = await svc.getDocuments(req.params.id as string, scope);
+    res.json({ success: true, data: r });
+  } catch (e) { next(e); }
 }

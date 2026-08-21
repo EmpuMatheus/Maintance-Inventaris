@@ -44,6 +44,8 @@ import {
 } from '../api/dashboard';
 import { overdueSchedules } from '@/features/maintenance-schedules/api/schedules';
 import { listNotifications } from '@/features/notifications/api/notifications';
+import { useAuth } from '@/hooks/useAuth';
+import MyDashboard from '../components/MyDashboard';
 
 const AUTO_REFRESH_MS = 60_000;
 
@@ -162,6 +164,17 @@ function ActivityIcon({ type }: { type: string }) {
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const isOwnScoped = !!user && user.permissions.includes('asset.read.own') && !user.permissions.includes('asset.read');
+
+  if (isOwnScoped) {
+    return <MyDashboard />;
+  }
+
+  return <CompanyDashboard />;
+}
+
+function CompanyDashboard() {
   const navigate = useNavigate();
 
   const summaryQ = useQuery({ queryKey: dashboardKeys.summary, queryFn: getDashboardSummary, refetchInterval: AUTO_REFRESH_MS });
@@ -173,7 +186,7 @@ export default function DashboardPage() {
   const ageQ = useQuery({ queryKey: dashboardKeys.age, queryFn: getDashboardAssetAge });
   const departmentQ = useQuery({ queryKey: dashboardKeys.department, queryFn: getDashboardDepartmentAnalytics });
   const vendorQ = useQuery({ queryKey: dashboardKeys.vendor, queryFn: getDashboardVendorAnalytics });
-  const activityQ = useQuery({ queryKey: dashboardKeys.activity, queryFn: () => getDashboardRecentActivity({ limit: 12 }), refetchInterval: AUTO_REFRESH_MS });
+  const activityQ = useQuery({ queryKey: dashboardKeys.activity, queryFn: () => getDashboardRecentActivity({ limit: 3 }), refetchInterval: AUTO_REFRESH_MS });
   const overdueQ = useQuery({ queryKey: ['maintenance-schedules', 'overdue', { limit: 5 }], queryFn: () => overdueSchedules({ limit: 5 }) });
   const alertsQ = useQuery({ queryKey: ['notifications', 'list', { limit: 5 }], queryFn: () => listNotifications({ limit: 5 }), refetchInterval: AUTO_REFRESH_MS });
 
@@ -510,7 +523,7 @@ export default function DashboardPage() {
           ) : activityQ.isLoading ? (
             <div className="py-8 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-300" /></div>
           ) : (!activityQ.data?.data || activityQ.data.data.length === 0) ? (
-            <p className="py-8 text-center text-sm text-slate-400">No recent activity.</p>
+            <p className="py-8 text-center text-sm text-slate-400">No recent maintenance activities.</p>
           ) : (
             <div className="space-y-3">
               {activityQ.data.data.map((ev, i) => (

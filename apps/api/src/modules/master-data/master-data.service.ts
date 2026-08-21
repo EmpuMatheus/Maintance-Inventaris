@@ -205,24 +205,49 @@ export async function deactivate(resource: string, id: string) {
   if (!existing) {
     throw new AppError(404, 'NOT_FOUND', `${resource} not found.`);
   }
+
+  // Categories are physically removed. DEVELOPMENT ONLY: the category and
+  // asset foreign keys are ON DELETE CASCADE, so PostgreSQL removes the whole
+  // subtree (subcategories, assets and all asset child records) automatically.
+  // TODO: before production assets.category_id -> asset_categories.id MUST be
+  // changed back to ON DELETE RESTRICT and the "category is used by assets"
+  // validation restored.
+  if (resource === 'categories') {
+    try {
+      const removed = await repo.remove(resource, id);
+      return removed ?? existing;
+    } catch (err: unknown) {
+      if (isForeignKeyViolation(err)) {
+        throw new AppError(409, 'CONFLICT', 'This category is still referenced by existing records.');
+      }
+      throw err;
+    }
+  }
+
   const updated = await repo.deactivate(resource, id);
   return updated ?? existing;
 }
 
+/**
+ * Extracts the PostgreSQL error code from an error thrown by the query layer.
+ * Drizzle/postgres-js wrap the underlying PostgresError in a generic `Error`
+ * ("Failed query: ...") and expose the real driver error via `err.cause`.
+ */
+function getPostgresErrorCode(err: unknown): string | undefined {
+  if (typeof err !== 'object' || err === null) return undefined;
+  const e = err as { code?: unknown; cause?: unknown };
+  if (typeof e.code === 'string') return e.code;
+  if (e.cause && typeof e.cause === 'object') {
+    const c = e.cause as { code?: unknown };
+    if (typeof c.code === 'string') return c.code;
+  }
+  return undefined;
+}
+
 function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: string }).code === '23505'
-  );
+  return getPostgresErrorCode(err) === '23505';
 }
 
 function isForeignKeyViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: string }).code === '23503'
-  );
+  return getPostgresErrorCode(err) === '23503';
 }

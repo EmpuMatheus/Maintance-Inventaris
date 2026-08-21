@@ -1,7 +1,10 @@
 import { getDb } from '@/database/client';
 import { assets, assetCategories, assetSubcategories, brands, vendors, sites, buildings, floors, rooms, departments, users } from '@/database/schema';
-import { eq, like, and, sql, asc, desc, count } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { eq, like, and, sql, asc, desc, count, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
+
+const retiredUsers = alias(users, 'retired_users');
 
 const LIST_COLUMNS = {
   id: assets.id,
@@ -12,6 +15,7 @@ const LIST_COLUMNS = {
   condition: assets.condition,
   status: assets.status,
   categoryId: assets.categoryId,
+  categoryName: assetCategories.name,
   subcategoryId: assets.subcategoryId,
   brandId: assets.brandId,
   siteId: assets.siteId,
@@ -27,7 +31,7 @@ export async function findAssets(params: {
   page?: number; limit?: number; search?: string; sort?: string; order?: string;
   condition?: string; status?: string; categoryId?: string; subcategoryId?: string;
   brandId?: string; departmentId?: string; siteId?: string; buildingId?: string;
-  floorId?: string; roomId?: string; picId?: string;
+  floorId?: string; roomId?: string; picId?: string; ownUserId?: string; categoryIds?: string[];
 }) {
   const db = getDb();
   const page = Math.max(1, params.page ?? 1);
@@ -36,9 +40,15 @@ export async function findAssets(params: {
 
   const conditions: SQL[] = [sql`${assets.deletedAt} IS NULL`];
 
+  // Retired assets are hidden from the inventory list by default. They remain
+  // visible when explicitly filtered by status=RETIRED.
+  if (!params.status || params.status !== 'RETIRED') {
+    conditions.push(sql`${assets.status} != 'RETIRED'`);
+  }
+
   if (params.search) {
     const p = `%${params.search}%`;
-    conditions.push(sql`(${like(assets.assetCode, p)} OR ${like(assets.assetName, p)} OR ${like(assets.serialNumber, p)} OR ${like(assets.model, p)})`);
+    conditions.push(sql`(${like(assets.assetCode, p)} OR ${like(assets.assetName, p)} OR ${like(assets.serialNumber, p)} OR ${like(assets.model, p)} OR ${like(assetCategories.name, p)})`);
   }
   if (params.condition) conditions.push(eq(assets.condition, sql`${params.condition}::varchar`));
   if (params.status) conditions.push(eq(assets.status, sql`${params.status}::varchar`));
@@ -51,15 +61,30 @@ export async function findAssets(params: {
   if (params.floorId) conditions.push(eq(assets.floorId, sql`${params.floorId}::uuid`));
   if (params.roomId) conditions.push(eq(assets.roomId, sql`${params.roomId}::uuid`));
   if (params.picId) conditions.push(eq(assets.currentPicId, sql`${params.picId}::uuid`));
+  if (params.ownUserId) conditions.push(eq(assets.currentPicId, sql`${params.ownUserId}::uuid`));
+  if (params.categoryIds && params.categoryIds.length > 0) {
+    conditions.push(inArray(assets.categoryId, params.categoryIds));
+  }
 
   const where = and(...conditions);
-  const allowedSort = ['assetCode', 'assetName', 'condition', 'status', 'createdAt'] as const;
+  const allowedSort = ['assetCode', 'assetName', 'category', 'condition', 'status', 'createdAt'] as const;
   const sortKey = params.sort && (allowedSort as readonly string[]).includes(params.sort) ? params.sort : 'createdAt';
-  const sortCol = LIST_COLUMNS[sortKey as keyof typeof LIST_COLUMNS];
+  const sortCol = sortKey === 'category' ? LIST_COLUMNS.categoryName : LIST_COLUMNS[sortKey as keyof typeof LIST_COLUMNS];
   const orderFn = params.order === 'asc' ? asc : desc;
 
-  const rows = await db.select(LIST_COLUMNS).from(assets).where(where).orderBy(orderFn(sortCol)).limit(limit).offset(offset);
-  const totalResult = await db.select({ value: count() }).from(assets).where(where);
+  const rows = await db
+    .select(LIST_COLUMNS)
+    .from(assets)
+    .leftJoin(assetCategories, eq(assets.categoryId, assetCategories.id))
+    .where(where)
+    .orderBy(orderFn(sortCol))
+    .limit(limit)
+    .offset(offset);
+  const totalResult = await db
+    .select({ value: count() })
+    .from(assets)
+    .leftJoin(assetCategories, eq(assets.categoryId, assetCategories.id))
+    .where(where);
   const total = Number(totalResult[0]?.value ?? 0);
 
   return {
@@ -97,6 +122,10 @@ export async function findAssetById(id: string) {
       status: assets.status,
       condition: assets.condition,
       healthScore: assets.healthScore,
+      retiredAt: assets.retiredAt,
+      retiredBy: assets.retiredBy,
+      retireReason: assets.retireReason,
+      retireNote: assets.retireNote,
       qrCode: assets.qrCode,
       photoUrl: assets.photoUrl,
       notes: assets.notes,
@@ -121,6 +150,7 @@ export async function findAssetById(id: string) {
       departmentName: departments.name,
       departmentCode: departments.code,
       picName: users.name,
+      retiredByName: retiredUsers.name,
     })
     .from(assets)
     .leftJoin(assetCategories, eq(assets.categoryId, assetCategories.id))
@@ -133,6 +163,7 @@ export async function findAssetById(id: string) {
     .leftJoin(rooms, eq(assets.roomId, rooms.id))
     .leftJoin(departments, eq(assets.departmentId, departments.id))
     .leftJoin(users, eq(assets.currentPicId, users.id))
+    .leftJoin(retiredUsers, eq(assets.retiredBy, retiredUsers.id))
     .where(and(eq(assets.id, sql`${id}::uuid`), sql`${assets.deletedAt} IS NULL`))
     .limit(1);
   return (rows as any[])[0] ?? null;
@@ -141,6 +172,13 @@ export async function findAssetById(id: string) {
 export async function findAssetByCode(code: string) {
   const db = getDb();
   const rows = await db.select().from(assets).where(and(eq(assets.assetCode, code), sql`${assets.deletedAt} IS NULL`)).limit(1);
+  return (rows as any[])[0] ?? null;
+}
+
+/** Raw asset row lookup (ignores soft-delete flag). Used for permanent delete. */
+export async function findRawAssetById(id: string) {
+  const db = getDb();
+  const rows = await db.select().from(assets).where(eq(assets.id, sql`${id}::uuid`)).limit(1);
   return (rows as any[])[0] ?? null;
 }
 

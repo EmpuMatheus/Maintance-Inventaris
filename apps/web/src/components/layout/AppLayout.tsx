@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Package, LayoutDashboard, ClipboardList, Database, Wrench, Scan, LogOut, Menu, User,
-  ChevronDown, ChevronRight, CalendarClock, CalendarDays, TicketCheck, BarChart3, Settings2, TrendingUp,
+  ChevronDown, ChevronRight, CalendarClock, CalendarDays, TicketCheck, BarChart3, Settings2, TrendingUp, Bell,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
@@ -80,50 +80,82 @@ export default function AppLayout() {
           <ClipboardList className="h-4 w-4 shrink-0" /> Inventory
         </button>
 
-        <button
-          onClick={() => go('/scan')}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-            isActive('/scan') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <Scan className="h-4 w-4 shrink-0" /> Scan
-        </button>
+        {can('asset.read') && (
+          <button
+            onClick={() => go('/scan')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              isActive('/scan') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <Scan className="h-4 w-4 shrink-0" /> Scan
+          </button>
+        )}
 
-        <button
-          onClick={() => go('/maintenance')}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-            isActive('/maintenance') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <Wrench className="h-4 w-4 shrink-0" /> Maintenance
-        </button>
+        {can('maintenance.read') && (
+          <button
+            onClick={() => go('/maintenance')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              isActive('/maintenance') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <Wrench className="h-4 w-4 shrink-0" /> Maintenance
+          </button>
+        )}
 
-        <button
-          onClick={() => go('/maintenance/schedules')}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-            isActive('/maintenance/schedules') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <CalendarClock className="h-4 w-4 shrink-0" /> Schedules
-        </button>
+        {can('maintenance.read') && (
+          <button
+            onClick={() => go('/maintenance/schedules')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              isActive('/maintenance/schedules') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <CalendarClock className="h-4 w-4 shrink-0" /> Schedules
+          </button>
+        )}
 
-        <button
-          onClick={() => go('/maintenance/calendar')}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-            isActive('/maintenance/calendar') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <CalendarDays className="h-4 w-4 shrink-0" /> Calendar
-        </button>
+        {can('maintenance.read') && (
+          <button
+            onClick={() => go('/maintenance/calendar')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              isActive('/maintenance/calendar') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <CalendarDays className="h-4 w-4 shrink-0" /> Calendar
+          </button>
+        )}
 
-        <button
-          onClick={() => go('/tickets')}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-            isActive('/tickets') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <TicketCheck className="h-4 w-4 shrink-0" /> Tickets
-        </button>
+        {(can('ticket.read') || can('ticket.read.own')) && (
+          <button
+            onClick={() => go('/tickets')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              isActive('/tickets') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <TicketCheck className="h-4 w-4 shrink-0" /> Tickets
+          </button>
+        )}
+
+        {can('notification.read') && (
+          <button
+            onClick={() => go('/notifications')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              isActive('/notifications') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <Bell className="h-4 w-4 shrink-0" /> Notifications
+          </button>
+        )}
+
+        {can('profile.update') && (
+          <button
+            onClick={() => go('/profile')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              isActive('/profile') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <User className="h-4 w-4 shrink-0" /> Profile
+          </button>
+        )}
 
         {can('analytics.read') && (
           <button
@@ -279,39 +311,41 @@ export default function AppLayout() {
           </div>
         ) : null}
 
-        <div>
-          <button
-            onClick={() => { setMdOpen(!mdOpen); if (!mdOpen) go('/master-data'); }}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-              mdActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-            }`}
-          >
-            <Database className="h-4 w-4 shrink-0" />
-            <span className="flex-1 text-left">Master Data</span>
-            {mdOpen ? <ChevronDown className="h-3.5 w-3.5 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}
-          </button>
-          {mdOpen && can('master_data.read') && (
-            <div className="ml-3 mt-0.5 space-y-0.5 border-l-2 border-slate-200 pl-3">
-              {MASTER_DATA_ITEMS.map((item) => {
-                const childActive = mdActive && currentSection === item.section;
-                return (
-                  <button
-                    key={item.section}
-                    onClick={() => go(`/master-data?section=${item.section}`)}
-                    className={`flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                      childActive
-                        ? 'bg-indigo-50 text-indigo-700'
-                        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-                    }`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${childActive ? 'bg-indigo-600' : 'bg-slate-300'}`} />
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        {can('master_data.read') && (
+          <div>
+            <button
+              onClick={() => { setMdOpen(!mdOpen); if (!mdOpen) go('/master-data'); }}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                mdActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <Database className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-left">Master Data</span>
+              {mdOpen ? <ChevronDown className="h-3.5 w-3.5 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}
+            </button>
+            {mdOpen && can('master_data.read') && (
+              <div className="ml-3 mt-0.5 space-y-0.5 border-l-2 border-slate-200 pl-3">
+                {MASTER_DATA_ITEMS.map((item) => {
+                  const childActive = mdActive && currentSection === item.section;
+                  return (
+                    <button
+                      key={item.section}
+                      onClick={() => go(`/master-data?section=${item.section}`)}
+                      className={`flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                        childActive
+                          ? 'bg-indigo-50 text-indigo-700'
+                          : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                      }`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${childActive ? 'bg-indigo-600' : 'bg-slate-300'}`} />
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </nav>
 
       <div className="border-t border-slate-200 p-4">

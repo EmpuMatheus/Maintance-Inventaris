@@ -9,7 +9,8 @@ export const createUserSchema = z.object({
   departmentId: z.string().uuid().optional().nullable(),
   phone: z.string().max(30).optional().nullable(),
   position: z.string().max(100).optional().nullable(),
-  roles: z.array(z.string().uuid()).optional().default([]),
+  roleId: z.string().uuid('Role is required.'),
+  categoryId: z.string().uuid().optional().nullable(),
 });
 
 export const updateUserSchema = z.object({
@@ -18,6 +19,8 @@ export const updateUserSchema = z.object({
   departmentId: z.string().uuid().optional().nullable(),
   phone: z.string().max(30).optional().nullable(),
   position: z.string().max(100).optional().nullable(),
+  roleId: z.string().uuid().optional(),
+  categoryId: z.string().uuid().optional().nullable(),
 });
 
 export const setStatusSchema = z.object({
@@ -28,6 +31,7 @@ export const setPasswordSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters.').max(200),
 });
 
-export const setRolesSchema = z.object({
-  roles: z.array(z.string().uuid()),
+export const setRoleSchema = z.object({
+  roleId: z.string().uuid('Role is required.'),
+  categoryId: z.string().uuid().optional().nullable(),
 });

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as svc from './report-asset-condition.service';
+import { scopeCategoryIds } from './report-scope';
 
 function qStr(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
@@ -16,6 +17,7 @@ export async function assetConditionController(req: Request, res: Response, next
       limit: qNum(req.query.limit),
       keyword: qStr(req.query.keyword),
       categoryId: qStr(req.query.categoryId),
+      categoryIds: scopeCategoryIds(req),
       departmentId: qStr(req.query.departmentId),
       siteId: qStr(req.query.siteId),
       buildingId: qStr(req.query.buildingId),

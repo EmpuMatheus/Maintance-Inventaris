@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as svc from './report-maintenance-cost.service';
+import { scopeCategoryIds } from './report-scope';
 
 function qStr(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
@@ -17,6 +18,7 @@ export async function maintenanceCostController(req: Request, res: Response, nex
       keyword: qStr(req.query.keyword),
       assetId: qStr(req.query.assetId),
       categoryId: qStr(req.query.categoryId),
+      categoryIds: scopeCategoryIds(req),
       departmentId: qStr(req.query.departmentId),
       vendorId: qStr(req.query.vendorId),
       maintenanceTypeId: qStr(req.query.maintenanceTypeId),

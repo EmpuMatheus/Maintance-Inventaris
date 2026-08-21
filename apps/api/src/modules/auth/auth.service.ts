@@ -11,6 +11,7 @@ export interface LoginResult {
     name: string;
     roles: string[];
     permissions: string[];
+    categoryIds: string[];
     mustChangePassword: boolean;
   };
 }
@@ -23,6 +24,7 @@ export interface CurrentUserResult {
   email: string | null;
   roles: string[];
   permissions: string[];
+  categoryIds: string[];
 }
 
 export async function login(username: string, password: string): Promise<LoginResult> {
@@ -43,6 +45,7 @@ export async function login(username: string, password: string): Promise<LoginRe
 
   const roles = await repo.getUserRoles(user.id);
   const permissions = await repo.getUserPermissions(user.id);
+  const categoryIds = await repo.getUserCategories(user.id);
 
   const accessToken = signToken({ sub: user.id });
 
@@ -54,6 +57,7 @@ export async function login(username: string, password: string): Promise<LoginRe
       name: user.name,
       roles,
       permissions,
+      categoryIds,
       mustChangePassword: user.mustChangePassword,
     },
   };
@@ -68,6 +72,7 @@ export async function getCurrentUser(userId: string): Promise<CurrentUserResult>
 
   const roles = await repo.getUserRoles(user.id);
   const permissions = await repo.getUserPermissions(user.id);
+  const categoryIds = await repo.getUserCategories(user.id);
 
   return {
     id: user.id,
@@ -77,6 +82,7 @@ export async function getCurrentUser(userId: string): Promise<CurrentUserResult>
     email: user.email,
     roles,
     permissions,
+    categoryIds,
   };
 }
 

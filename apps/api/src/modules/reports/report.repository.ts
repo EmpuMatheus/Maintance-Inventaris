@@ -12,7 +12,7 @@ import {
   users,
   vendors,
 } from '@/database/schema';
-import { eq, and, sql, desc, asc, count } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, count, inArray } from 'drizzle-orm';
 import type { SQL, SQLWrapper } from 'drizzle-orm';
 
 export interface InventoryReportFilters {
@@ -20,6 +20,7 @@ export interface InventoryReportFilters {
   limit?: number;
   keyword?: string;
   categoryId?: string;
+  categoryIds?: string[];
   subcategoryId?: string;
   brandId?: string;
   departmentId?: string;
@@ -65,6 +66,9 @@ function buildWhere(filters: InventoryReportFilters): SQL[] {
     );
   }
   if (filters.categoryId) conditions.push(eq(assets.categoryId, sql`${filters.categoryId}::uuid`));
+  if (filters.categoryIds && filters.categoryIds.length > 0) {
+    conditions.push(inArray(assets.categoryId, filters.categoryIds));
+  }
   if (filters.subcategoryId) conditions.push(eq(assets.subcategoryId, sql`${filters.subcategoryId}::uuid`));
   if (filters.brandId) conditions.push(eq(assets.brandId, sql`${filters.brandId}::uuid`));
   if (filters.departmentId) conditions.push(eq(assets.departmentId, sql`${filters.departmentId}::uuid`));

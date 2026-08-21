@@ -520,10 +520,10 @@ Access is controlled by **role-based access control (RBAC)**. Each role maps to 
 
 | Role | Scope |
 |------|-------|
-| `SUPER_ADMIN` | All permissions |
-| `IT_ADMIN` | Full operational management (assets, maintenance, tickets, reports, users, roles, analytics) |
-| `TECHNICIAN` | Asset/monitoring read + maintenance and ticket operations |
-| `VIEWER` | Read-only access across modules + analytics |
+| `SUPER_ADMIN` | Full system access across all asset categories |
+| `ADMIN` | Category-scoped operational management (assets, maintenance, tickets, reports, schedules, analytics) |
+| `TECHNICIAN` | Category-scoped access to maintenance, tickets, schedules and scan |
+| `USER` | Access to own assigned assets, create tickets for own assets, notifications and profile |
 
 **Permission families:** `asset.*`, `maintenance.*`, `ticket.*`, `master_data.*`, `report.*`, `user.*`, `role.*`, `audit.read`, `notification.read`, `analytics.read`, `backup.manage`, `settings.manage`.
 

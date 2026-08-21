@@ -1,13 +1,26 @@
 import { AppError } from '@/middleware/error-handler';
 import { getDb } from '@/database/client';
 import { assets as assetsTable, assetAssignments, users, departments, sites, buildings, floors, rooms, assetMovements } from '@/database/schema';
+import { alias } from 'drizzle-orm/pg-core';
 import { sql, eq, and, desc as descOrder } from 'drizzle-orm';
 import { eventBus } from '@/lib/event-bus';
+import { canAccessAsset, type AssetScope } from '@/middleware/scope';
+
+const assignedUsers = alias(users, 'assigned_users');
+const assignerUsers = alias(users, 'assigner_users');
+const fromRooms = alias(rooms, 'from_rooms');
+const toRooms = alias(rooms, 'to_rooms');
 
 function str(v: unknown): string | null | undefined {
   if (v === undefined || v === null) return undefined;
   const s = String(v).trim();
   return s || undefined;
+}
+
+function assertAssetAccess(asset: { categoryId?: unknown; currentPicId?: unknown } | null | undefined, scope?: AssetScope) {
+  if (!canAccessAsset(scope ?? {}, asset)) {
+    throw new AppError(403, 'FORBIDDEN', 'You do not have permission to view this asset.');
+  }
 }
 
 async function ref(table: string, id: string | null | undefined, label: string) {
@@ -39,6 +52,9 @@ export async function assign(
     .where(and(eq(assetsTable.id, sql`${assetId}::uuid`), sql`${assetsTable.deletedAt} IS NULL`))
     .limit(1);
   if (!asset) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
+  if (asset.status === 'RETIRED') {
+    throw new AppError(409, 'CONFLICT', 'Cannot assign a retired asset.');
+  }
 
   const picId = str(body.userId);
   const departmentId = str(body.departmentId);
@@ -155,29 +171,37 @@ export async function returnAsset(
   return { ...result, performedByName: userName || null };
 }
 
-export async function getAssignmentHistory(assetId: string) {
+export async function getAssignmentHistory(assetId: string, scope?: AssetScope) {
   const db = getDb();
 
   const [asset] = await db
-    .select({ id: assetsTable.id })
+    .select({ id: assetsTable.id, categoryId: assetsTable.categoryId, currentPicId: assetsTable.currentPicId })
     .from(assetsTable)
     .where(and(eq(assetsTable.id, sql`${assetId}::uuid`), sql`${assetsTable.deletedAt} IS NULL`))
     .limit(1);
   if (!asset) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
+  assertAssetAccess(asset, scope);
 
   const rows = await db
     .select({
       id: assetAssignments.id,
       userId: assetAssignments.userId,
+      userName: assignedUsers.name,
+      userUsername: assignedUsers.username,
       departmentId: assetAssignments.departmentId,
+      departmentName: departments.name,
       assignedDate: assetAssignments.assignedDate,
       returnedDate: assetAssignments.returnedDate,
       notes: assetAssignments.notes,
       status: assetAssignments.status,
       assignedBy: assetAssignments.assignedBy,
+      assignedByName: assignerUsers.name,
       createdAt: assetAssignments.createdAt,
     })
     .from(assetAssignments)
+    .leftJoin(assignedUsers, eq(assetAssignments.userId, assignedUsers.id))
+    .leftJoin(departments, eq(assetAssignments.departmentId, departments.id))
+    .leftJoin(assignerUsers, eq(assetAssignments.assignedBy, assignerUsers.id))
     .where(eq(assetAssignments.assetId, sql`${assetId}::uuid`))
     .orderBy(descOrder(assetAssignments.createdAt));
 
@@ -196,6 +220,7 @@ export async function transfer(
     .select({
       id: assetsTable.id,
       assetCode: assetsTable.assetCode,
+      status: assetsTable.status,
       siteId: assetsTable.siteId,
       buildingId: assetsTable.buildingId,
       floorId: assetsTable.floorId,
@@ -207,6 +232,9 @@ export async function transfer(
     .where(and(eq(assetsTable.id, sql`${assetId}::uuid`), sql`${assetsTable.deletedAt} IS NULL`))
     .limit(1);
   if (!asset) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
+  if (asset.status === 'RETIRED') {
+    throw new AppError(409, 'CONFLICT', 'Cannot transfer a retired asset.');
+  }
 
   const siteId = str(body.siteId);
   const buildingId = str(body.buildingId);
@@ -280,19 +308,43 @@ export async function transfer(
   return { ...result, performedByName: userName || null };
 }
 
-export async function getMovementHistory(assetId: string) {
+export async function getMovementHistory(assetId: string, scope?: AssetScope) {
   const db = getDb();
 
   const [asset] = await db
-    .select({ id: assetsTable.id })
+    .select({ id: assetsTable.id, categoryId: assetsTable.categoryId, currentPicId: assetsTable.currentPicId })
     .from(assetsTable)
     .where(and(eq(assetsTable.id, sql`${assetId}::uuid`), sql`${assetsTable.deletedAt} IS NULL`))
     .limit(1);
   if (!asset) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
+  assertAssetAccess(asset, scope);
 
   const rows = await db
-    .select()
+    .select({
+      id: assetMovements.id,
+      movementCode: assetMovements.movementCode,
+      fromSiteId: assetMovements.fromSiteId,
+      fromBuildingId: assetMovements.fromBuildingId,
+      fromFloorId: assetMovements.fromFloorId,
+      fromRoomId: assetMovements.fromRoomId,
+      fromRoomName: fromRooms.name,
+      fromDepartmentId: assetMovements.fromDepartmentId,
+      fromPicId: assetMovements.fromPicId,
+      toSiteId: assetMovements.toSiteId,
+      toBuildingId: assetMovements.toBuildingId,
+      toFloorId: assetMovements.toFloorId,
+      toRoomId: assetMovements.toRoomId,
+      toRoomName: toRooms.name,
+      toDepartmentId: assetMovements.toDepartmentId,
+      toPicId: assetMovements.toPicId,
+      movementDate: assetMovements.movementDate,
+      reason: assetMovements.reason,
+      notes: assetMovements.notes,
+      createdAt: assetMovements.createdAt,
+    })
     .from(assetMovements)
+    .leftJoin(fromRooms, eq(assetMovements.fromRoomId, fromRooms.id))
+    .leftJoin(toRooms, eq(assetMovements.toRoomId, toRooms.id))
     .where(eq(assetMovements.assetId, sql`${assetId}::uuid`))
     .orderBy(descOrder(assetMovements.createdAt));
 

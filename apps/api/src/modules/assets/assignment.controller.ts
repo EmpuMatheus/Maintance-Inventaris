@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as svc from './assignment.service';
 import { auditFromRequest } from '@/modules/audit/audit.service';
+import { resolveAssetScope } from '@/middleware/scope';
 
 export async function assignController(req: Request, res: Response, next: NextFunction) {
   try {
@@ -32,7 +33,8 @@ export async function returnController(req: Request, res: Response, next: NextFu
 
 export async function assignmentHistoryController(req: Request, res: Response, next: NextFunction) {
   try {
-    const rows = await svc.getAssignmentHistory(req.params.id as string);
+    const scope = resolveAssetScope(req.user);
+    const rows = await svc.getAssignmentHistory(req.params.id as string, scope);
     res.json({ success: true, data: rows });
   } catch (error) { next(error); }
 }
@@ -53,7 +55,8 @@ export async function transferController(req: Request, res: Response, next: Next
 
 export async function movementHistoryController(req: Request, res: Response, next: NextFunction) {
   try {
-    const rows = await svc.getMovementHistory(req.params.id as string);
+    const scope = resolveAssetScope(req.user);
+    const rows = await svc.getMovementHistory(req.params.id as string, scope);
     res.json({ success: true, data: rows });
   } catch (error) { next(error); }
 }

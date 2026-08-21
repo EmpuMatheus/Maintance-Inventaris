@@ -16,6 +16,14 @@ export function updateAsset(id: string, data: Record<string, unknown>) {
   return apiPatch<any>(`/assets/${id}`, data);
 }
 
+export function retireAsset(id: string, data: { reason: string; notes?: string }) {
+  return apiPost<any>(`/assets/${id}/retire`, data);
+}
+
+export function deleteAssetPermanently(id: string, data?: { notes?: string }) {
+  return apiDelete<any>(`/assets/${id}`, data);
+}
+
 export function listMaster(resource: string, params?: Record<string, string | undefined>) {
   return apiGet<any>(`/master/${resource}`, { ...params, limit: '100' });
 }

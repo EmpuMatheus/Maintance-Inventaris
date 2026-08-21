@@ -16,7 +16,7 @@ import {
   vendors,
 } from '@/database/schema';
 import { alias } from 'drizzle-orm/pg-core';
-import { eq, like, and, sql, desc, count } from 'drizzle-orm';
+import { eq, like, and, sql, desc, count, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 
 const technicianUsers = alias(users, 'technician_users');
@@ -25,7 +25,7 @@ const createdByUsers = alias(users, 'created_by_users');
 
 export async function findMany(params: {
   page?: number; limit?: number; search?: string; status?: string; priority?: string;
-  assetId?: string; technicianId?: string; typeId?: string;
+  assetId?: string; technicianId?: string; typeId?: string; ownUserId?: string; categoryIds?: string[];
 }) {
   const db = getDb();
   const page = Math.max(1, params.page ?? 1);
@@ -42,6 +42,10 @@ export async function findMany(params: {
   if (params.assetId) conditions.push(eq(maintenanceRecords.assetId, sql`${params.assetId}::uuid`));
   if (params.technicianId) conditions.push(eq(maintenanceRecords.technicianId, sql`${params.technicianId}::uuid`));
   if (params.typeId) conditions.push(eq(maintenanceRecords.maintenanceTypeId, sql`${params.typeId}::uuid`));
+  if (params.ownUserId) conditions.push(eq(assets.currentPicId, sql`${params.ownUserId}::uuid`));
+  if (params.categoryIds && params.categoryIds.length > 0) {
+    conditions.push(inArray(assets.categoryId, params.categoryIds));
+  }
 
   const where = conditions.length ? and(...conditions) : undefined;
 
@@ -74,7 +78,11 @@ export async function findMany(params: {
     .limit(limit)
     .offset(offset);
 
-  const totalResult = await db.select({ value: count() }).from(maintenanceRecords).where(where);
+  const totalResult = await db
+    .select({ value: count() })
+    .from(maintenanceRecords)
+    .leftJoin(assets, eq(maintenanceRecords.assetId, assets.id))
+    .where(where);
   const total = Number(totalResult[0]?.value ?? 0);
 
   const data = rows.map((row) => ({

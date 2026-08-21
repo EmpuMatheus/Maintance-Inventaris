@@ -7,10 +7,10 @@ import { tickets } from './tickets';
 export const maintenanceRecords = pgTable('maintenance_records', {
   id: uuid('id').defaultRandom().primaryKey(),
   maintenanceCode: varchar('maintenance_code', { length: 50 }).unique().notNull(),
-  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   maintenanceTypeId: uuid('maintenance_type_id').references(() => maintenanceTypes.id),
   maintenanceCategory: varchar('maintenance_category', { length: 50 }).notNull(),
-  ticketId: uuid('ticket_id').references(() => tickets.id),
+  ticketId: uuid('ticket_id').references(() => tickets.id, { onDelete: 'cascade' }),
   problem: text('problem'),
   diagnosis: text('diagnosis'),
   actionTaken: text('action_taken'),
@@ -35,7 +35,7 @@ export const maintenanceRecords = pgTable('maintenance_records', {
 
 export const maintenanceParts = pgTable('maintenance_parts', {
   id: uuid('id').defaultRandom().primaryKey(),
-  maintenanceId: uuid('maintenance_id').notNull().references(() => maintenanceRecords.id),
+  maintenanceId: uuid('maintenance_id').notNull().references(() => maintenanceRecords.id, { onDelete: 'cascade' }),
   partName: varchar('part_name', { length: 150 }).notNull(),
   partNumber: varchar('part_number', { length: 100 }),
   quantity: integer('quantity').notNull().default(1),
@@ -48,7 +48,7 @@ export const maintenanceParts = pgTable('maintenance_parts', {
 
 export const maintenanceDocuments = pgTable('maintenance_documents', {
   id: uuid('id').defaultRandom().primaryKey(),
-  maintenanceId: uuid('maintenance_id').notNull().references(() => maintenanceRecords.id),
+  maintenanceId: uuid('maintenance_id').notNull().references(() => maintenanceRecords.id, { onDelete: 'cascade' }),
   documentType: varchar('document_type', { length: 50 }).notNull(),
   fileName: varchar('file_name', { length: 255 }).notNull(),
   fileUrl: text('file_url').notNull(),
@@ -59,7 +59,7 @@ export const maintenanceDocuments = pgTable('maintenance_documents', {
 
 export const maintenanceSchedules = pgTable('maintenance_schedules', {
   id: uuid('id').defaultRandom().primaryKey(),
-  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   maintenanceTypeId: uuid('maintenance_type_id').references(() => maintenanceTypes.id),
   frequencyType: varchar('frequency_type', { length: 50 }).notNull(),
   frequencyValue: integer('frequency_value').notNull(),
@@ -76,8 +76,8 @@ export const maintenanceSchedules = pgTable('maintenance_schedules', {
 
 export const maintenanceScheduleLogs = pgTable('maintenance_schedule_logs', {
   id: uuid('id').defaultRandom().primaryKey(),
-  scheduleId: uuid('schedule_id').notNull().references(() => maintenanceSchedules.id),
-  maintenanceId: uuid('maintenance_id').references(() => maintenanceRecords.id),
+  scheduleId: uuid('schedule_id').notNull().references(() => maintenanceSchedules.id, { onDelete: 'cascade' }),
+  maintenanceId: uuid('maintenance_id').references(() => maintenanceRecords.id, { onDelete: 'cascade' }),
   dueDate: date('due_date').notNull(),
   status: varchar('status', { length: 50 }).notNull().default('GENERATED'),
   notes: text('notes'),
@@ -88,8 +88,8 @@ export const maintenanceScheduleLogs = pgTable('maintenance_schedule_logs', {
 
 export const maintenanceReminders = pgTable('maintenance_reminders', {
   id: uuid('id').defaultRandom().primaryKey(),
-  scheduleId: uuid('schedule_id').references(() => maintenanceSchedules.id),
-  maintenanceId: uuid('maintenance_id').references(() => maintenanceRecords.id),
+  scheduleId: uuid('schedule_id').references(() => maintenanceSchedules.id, { onDelete: 'cascade' }),
+  maintenanceId: uuid('maintenance_id').references(() => maintenanceRecords.id, { onDelete: 'cascade' }),
   reminderType: varchar('reminder_type', { length: 50 }).notNull(),
   offsetDays: integer('offset_days').notNull().default(0),
   dueDate: date('due_date'),

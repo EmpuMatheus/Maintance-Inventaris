@@ -5,29 +5,34 @@ import * as argon2 from 'argon2';
 
 const ROLES = [
   { name: 'SUPER_ADMIN', description: 'Full system access' },
-  { name: 'IT_ADMIN', description: 'IT operational administrator' },
+  { name: 'ADMIN', description: 'Category-scoped operational administrator' },
   { name: 'TECHNICIAN', description: 'Maintenance technician' },
-  { name: 'VIEWER', description: 'Read-only access' },
+  { name: 'USER', description: 'Regular user with limited access to own assets' },
 ] as const;
 
 const PERMISSIONS = [
   { code: 'asset.read', name: 'Read Asset' },
+  { code: 'asset.read.own', name: 'Read Own Asset' },
   { code: 'asset.create', name: 'Create Asset' },
   { code: 'asset.update', name: 'Update Asset' },
   { code: 'asset.retire', name: 'Retire Asset' },
+  { code: 'asset.delete', name: 'Delete Asset' },
   { code: 'asset.dispose', name: 'Dispose Asset' },
   { code: 'asset.transfer', name: 'Transfer Asset' },
   { code: 'asset.assign', name: 'Assign Asset' },
   { code: 'asset.condition.update', name: 'Update Asset Condition' },
   { code: 'maintenance.read', name: 'Read Maintenance' },
+  { code: 'maintenance.read.own', name: 'Read Own Maintenance' },
   { code: 'maintenance.create', name: 'Create Maintenance' },
   { code: 'maintenance.update', name: 'Update Maintenance' },
   { code: 'maintenance.complete', name: 'Complete Maintenance' },
   { code: 'maintenance.cancel', name: 'Cancel Maintenance' },
   { code: 'ticket.read', name: 'Read Ticket' },
+  { code: 'ticket.read.own', name: 'Read Own Ticket' },
   { code: 'ticket.create', name: 'Create Ticket' },
   { code: 'ticket.update', name: 'Update Ticket' },
   { code: 'ticket.resolve', name: 'Resolve Ticket' },
+  { code: 'ticket.comment.own', name: 'Comment Own Ticket' },
   { code: 'master_data.read', name: 'Read Master Data' },
   { code: 'master_data.manage', name: 'Manage Master Data' },
   { code: 'report.read', name: 'Read Report' },
@@ -42,6 +47,7 @@ const PERMISSIONS = [
   { code: 'role.delete', name: 'Delete Role' },
   { code: 'audit.read', name: 'Read Audit Log' },
   { code: 'notification.read', name: 'Read Notification' },
+  { code: 'profile.update', name: 'Update Own Profile' },
   { code: 'settings.manage', name: 'Manage System Settings' },
   { code: 'backup.manage', name: 'Manage Backups' },
   { code: 'analytics.read', name: 'Read Analytics' },
@@ -49,26 +55,26 @@ const PERMISSIONS = [
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   SUPER_ADMIN: PERMISSIONS.map((p) => p.code),
-  IT_ADMIN: [
-    'asset.read', 'asset.create', 'asset.update', 'asset.retire',
+  ADMIN: [
+    'asset.read', 'asset.create', 'asset.update', 'asset.retire', 'asset.delete',
     'asset.transfer', 'asset.assign', 'asset.condition.update',
     'maintenance.read', 'maintenance.create', 'maintenance.update', 'maintenance.complete', 'maintenance.cancel',
     'ticket.read', 'ticket.create', 'ticket.update', 'ticket.resolve',
-    'master_data.read', 'master_data.manage',
+    'master_data.read',
     'report.read', 'report.export',
-    'user.read', 'user.create', 'user.update', 'role.read', 'audit.read', 'notification.read',
+    'notification.read',
     'analytics.read',
   ],
   TECHNICIAN: [
-    'asset.read',
+    'asset.read', 'asset.retire',
     'maintenance.read', 'maintenance.create', 'maintenance.update', 'maintenance.complete',
     'ticket.read', 'ticket.create', 'ticket.update', 'ticket.resolve',
     'notification.read',
   ],
-  VIEWER: [
-    'asset.read', 'maintenance.read', 'ticket.read',
-    'master_data.read', 'report.read', 'audit.read', 'notification.read',
-    'analytics.read',
+  USER: [
+    'asset.read.own', 'maintenance.read.own',
+    'ticket.create', 'ticket.read.own', 'ticket.comment.own',
+    'notification.read', 'profile.update',
   ],
 };
 
@@ -97,6 +103,47 @@ async function seed() {
       `;
     }
     logger.info(`Seeded ${PERMISSIONS.length} permissions`);
+
+    // Migrate the legacy VIEWER role to the new USER role.
+    await sql`
+      DELETE FROM role_permissions
+      WHERE role_id = (SELECT id FROM roles WHERE name = 'VIEWER' LIMIT 1)
+    `;
+    await sql`
+      INSERT INTO user_roles (id, user_id, role_id, created_at)
+      SELECT gen_random_uuid(), ur.user_id, u.id, ${now}
+      FROM user_roles ur, roles u
+      WHERE ur.role_id = (SELECT id FROM roles WHERE name = 'VIEWER' LIMIT 1)
+        AND u.name = 'USER'
+      ON CONFLICT (user_id, role_id) DO NOTHING
+    `;
+    await sql`
+      DELETE FROM user_roles
+      WHERE role_id = (SELECT id FROM roles WHERE name = 'VIEWER' LIMIT 1)
+    `;
+    await sql`DELETE FROM roles WHERE name = 'VIEWER'`;
+    logger.info('Migrated legacy VIEWER role to USER');
+
+    // Migrate the legacy IT_ADMIN role to ADMIN. Memberships carry over;
+    // permissions are rebuilt from ROLE_PERMISSIONS below.
+    await sql`
+      INSERT INTO user_roles (id, user_id, role_id, created_at)
+      SELECT gen_random_uuid(), ur.user_id, a.id, ${now}
+      FROM user_roles ur, roles a
+      WHERE ur.role_id = (SELECT id FROM roles WHERE name = 'IT_ADMIN' LIMIT 1)
+        AND a.name = 'ADMIN'
+      ON CONFLICT (user_id, role_id) DO NOTHING
+    `;
+    await sql`
+      DELETE FROM user_roles
+      WHERE role_id = (SELECT id FROM roles WHERE name = 'IT_ADMIN' LIMIT 1)
+    `;
+    await sql`
+      DELETE FROM role_permissions
+      WHERE role_id IN (SELECT id FROM roles WHERE name IN ('ADMIN', 'IT_ADMIN'))
+    `;
+    await sql`DELETE FROM roles WHERE name = 'IT_ADMIN'`;
+    logger.info('Migrated legacy IT_ADMIN role to ADMIN');
 
     for (const [roleName, permCodes] of Object.entries(ROLE_PERMISSIONS)) {
       for (const code of permCodes) {

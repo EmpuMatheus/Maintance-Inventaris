@@ -11,6 +11,8 @@ export interface User {
   isActive: boolean;
   lastLoginAt: string | null;
   roles: string[];
+  categoryIds: string[];
+  categories: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -30,4 +32,10 @@ export interface RoleOption {
   name: string;
   description?: string | null;
   isActive?: boolean;
+}
+
+export interface CategoryOption {
+  id: string;
+  code: string;
+  name: string;
 }

@@ -46,3 +46,14 @@ export const createAssetSchema = z.object({
 });
 
 export const updateAssetSchema = createAssetSchema.partial();
+
+export const retireAssetSchema = z.object({
+  reason: z.enum(['BROKEN', 'LOST', 'SOLD', 'DISPOSED'], {
+    errorMap: () => ({ message: 'Retire reason is required and must be one of: BROKEN, LOST, SOLD, DISPOSED.' }),
+  }),
+  notes: z.string().max(1000).optional().nullable(),
+});
+
+export const deleteAssetSchema = z.object({
+  notes: z.string().max(1000).optional().nullable(),
+});

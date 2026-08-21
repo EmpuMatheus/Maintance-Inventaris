@@ -4,6 +4,7 @@ import { getDb } from '@/database/client';
 import { assets as assetsTable, assetConditionHistory, assetCategories, assetSubcategories } from '@/database/schema';
 import { sql, eq } from 'drizzle-orm';
 import { eventBus } from '@/lib/event-bus';
+import { canAccessAsset, type AssetScope } from '@/middleware/scope';
 
 function str(v: unknown): string | null | undefined {
   if (v === undefined || v === null) return undefined;
@@ -83,7 +84,7 @@ async function generateAssetCode(categoryId: string, subcategoryId: string): Pro
   return `AST-${catCode}-${subCode}-${padded}`;
 }
 
-export async function list(params: Record<string, any>) {
+export async function list(params: Record<string, any>, scope?: AssetScope) {
   return repo.findAssets({
     page: params.page ? Number(params.page) : undefined,
     limit: params.limit ? Number(params.limit) : undefined,
@@ -101,18 +102,28 @@ export async function list(params: Record<string, any>) {
     floorId: str(params.floorId) ?? undefined,
     roomId: str(params.roomId) ?? undefined,
     picId: str(params.picId) ?? undefined,
+    ownUserId: scope?.ownUserId,
+    categoryIds: scope?.categoryIds,
   });
 }
 
-export async function getById(id: string) {
+function assertAssetAccess(asset: { categoryId?: unknown; currentPicId?: unknown } | null | undefined, scope?: AssetScope) {
+  if (!canAccessAsset(scope ?? {}, asset)) {
+    throw new AppError(403, 'FORBIDDEN', 'You do not have permission to view this asset.');
+  }
+}
+
+export async function getById(id: string, scope?: AssetScope) {
   const row = await repo.findAssetById(id);
   if (!row) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
+  assertAssetAccess(row, scope);
   return row;
 }
 
-export async function getByCode(code: string) {
+export async function getByCode(code: string, scope?: AssetScope) {
   const row = await repo.findAssetByCode(code);
   if (!row) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
+  assertAssetAccess(row, scope);
   return row;
 }
 
@@ -323,9 +334,10 @@ export async function updateCondition(id: string, body: Record<string, unknown>,
   }
 }
 
-export async function getConditionHistory(id: string) {
+export async function getConditionHistory(id: string, scope?: AssetScope) {
   const existing = await repo.findAssetById(id);
   if (!existing) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
+  assertAssetAccess(existing, scope);
 
   const db = getDb();
   const rows = await db
@@ -344,4 +356,74 @@ export async function getConditionHistory(id: string) {
     .orderBy(sql`${assetConditionHistory.createdAt} DESC`);
 
   return rows;
+}
+
+export const RETIRE_REASONS = ['BROKEN', 'LOST', 'SOLD', 'DISPOSED'] as const;
+
+export async function retire(id: string, body: Record<string, unknown>, userId?: string, userName?: string, scope?: AssetScope) {
+  const existing = await repo.findAssetById(id);
+  if (!existing) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
+  if (!canAccessAsset(scope ?? {}, existing as { categoryId?: unknown; currentPicId?: unknown })) {
+    throw new AppError(403, 'FORBIDDEN', 'You do not have permission to view this asset.');
+  }
+  if (existing.status === 'RETIRED') {
+    throw new AppError(409, 'CONFLICT', 'Asset is already retired.');
+  }
+
+  const reason = str(body.reason);
+  if (!reason) throw new AppError(400, 'VALIDATION_ERROR', 'Retire reason is required.');
+  if (!(RETIRE_REASONS as readonly string[]).includes(reason)) {
+    throw new AppError(400, 'VALIDATION_ERROR', `Invalid retire reason: ${reason}`);
+  }
+  const note = str(body.notes);
+
+  const db = getDb();
+  const [updated] = await db
+    .update(assetsTable)
+    .set({
+      status: sql`'RETIRED'::varchar`,
+      retiredAt: sql`now()`,
+      retiredBy: userId ? sql`${userId}::uuid` : undefined,
+      retireReason: sql`${reason}::varchar`,
+      retireNote: note ?? undefined,
+      updatedAt: sql`now()`,
+    } as any)
+    .where(eq(assetsTable.id, sql`${id}::uuid`))
+    .returning();
+
+  eventBus.publish({
+    type: 'ASSET',
+    action: 'retired',
+    targetUserId: (existing.currentPicId as string) ?? null,
+    entityType: 'asset',
+    entityId: id,
+    data: { assetCode: existing.assetCode, assetName: existing.assetName, retireReason: reason },
+  });
+
+  return { ...updated, retiredByName: userName || null };
+}
+
+/**
+ * Permanently deletes an asset (Wrong Registration cleanup).
+ *
+ * DEVELOPMENT ONLY: all asset child foreign keys are ON DELETE CASCADE, so a
+ * single physical DELETE lets PostgreSQL remove the entire subtree (history,
+ * assignments, documents, movements, maintenance, tickets, analytics events).
+ */
+export async function deletePermanently(id: string, userId?: string, userName?: string, scope?: AssetScope) {
+  const existing = await repo.findRawAssetById(id);
+  if (!existing) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
+  if (!canAccessAsset(scope ?? {}, existing as { categoryId?: unknown; currentPicId?: unknown })) {
+    throw new AppError(403, 'FORBIDDEN', 'You do not have permission to view this asset.');
+  }
+
+  const db = getDb();
+  await db.delete(assetsTable).where(eq(assetsTable.id, sql`${id}::uuid`));
+
+  return {
+    success: true,
+    assetCode: existing.assetCode,
+    deletedById: userId ?? null,
+    deletedByName: userName || null,
+  };
 }

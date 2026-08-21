@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '@/middleware/authenticate';
-import { authorize } from '@/middleware/authorize';
+import { authorize, authorizeAny } from '@/middleware/authorize';
 import { validate } from '@/middleware/validate';
 import { documentUpload } from '@/lib/upload';
 import * as ctrl from './maintenance.controller';
@@ -8,7 +8,7 @@ import * as s from './maintenance.schema';
 
 const router = Router();
 
-const r = [authenticate, authorize('maintenance.read')];
+const r = [authenticate, authorizeAny('maintenance.read', 'maintenance.read.own')];
 const w = [authenticate, authorize('maintenance.create')];
 const u = [authenticate, authorize('maintenance.update')];
 const co = [authenticate, authorize('maintenance.complete')];

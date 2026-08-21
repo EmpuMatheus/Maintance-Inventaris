@@ -19,6 +19,7 @@ export interface AssetConditionFilters {
   limit?: number;
   keyword?: string;
   categoryId?: string;
+  categoryIds?: string[];
   departmentId?: string;
   siteId?: string;
   buildingId?: string;
@@ -80,6 +81,9 @@ function buildWhere(filters: AssetConditionFilters): SQL[] {
     );
   }
   if (filters.categoryId) conditions.push(eq(assets.categoryId, sql`${filters.categoryId}::uuid`));
+  if (filters.categoryIds && filters.categoryIds.length > 0) {
+    conditions.push(inArray(assets.categoryId, filters.categoryIds));
+  }
   if (filters.departmentId) conditions.push(eq(assets.departmentId, sql`${filters.departmentId}::uuid`));
   if (filters.siteId) conditions.push(eq(assets.siteId, sql`${filters.siteId}::uuid`));
   if (filters.buildingId) conditions.push(eq(assets.buildingId, sql`${filters.buildingId}::uuid`));

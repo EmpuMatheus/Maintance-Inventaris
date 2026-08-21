@@ -19,6 +19,6 @@ router.put('/:id', ...update, validate(s.updateUserSchema), ctrl.updateControlle
 router.delete('/:id', ...del, ctrl.deleteController);
 router.patch('/:id/status', ...update, validate(s.setStatusSchema), ctrl.statusController);
 router.patch('/:id/password', ...update, validate(s.setPasswordSchema), ctrl.passwordController);
-router.patch('/:id/roles', ...update, validate(s.setRolesSchema), ctrl.rolesController);
+router.patch('/:id/roles', ...update, validate(s.setRoleSchema), ctrl.rolesController);
 
 export default router;

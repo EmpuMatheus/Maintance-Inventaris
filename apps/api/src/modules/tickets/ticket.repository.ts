@@ -1,7 +1,7 @@
 import { getDb } from '@/database/client';
 import { tickets, ticketComments, ticketAssignments, assets, users, departments, maintenanceRecords } from '@/database/schema';
 import { alias } from 'drizzle-orm/pg-core';
-import { eq, and, sql, like, desc, count, gte, lte } from 'drizzle-orm';
+import { eq, and, sql, like, desc, count, gte, lte, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 
 const reporterUsers = alias(users, 'reporter_users');
@@ -28,6 +28,8 @@ export interface TicketFilters {
 export interface TicketScope {
   /** Restricts the query to tickets the user reported or is assigned to. */
   userId?: string;
+  /** Restricts the query to tickets whose asset belongs to these categories. */
+  categoryIds?: string[];
 }
 
 type Row = Record<string, unknown>;
@@ -51,6 +53,7 @@ const BASE_JOIN = {
   resolution: tickets.resolution,
   createdAt: tickets.createdAt,
   updatedAt: tickets.updatedAt,
+  assetCategoryId: assets.categoryId,
   assetCode: assets.assetCode,
   assetName: assets.assetName,
   reporterName: reporterUsers.name,
@@ -78,6 +81,7 @@ export function mapTicket(row: Row) {
     resolution: row.resolution as string | null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    assetCategoryId: row.assetCategoryId as string | null,
     asset: row.assetId
       ? { id: row.assetId as string, assetCode: row.assetCode as string, assetName: row.assetName as string }
       : null,
@@ -118,6 +122,10 @@ export async function findMany(filters: TicketFilters, scope?: TicketScope) {
     conditions.push(sql`(${tickets.reporterId} = ${scope.userId}::uuid OR ${tickets.assignedTo} = ${scope.userId}::uuid)`);
   }
 
+  if (scope?.categoryIds && scope.categoryIds.length > 0) {
+    conditions.push(inArray(assets.categoryId, scope.categoryIds));
+  }
+
   const where = conditions.length ? and(...conditions) : undefined;
 
   const rows = await db
@@ -132,7 +140,11 @@ export async function findMany(filters: TicketFilters, scope?: TicketScope) {
     .limit(limit)
     .offset(offset);
 
-  const totalResult = await db.select({ value: count() }).from(tickets).where(where);
+  const totalResult = await db
+    .select({ value: count() })
+    .from(tickets)
+    .leftJoin(assets, eq(tickets.assetId, assets.id))
+    .where(where);
   const total = Number(totalResult[0]?.value ?? 0);
 
   return {

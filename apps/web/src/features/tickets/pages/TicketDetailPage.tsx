@@ -238,7 +238,8 @@ export default function TicketDetailPage() {
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Activity & Comments</h2>
             <CommentsPanel
               comments={comments}
-              canComment={!isTerminal && can('ticket.update')}
+              canComment={!isTerminal && (can('ticket.update') || can('ticket.comment.own'))}
+              allowInternal={can('ticket.update')}
               isSubmitting={mutComment.isPending}
               onAddComment={(comment, isInternal) => mutComment.mutate({ comment, isInternal })}
             />
@@ -282,7 +283,7 @@ export default function TicketDetailPage() {
           <div className="rounded-lg border border-slate-200 bg-white p-5">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Maintenance</h2>
-              {can('ticket.create') && !isTerminal && (
+              {can('ticket.update') && !isTerminal && (
                 <button onClick={() => setDialog('maintenance')} className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-indigo-700">
                   <Wrench className="h-3 w-3" /> Create Maintenance
                 </button>

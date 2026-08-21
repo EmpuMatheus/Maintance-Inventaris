@@ -552,9 +552,9 @@ Seed:
 
 ```text
 SUPER_ADMIN
-IT_ADMIN
+ADMIN
 TECHNICIAN
-VIEWER
+USER
 ```
 
 Seed permissions.
@@ -2619,9 +2619,9 @@ Test roles:
 
 ```text
 SUPER_ADMIN
-IT_ADMIN
+ADMIN
 TECHNICIAN
-VIEWER
+USER
 ```
 
 Verify backend enforcement.

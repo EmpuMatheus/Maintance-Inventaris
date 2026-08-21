@@ -30,7 +30,7 @@ export default function MasterDataTable({ config }: Props) {
     mutationFn: (id: string) => deactivateResource(config.path, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['master-data', config.path] });
-      toast.success(`${config.label} deactivated`);
+      toast.success(config.path === 'categories' ? 'Category deleted' : `${config.label} deactivated`);
       setConfirmDelete(null);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -167,12 +167,16 @@ export default function MasterDataTable({ config }: Props) {
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
           <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">Deactivate {config.label}?</h3>
-            <p className="mt-2 text-sm text-slate-500">This record will no longer be available for new assignments.</p>
+            <h3 className="text-lg font-semibold text-slate-900">{config.path === 'categories' ? `Delete ${config.label}?` : `Deactivate ${config.label}?`}</h3>
+            <p className="mt-2 text-sm text-slate-500">
+              {config.path === 'categories'
+                ? 'This will permanently remove the category. Categories used by existing assets cannot be deleted.'
+                : 'This record will no longer be available for new assignments.'}
+            </p>
             <div className="mt-6 flex justify-end gap-3">
               <button onClick={() => setConfirmDelete(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
               <button onClick={() => deleteMut.mutate(confirmDelete)} disabled={deleteMut.isPending} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-50">
-                {deleteMut.isPending ? 'Deactivating...' : 'Deactivate'}
+                {deleteMut.isPending ? (config.path === 'categories' ? 'Deleting...' : 'Deactivating...') : config.path === 'categories' ? 'Delete' : 'Deactivate'}
               </button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as svc from './report.service';
+import { scopeCategoryIds } from './report-scope';
 
 function qStr(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
@@ -16,6 +17,7 @@ export async function inventoryController(req: Request, res: Response, next: Nex
       limit: qNum(req.query.limit),
       keyword: qStr(req.query.keyword),
       categoryId: qStr(req.query.categoryId),
+      categoryIds: scopeCategoryIds(req),
       subcategoryId: qStr(req.query.subcategoryId),
       brandId: qStr(req.query.brandId),
       departmentId: qStr(req.query.departmentId),

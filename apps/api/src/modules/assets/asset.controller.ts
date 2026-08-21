@@ -1,10 +1,12 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as service from './asset.service';
 import { auditFromRequest } from '@/modules/audit/audit.service';
+import { resolveAssetScope } from '@/middleware/scope';
 
 export async function listController(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await service.list(req.query);
+    const scope = resolveAssetScope(req.user);
+    const result = await service.list(req.query, scope);
     res.json({ success: true, ...result });
   } catch (error) {
     next(error);
@@ -13,7 +15,8 @@ export async function listController(req: Request, res: Response, next: NextFunc
 
 export async function getByIdController(req: Request, res: Response, next: NextFunction) {
   try {
-    const row = await service.getById(req.params.id as string);
+    const scope = resolveAssetScope(req.user);
+    const row = await service.getById(req.params.id as string, scope);
     res.json({ success: true, data: row });
   } catch (error) {
     next(error);
@@ -22,7 +25,8 @@ export async function getByIdController(req: Request, res: Response, next: NextF
 
 export async function getByCodeController(req: Request, res: Response, next: NextFunction) {
   try {
-    const row = await service.getByCode(req.params.assetCode as string);
+    const scope = resolveAssetScope(req.user);
+    const row = await service.getByCode(req.params.assetCode as string, scope);
     res.json({ success: true, data: row });
   } catch (error) {
     next(error);
@@ -82,8 +86,43 @@ export async function updateConditionController(req: Request, res: Response, nex
 
 export async function getConditionHistoryController(req: Request, res: Response, next: NextFunction) {
   try {
-    const rows = await service.getConditionHistory(req.params.id as string);
+    const scope = resolveAssetScope(req.user);
+    const rows = await service.getConditionHistory(req.params.id as string, scope);
     res.json({ success: true, data: rows });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function retireController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const row = await service.retire(req.params.id as string, req.body, req.user?.id, req.user?.name, resolveAssetScope(req.user));
+    auditFromRequest(req, {
+      module: 'INVENTORY',
+      action: 'RETIRE',
+      entityType: 'asset',
+      entityId: req.params.id as string,
+      description: `Asset ${row.assetCode} retired (${row.retireReason}).`,
+      newData: { assetCode: row.assetCode, status: row.status, retireReason: row.retireReason },
+    });
+    res.json({ success: true, data: row });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const row = await service.deletePermanently(req.params.id as string, req.user?.id, req.user?.name, resolveAssetScope(req.user));
+    auditFromRequest(req, {
+      module: 'INVENTORY',
+      action: 'DELETE',
+      entityType: 'asset',
+      entityId: req.params.id as string,
+      description: `Asset ${row.assetCode} permanently deleted (Wrong Registration).`,
+      newData: { assetCode: row.assetCode, reason: 'WRONG_REGISTRATION', notes: req.body.notes ?? null },
+    });
+    res.json({ success: true, data: row });
   } catch (error) {
     next(error);
   }

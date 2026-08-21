@@ -8,6 +8,7 @@ const sql = postgres(env.DATABASE_URL, { max: 1 });
 const tempIds: string[] = [];
 const RUN = Date.now().toString(36);
 let adminId: string;
+let userRoleId: string;
 
 async function createTempUser(label: string): Promise<string> {
   const username = `qa${label}${RUN}`;
@@ -16,7 +17,7 @@ async function createTempUser(label: string): Promise<string> {
     name: `QA ${label}`,
     username,
     password: 'password123',
-    roles: [],
+    roleId: userRoleId,
   });
   tempIds.push(u.id);
   return u.id;
@@ -25,6 +26,8 @@ async function createTempUser(label: string): Promise<string> {
 beforeAll(async () => {
   const rows = await sql`SELECT id FROM users WHERE username = 'admin' LIMIT 1`;
   adminId = rows[0].id as string;
+  const roleRows = await sql`SELECT id FROM roles WHERE name = 'USER' LIMIT 1`;
+  userRoleId = roleRows[0].id as string;
 });
 
 afterAll(async () => {

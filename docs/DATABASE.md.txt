@@ -292,9 +292,9 @@ Default:
 
 ```text
 SUPER_ADMIN
-IT_ADMIN
+ADMIN
 TECHNICIAN
-VIEWER
+USER
 ```
 
 ---
@@ -678,6 +678,15 @@ Fields:
 | created_at     | TIMESTAMP     | Created           |
 | updated_at     | TIMESTAMP     | Updated           |
 | deleted_at     | TIMESTAMP     | Soft delete       |
+
+> **DEVELOPMENT ONLY**: all foreign keys referencing `asset_categories` /
+> `asset_subcategories` (`assets.category_id`, `assets.subcategory_id`,
+> `asset_subcategories.category_id`, `user_categories.category_id`) use
+> `ON DELETE CASCADE` (and `ON UPDATE CASCADE`) so test categories,
+> subcategories and assets can be cleaned up during development.
+> **TODO**: Before production these foreign keys MUST be changed back to
+> `ON DELETE RESTRICT` (see migrations `0010_skinny_mac_gargan.sql` and
+> `0011_first_dexter_bennett.sql`).
 
 ---
 

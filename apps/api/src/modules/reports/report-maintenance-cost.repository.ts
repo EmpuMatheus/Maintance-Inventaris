@@ -9,7 +9,7 @@ import {
   users,
 } from '@/database/schema';
 import { alias } from 'drizzle-orm/pg-core';
-import { eq, and, sql, desc, asc, count } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, count, inArray } from 'drizzle-orm';
 import type { SQL, SQLWrapper } from 'drizzle-orm';
 
 const technicianUsers = alias(users, 'technician_users');
@@ -20,6 +20,7 @@ export interface MaintenanceCostFilters {
   keyword?: string;
   assetId?: string;
   categoryId?: string;
+  categoryIds?: string[];
   departmentId?: string;
   vendorId?: string;
   maintenanceTypeId?: string;
@@ -87,6 +88,9 @@ function buildWhere(filters: MaintenanceCostFilters): SQL[] {
   }
   if (filters.assetId) conditions.push(eq(maintenanceRecords.assetId, sql`${filters.assetId}::uuid`));
   if (filters.categoryId) conditions.push(eq(assets.categoryId, sql`${filters.categoryId}::uuid`));
+  if (filters.categoryIds && filters.categoryIds.length > 0) {
+    conditions.push(inArray(assets.categoryId, filters.categoryIds));
+  }
   if (filters.departmentId) conditions.push(eq(assets.departmentId, sql`${filters.departmentId}::uuid`));
   if (filters.vendorId) conditions.push(eq(maintenanceRecords.vendorId, sql`${filters.vendorId}::uuid`));
   if (filters.maintenanceTypeId) conditions.push(eq(maintenanceRecords.maintenanceTypeId, sql`${filters.maintenanceTypeId}::uuid`));

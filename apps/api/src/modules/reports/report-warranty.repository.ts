@@ -1,6 +1,6 @@
 import { getDb } from '@/database/client';
 import { assets, assetCategories, brands, departments, vendors, sites, buildings, floors, rooms, users } from '@/database/schema';
-import { eq, and, sql, desc, asc, count } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, count, inArray } from 'drizzle-orm';
 import type { SQL, SQLWrapper } from 'drizzle-orm';
 
 export interface WarrantyFilters {
@@ -8,6 +8,7 @@ export interface WarrantyFilters {
   limit?: number;
   keyword?: string;
   categoryId?: string;
+  categoryIds?: string[];
   departmentId?: string;
   siteId?: string;
   buildingId?: string;
@@ -60,6 +61,9 @@ function buildWhere(filters: WarrantyFilters): SQL[] {
     conditions.push(sql`(${assets.assetCode} ILIKE ${p} OR ${assets.assetName} ILIKE ${p} OR ${assets.serialNumber} ILIKE ${p})`);
   }
   if (filters.categoryId) conditions.push(eq(assets.categoryId, sql`${filters.categoryId}::uuid`));
+  if (filters.categoryIds && filters.categoryIds.length > 0) {
+    conditions.push(inArray(assets.categoryId, filters.categoryIds));
+  }
   if (filters.departmentId) conditions.push(eq(assets.departmentId, sql`${filters.departmentId}::uuid`));
   if (filters.siteId) conditions.push(eq(assets.siteId, sql`${filters.siteId}::uuid`));
   if (filters.buildingId) conditions.push(eq(assets.buildingId, sql`${filters.buildingId}::uuid`));

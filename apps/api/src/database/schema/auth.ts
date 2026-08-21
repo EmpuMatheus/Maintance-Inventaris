@@ -1,5 +1,5 @@
 import { pgTable, uuid, varchar, text, boolean, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
-import { departments } from './master-data';
+import { departments, assetCategories } from './master-data';
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -54,4 +54,19 @@ export const rolePermissions = pgTable('role_permissions', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   rolePermissionUnique: uniqueIndex('role_permissions_role_id_permission_id_unique').on(table.roleId, table.permissionId),
+}));
+
+/**
+ * Associates a user with one or more asset categories. ADMIN and TECHNICIAN
+ * roles belong to exactly one category for now, but the structure supports
+ * multi-category membership in the future.
+ */
+export const userCategories = pgTable('user_categories', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  // Development only. Revert to RESTRICT before production.
+  categoryId: uuid('category_id').notNull().references(() => assetCategories.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  userCategoryUnique: uniqueIndex('user_categories_user_id_category_id_unique').on(table.userId, table.categoryId),
 }));
