@@ -3,7 +3,6 @@ dist/
 coverage/
 logs/
 storage/
-certs/
 release/
 dist-installer/
 build-info.json
