@@ -7,8 +7,6 @@ certs/
 release/
 dist-installer/
 build-info.json
-.dev-launcher.lock
-dev.config.json
 
 .env
 .env.local
