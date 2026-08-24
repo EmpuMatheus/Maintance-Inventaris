@@ -7,7 +7,6 @@ certs/
 release/
 dist-installer/
 build-info.json
-OfficeInventoryDev.exe
 .dev-launcher.lock
 dev.config.json
 
