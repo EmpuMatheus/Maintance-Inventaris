@@ -69,6 +69,22 @@ export function getMovementHistory(id: string) {
   return apiGet<any>(`/assets/${id}/movements`);
 }
 
+export function getComponents(assetId: string) {
+  return apiGet<any>(`/assets/${assetId}/components`);
+}
+
+export function createComponent(assetId: string, data: Record<string, unknown>) {
+  return apiPost<any>(`/assets/${assetId}/components`, data);
+}
+
+export function updateComponent(assetId: string, componentId: string, data: Record<string, unknown>) {
+  return apiPatch<any>(`/assets/${assetId}/components/${componentId}`, data);
+}
+
+export function deleteComponent(assetId: string, componentId: string) {
+  return apiDelete<any>(`/assets/${assetId}/components/${componentId}`);
+}
+
 export function listMaintenance(params?: Record<string, string | number | undefined>) { return apiGet<any>("/maintenance", params); }
 export function getMaintenance(id: string) { return apiGet<any>(`/maintenance/${id}`); }
 export function createMaintenance(data: Record<string, unknown>) { return apiPost<any>("/maintenance", data); }

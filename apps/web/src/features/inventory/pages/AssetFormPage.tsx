@@ -4,10 +4,25 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ArrowLeft, Loader2, Save } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { createAsset, updateAsset, getAsset, listMaster } from '../api/inventory';
+import { createAsset, updateAsset, getAsset, listMaster, getComponents, deleteComponent } from '../api/inventory';
+import ComponentsSection from '../components/ComponentsSection';
 
 const CONDITIONS = ['GOOD', 'FAIR', 'NEED_ATTENTION', 'BROKEN', 'CRITICAL'];
 const STATUSES = ['AVAILABLE', 'ASSIGNED', 'IN_USE', 'IN_MAINTENANCE', 'BROKEN', 'SPARE', 'LOST', 'RETIRED', 'DISPOSED'];
+
+interface ExistingComponent {
+  id: string;
+  componentName: string;
+  model: string;
+  serialNumber: string;
+}
+
+interface NewComponent {
+  temporaryId: string;
+  componentName: string;
+  model: string;
+  serialNumber: string;
+}
 
 function FormField({ label, name, type = 'text', options, required, form, errors, onChange }: {
   label: string; name: string; type?: string; options?: { value: string; label: string }[];
@@ -47,11 +62,20 @@ export default function AssetFormPage() {
   const { can } = useAuth();
 
   const [form, setForm] = useState<Record<string, string>>({ condition: 'GOOD', status: 'AVAILABLE' });
+  const [existingComponents, setExistingComponents] = useState<ExistingComponent[]>([]);
+  const [newComponents, setNewComponents] = useState<NewComponent[]>([]);
+  const [deletedComponentIds, setDeletedComponentIds] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: assetData } = useQuery({
     queryKey: ['asset', id],
     queryFn: () => getAsset(id!),
+    enabled: isEdit,
+  });
+
+  const { data: componentsData } = useQuery({
+    queryKey: ['asset-components', id],
+    queryFn: () => getComponents(id!),
     enabled: isEdit,
   });
 
@@ -101,13 +125,50 @@ export default function AssetFormPage() {
     }
   }, [assetData]);
 
+  // Load existing components when in edit mode
+  useEffect(() => {
+    if (isEdit && componentsData?.data) {
+      setExistingComponents(componentsData.data as ExistingComponent[]);
+      setNewComponents([]);
+      setDeletedComponentIds([]);
+    } else if (!isEdit) {
+      // Create mode: reset all component state
+      setExistingComponents([]);
+      setNewComponents([]);
+      setDeletedComponentIds([]);
+    }
+  }, [isEdit, componentsData]);
+
   const mutate = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const payload: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(form)) {
         if (v) payload[k] = k === 'purchasePrice' ? Number(v) : v;
       }
-      if (isEdit) return updateAsset(id!, payload);
+      
+      // Add only new components to payload (not existing ones)
+      if (newComponents.length > 0) {
+        payload.components = newComponents.map(c => ({
+          componentName: c.componentName,
+          model: c.model,
+          serialNumber: c.serialNumber,
+        }));
+      }
+      
+      if (isEdit) {
+        const result = await updateAsset(id!, payload);
+        
+        // Handle deletion of existing components after asset update
+        for (const componentId of deletedComponentIds) {
+          try {
+            await deleteComponent(id!, componentId);
+          } catch (err) {
+            console.error(`Failed to delete component ${componentId}:`, err);
+          }
+        }
+        
+        return result;
+      }
       return createAsset(payload);
     },
     onSuccess: (res) => {
@@ -133,8 +194,52 @@ export default function AssetFormPage() {
   function validate() {
     const e: Record<string, string> = {};
     if (!form.assetName?.trim()) e.assetName = 'Asset name is required.';
+    
+    // Validate only NEW components (existing components are read-only and already validated in DB)
+    for (let i = 0; i < newComponents.length; i++) {
+      const c = newComponents[i];
+      if (!c.componentName?.trim()) {
+        e[`new_components.${i}.componentName`] = 'Component name is required.';
+      }
+      if (!c.model?.trim()) {
+        e[`new_components.${i}.model`] = 'Model is required.';
+      }
+      if (!c.serialNumber?.trim()) {
+        e[`new_components.${i}.serialNumber`] = 'Serial number is required.';
+      }
+    }
+    
     setErrors(e);
     return Object.keys(e).length === 0;
+  }
+
+  function handleAddComponent() {
+    // Check if last new component is complete before allowing a new one
+    if (newComponents.length > 0) {
+      const lastComponent = newComponents[newComponents.length - 1];
+      if (!lastComponent.componentName?.trim() || !lastComponent.model?.trim() || !lastComponent.serialNumber?.trim()) {
+        toast.error('Please complete all fields in the current component before adding a new one.');
+        return;
+      }
+    }
+    
+    const temporaryId = `temp-${Date.now()}-${Math.random()}`;
+    setNewComponents([...newComponents, { temporaryId, componentName: '', model: '', serialNumber: '' }]);
+  }
+
+  function handleRemoveExistingComponent(componentId: string) {
+    setExistingComponents(existingComponents.filter(c => c.id !== componentId));
+    setDeletedComponentIds([...deletedComponentIds, componentId]);
+  }
+
+  function handleRemoveNewComponent(temporaryId: string) {
+    setNewComponents(newComponents.filter(c => c.temporaryId !== temporaryId));
+  }
+
+  function handleNewComponentChange(temporaryId: string, field: string, value: string) {
+    setNewComponents(newComponents.map(c =>
+      c.temporaryId === temporaryId ? { ...c, [field]: value } : c
+    ));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -227,6 +332,16 @@ export default function AssetFormPage() {
             <div className="sm:col-span-2"><Field label="Notes" name="notes" type="textarea" {...fp} /></div>
           </div>
         </section>
+
+        <ComponentsSection
+          existingComponents={existingComponents}
+          newComponents={newComponents}
+          errors={errors}
+          onAddNew={handleAddComponent}
+          onRemoveExisting={handleRemoveExistingComponent}
+          onRemoveNew={handleRemoveNewComponent}
+          onChangeNew={handleNewComponentChange}
+        />
 
         <div className="flex justify-end gap-3">
           <button type="button" onClick={() => navigate(-1)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>

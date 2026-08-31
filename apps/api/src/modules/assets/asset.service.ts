@@ -1,7 +1,7 @@
 import { AppError } from '@/middleware/error-handler';
 import * as repo from './asset.repository';
 import { getDb } from '@/database/client';
-import { assets as assetsTable, assetConditionHistory, assetCategories, assetSubcategories } from '@/database/schema';
+import { assets as assetsTable, assetConditionHistory, assetCategories, assetSubcategories, assetComponents } from '@/database/schema';
 import { sql, eq } from 'drizzle-orm';
 import { eventBus } from '@/lib/event-bus';
 import { canAccessAsset, type AssetScope } from '@/middleware/scope';
@@ -149,6 +149,21 @@ export async function create(body: Record<string, unknown>, userId?: string) {
   const assetName = str(body.assetName);
   if (!assetName) throw new AppError(400, 'VALIDATION_ERROR', 'Asset name is required.');
 
+  // Validate components if provided
+  const components = Array.isArray(body.components) ? body.components : [];
+  for (const comp of components) {
+    const compObj = comp as any;
+    if (!compObj.componentName || typeof compObj.componentName !== 'string' || !compObj.componentName.trim()) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Each component must have a component name.');
+    }
+    if (!compObj.model || typeof compObj.model !== 'string' || !compObj.model.trim()) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Each component must have a model.');
+    }
+    if (!compObj.serialNumber || typeof compObj.serialNumber !== 'string' || !compObj.serialNumber.trim()) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Each component must have a serial number.');
+    }
+  }
+
   await ref('asset_categories', categoryId, 'Category');
   await ref('asset_subcategories', subcategoryId, 'Subcategory');
   await ref('brands', brandId, 'Brand');
@@ -207,6 +222,17 @@ export async function create(body: Record<string, unknown>, userId?: string) {
         changedBy: userId ? sql`${userId}::uuid` : undefined,
       } as any);
 
+      // Create components if provided
+      for (const comp of components) {
+        const compObj = comp as any;
+        await tx.insert(assetComponents).values({
+          assetId: asset.id as any,
+          componentName: compObj.componentName.trim(),
+          model: compObj.model.trim(),
+          serialNumber: compObj.serialNumber.trim(),
+        });
+      }
+
       return asset;
     });
     eventBus.publish({
@@ -217,6 +243,13 @@ export async function create(body: Record<string, unknown>, userId?: string) {
       entityId: result.id as string,
       data: { assetCode: result.assetCode, assetName: result.assetName },
     });
+    
+    // Include components in the response
+    if (components.length > 0) {
+      const createdComponents = await repo.getComponentsByAssetId(result.id as string);
+      (result as any).components = createdComponents;
+    }
+    
     return result;
   } catch (err: any) {
     if (err?.code === '23505') throw new AppError(409, 'CONFLICT', 'Asset with this code already exists.');
@@ -224,7 +257,7 @@ export async function create(body: Record<string, unknown>, userId?: string) {
   }
 }
 
-export async function update(id: string, body: Record<string, unknown>, _userId?: string) {
+export async function update(id: string, body: Record<string, unknown>) {
   const existing = await repo.findAssetById(id);
   if (!existing) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
 
@@ -265,23 +298,54 @@ export async function update(id: string, body: Record<string, unknown>, _userId?
     );
   }
 
-  if (Object.keys(data).length === 0) return existing;
-
+  const db = getDb();
   try {
-    const updated = await repo.updateAsset(id, data);
-    eventBus.publish({
-      type: 'ASSET',
-      action: 'updated',
-      targetUserId: (existing.currentPicId as string) ?? null,
-      entityType: 'asset',
-      entityId: id,
-      data: { assetCode: existing.assetCode, assetName: existing.assetName },
+    await db.transaction(async (tx) => {
+      // Update asset if there are any asset fields to update
+      if (Object.keys(data).length > 0) {
+        await repo.updateAsset(id, data);
+      }
+
+      // Process new components
+      const components = body.components;
+      if (Array.isArray(components) && components.length > 0) {
+        for (const comp of components) {
+          const compObj = comp as any;
+          if (compObj.componentName?.trim() && compObj.model?.trim() && compObj.serialNumber?.trim()) {
+            await tx.insert(assetComponents).values({
+              assetId: sql`${id}::uuid`,
+              componentName: compObj.componentName.trim(),
+              model: compObj.model.trim(),
+              serialNumber: compObj.serialNumber.trim(),
+            });
+          }
+        }
+      }
+
+      // Publish event if asset was updated
+      if (Object.keys(data).length > 0) {
+        eventBus.publish({
+          type: 'ASSET',
+          action: 'updated',
+          targetUserId: (existing.currentPicId as string) ?? null,
+          entityType: 'asset',
+          entityId: id,
+          data: { assetCode: existing.assetCode, assetName: existing.assetName },
+        });
+      }
     });
-    return updated ?? existing;
   } catch (err: any) {
     if (err?.code === '23505') throw new AppError(409, 'CONFLICT', 'Duplicate value violates unique constraint.');
     throw err;
   }
+
+  // Return fresh data with components
+  const asset = await repo.findAssetById(id);
+  if (asset) {
+    const components = await repo.getComponentsByAssetId(id);
+    (asset as any).components = components;
+  }
+  return asset;
 }
 
 export async function updateCondition(id: string, body: Record<string, unknown>, userId?: string, userName?: string) {

@@ -110,3 +110,13 @@ export const assetDocuments = pgTable('asset_documents', {
   uploadedBy: uuid('uploaded_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const assetComponents = pgTable('asset_components', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  componentName: varchar('component_name', { length: 200 }).notNull(),
+  model: varchar('model', { length: 150 }).notNull(),
+  serialNumber: varchar('serial_number', { length: 150 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});

@@ -61,7 +61,7 @@ export default function DeleteDialog({
 
           <div>
             <label className="block text-sm font-medium text-slate-700">Type <span className="font-mono font-bold">DELETE</span> to confirm *</label>
-            <input
+            <input autoFocus
               type="text"
               value={typed}
               onChange={(e) => setTyped(e.target.value)}

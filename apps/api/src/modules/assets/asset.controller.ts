@@ -52,7 +52,7 @@ export async function createController(req: Request, res: Response, next: NextFu
 
 export async function updateController(req: Request, res: Response, next: NextFunction) {
   try {
-    const row = await service.update(req.params.id as string, req.body, req.user?.id);
+    const row = await service.update(req.params.id as string, req.body);
     auditFromRequest(req, {
       module: 'INVENTORY',
       action: 'UPDATE',

@@ -6,7 +6,8 @@ import { photoUpload, documentUpload } from '@/lib/upload';
 import * as ctrl from './asset.controller';
 import * as docCtrl from './asset-document.controller';
 import * as asnCtrl from './assignment.controller';
-import { createAssetSchema, updateAssetSchema, retireAssetSchema, deleteAssetSchema } from './asset.schema';
+import * as compCtrl from './component.controller';
+import { createAssetWithComponentsSchema, updateAssetSchema, retireAssetSchema, deleteAssetSchema, createAssetComponentSchema, updateAssetComponentSchema } from './asset.schema';
 import { updateConditionSchema } from './condition.schema';
 import { assignSchema, returnSchema, transferSchema } from './assignment.schema';
 
@@ -21,9 +22,10 @@ const retire = [authenticate, authorize('asset.retire')];
 const del = [authenticate, authorize('asset.delete')];
 
 router.get('/', ...read, ctrl.listController);
+router.get('/components', ...read, compCtrl.listAllComponentsController);
 router.get('/code/:assetCode', ...read, ctrl.getByCodeController);
 router.get('/:id', ...read, ctrl.getByIdController);
-router.post('/', ...write, validate(createAssetSchema), ctrl.createController);
+router.post('/', ...write, validate(createAssetWithComponentsSchema), ctrl.createController);
 router.patch('/:id', ...mut, validate(updateAssetSchema), ctrl.updateController);
 router.patch('/:id/condition', ...mut, validate(updateConditionSchema), ctrl.updateConditionController);
 router.post('/:id/retire', ...retire, validate(retireAssetSchema), ctrl.retireController);
@@ -40,5 +42,11 @@ router.post('/:id/photo', ...mut, photoUpload.single('photo'), docCtrl.uploadPho
 router.get('/:id/documents', ...read, docCtrl.listDocuments);
 router.post('/:id/documents', ...mut, documentUpload.single('file'), docCtrl.uploadDocument);
 router.delete('/:id/documents/:documentId', ...mut, docCtrl.deleteDocument);
+
+// Components routes
+router.get('/:id/components', ...read, compCtrl.getComponentsController);
+router.post('/:id/components', ...mut, validate(createAssetComponentSchema), compCtrl.createComponentController);
+router.patch('/:id/components/:componentId', ...mut, validate(updateAssetComponentSchema), compCtrl.updateComponentController);
+router.delete('/:id/components/:componentId', ...mut, compCtrl.deleteComponentController);
 
 export default router;

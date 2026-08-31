@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Pencil, Loader2, Package, Upload, Trash2, XCircle, FileText, Image, Activity, QrCode, User, MapPin, ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { getAsset, uploadPhoto, listDocuments, uploadDocument, deleteDocument, assignAsset, returnAsset, getAssignmentHistory, transferAsset, getMovementHistory, listMaster, retireAsset, deleteAssetPermanently } from '../api/inventory';
+import { getAsset, uploadPhoto, listDocuments, uploadDocument, deleteDocument, assignAsset, returnAsset, getAssignmentHistory, transferAsset, getMovementHistory, listMaster, retireAsset, deleteAssetPermanently, getComponents, deleteComponent } from '../api/inventory';
 import { apiGet, apiPatch } from '@/lib/api-client';
 import ConditionBadge from '@/components/ui/ConditionBadge';
 import QrModal from '@/features/qr/components/QrModal';
@@ -34,6 +34,8 @@ export default function AssetDetailPage() {
   const [trfForm, setTrfForm] = useState({ siteId: '', buildingId: '', floorId: '', roomId: '', reason: '', notes: '' });
   const [showRetire, setShowRetire] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showDeleteComponent, setShowDeleteComponent] = useState(false);
+  const [componentToDelete, setComponentToDelete] = useState<{ id: string; componentName: string } | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['asset', id], queryFn: () => getAsset(id!), enabled: !!id,
@@ -49,6 +51,9 @@ export default function AssetDetailPage() {
   });
   const { data: movHist, refetch: refetchMH } = useQuery({
     queryKey: ['asset-movements', id], queryFn: () => getMovementHistory(id!), enabled: !!id,
+  });
+  const { data: components } = useQuery({
+    queryKey: ['asset-components', id], queryFn: () => getComponents(id!), enabled: !!id,
   });
   const { data: schedules } = useQuery({
     queryKey: ['maintenance-schedules', 'list', { assetId: id }],
@@ -107,6 +112,20 @@ export default function AssetDetailPage() {
     mutationFn: (b: { notes?: string }) => deleteAssetPermanently(id!, b),
     onSuccess: () => { toast.success('Asset permanently deleted.'); setShowDelete(false); qc.invalidateQueries({ queryKey: ['assets'] }); navigate('/inventory'); },
     onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteComponentMut = useMutation({
+    mutationFn: (componentId: string) => deleteComponent(id!, componentId),
+    onSuccess: () => {
+      toast.success('Component deleted successfully');
+      setShowDeleteComponent(false);
+      setComponentToDelete(null);
+      qc.invalidateQueries({ queryKey: ['asset-components', id] });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message);
+      setShowDeleteComponent(false);
+    },
   });
 
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) { setUploading(true); photoMut.mutate(f, { onSettled: () => setUploading(false) }); } };
@@ -332,6 +351,47 @@ export default function AssetDetailPage() {
         ))}</div>
       </div>
 
+      {/* Components */}
+      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Components</h2>
+        {(!components?.data || components.data.length === 0) && <p className="text-sm text-slate-400">No components.</p>}
+        <div className="space-y-2">
+          {components?.data?.map((comp: any, idx: number) => (
+            <div key={comp.id} className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-500">Component {idx + 1}</span>
+                {can('asset.update') && (
+                  <button
+                    onClick={() => {
+                      setComponentToDelete({ id: comp.id, componentName: comp.componentName });
+                      setShowDeleteComponent(true);
+                    }}
+                    className="inline-flex items-center gap-1 rounded px-2 py-1 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                    title="Delete component"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-slate-400">Component Name</p>
+                  <p className="font-medium text-slate-900">{comp.componentName}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Model</p>
+                  <p className="font-medium text-slate-900">{comp.model}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Serial Number</p>
+                  <p className="font-medium text-slate-900">{comp.serialNumber}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {showQr && <QrModal assetCode={a.assetCode} assetName={a.assetName} onClose={() => setShowQr(false)} />}
 
       <RetireDialog
@@ -472,6 +532,43 @@ export default function AssetDetailPage() {
               <button onClick={() => setShowTransfer(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
               <button onClick={() => { if (!trfForm.siteId || !trfForm.buildingId || !trfForm.floorId || !trfForm.roomId) { toast.error('Please select a complete location'); return; } trfMut.mutate(trfForm); }} disabled={trfMut.isPending} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
                 {trfMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}Transfer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Component Confirmation Dialog */}
+      {showDeleteComponent && componentToDelete && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 pt-12" onClick={() => setShowDeleteComponent(false)}>
+          <div className="w-full max-w-md rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b border-slate-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-slate-900">Delete Component?</h3>
+            </div>
+            <div className="space-y-4 px-6 py-4">
+              <p className="text-sm text-slate-600">
+                Are you sure you want to delete this component?
+              </p>
+              <div className="rounded-lg bg-slate-50 px-4 py-3">
+                <p className="text-xs font-medium text-slate-500">Component</p>
+                <p className="mt-1 font-medium text-slate-900">{componentToDelete.componentName}</p>
+              </div>
+              <p className="text-xs text-slate-500">This action cannot be undone.</p>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
+              <button
+                onClick={() => setShowDeleteComponent(false)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteComponentMut.mutate(componentToDelete.id)}
+                disabled={deleteComponentMut.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleteComponentMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                Delete Component
               </button>
             </div>
           </div>
