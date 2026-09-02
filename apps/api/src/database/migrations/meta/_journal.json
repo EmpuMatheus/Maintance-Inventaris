@@ -92,6 +92,13 @@
       "when": 1786096644327,
       "tag": "0012_tough_leopardon",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787818995413,
+      "tag": "0013_complete_silver_fox",
+      "breakpoints": true
     }
   ]
 }

@@ -188,6 +188,17 @@ export async function updateAsset(id: string, data: Record<string, unknown>) {
   return (rows as any[])[0] ?? null;
 }
 
+export async function getComponentsByAssetId(assetId: string) {
+  const db = getDb();
+  const { assetComponents } = await import('@/database/schema');
+  const rows = await db
+    .select()
+    .from(assetComponents)
+    .where(eq(assetComponents.assetId, sql`${assetId}::uuid`))
+    .orderBy(assetComponents.createdAt);
+  return rows as any[];
+}
+
 export async function getReferenceName(table: string, id: string): Promise<string | null> {
   const db = getDb();
   const tables: Record<string, any> = {

@@ -10,6 +10,7 @@ const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPag
 const ProfilePage = lazy(() => import('@/features/profile/pages/ProfilePage'));
 const MasterDataPage = lazy(() => import('@/features/master-data/pages/MasterDataPage'));
 const InventoryListPage = lazy(() => import('@/features/inventory/pages/InventoryListPage'));
+const ViewAllComponentsPage = lazy(() => import('@/features/inventory/pages/ViewAllComponentsPage'));
 const AssetFormPage = lazy(() => import('@/features/inventory/pages/AssetFormPage'));
 const AssetDetailPage = lazy(() => import('@/features/inventory/pages/AssetDetailPage'));
 const ScanPage = lazy(() => import('@/features/qr/pages/ScanPage'));
@@ -60,6 +61,7 @@ const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: 'profile', element: <RequirePermission permission="profile.update"><ProfilePage /></RequirePermission> },
       { path: 'inventory', element: <InventoryListPage /> },
+      { path: 'components', element: <ViewAllComponentsPage /> },
       { path: 'assets/new', element: <RequirePermission permission="asset.create"><AssetFormPage /></RequirePermission> },
       { path: 'assets/:id', element: <AssetDetailPage /> },
       { path: 'assets/:id/edit', element: <RequirePermission permission="asset.update"><AssetFormPage /></RequirePermission> },

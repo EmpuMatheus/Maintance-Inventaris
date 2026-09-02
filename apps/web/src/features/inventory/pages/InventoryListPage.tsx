@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, Plus, ChevronLeft, ChevronRight, Loader2, Eye, Pencil, Trash2, XCircle } from 'lucide-react';
+import { Search, Plus, ChevronLeft, ChevronRight, Loader2, Eye, Pencil, Trash2, XCircle, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
@@ -81,11 +81,16 @@ export default function InventoryListPage() {
           <h1 className="text-2xl font-bold text-slate-900">Inventory</h1>
           <p className="mt-1 text-sm text-slate-500">Manage and monitor company assets.</p>
         </div>
-        {can('asset.create') && (
-          <button onClick={() => navigate('/assets/new')} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700">
-            <Plus className="h-4 w-4" /> Add Asset
+        <div className="flex items-center gap-2">
+          {can('asset.create') && (
+            <button onClick={() => navigate('/assets/new')} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700">
+              <Plus className="h-4 w-4" /> Add Asset
+            </button>
+          )}
+          <button onClick={() => navigate('/components')} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            <Package className="h-4 w-4" /> View All Components
           </button>
-        )}
+        </div>
       </div>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row">

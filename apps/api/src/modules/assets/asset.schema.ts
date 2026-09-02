@@ -19,6 +19,12 @@ export const listAssetsQuery = z.object({
   picId: z.string().uuid().optional(),
 });
 
+export const createAssetComponentSchema = z.object({
+  componentName: z.string().min(1).max(200),
+  model: z.string().min(1).max(150),
+  serialNumber: z.string().min(1).max(150),
+});
+
 export const createAssetSchema = z.object({
   assetName: z.string().min(1).max(200),
   categoryId: z.string().uuid(),
@@ -45,7 +51,9 @@ export const createAssetSchema = z.object({
   notes: z.string().optional().nullable(),
 });
 
-export const updateAssetSchema = createAssetSchema.partial();
+export const updateAssetSchema = createAssetSchema.partial().extend({
+  components: z.array(createAssetComponentSchema).optional().nullable(),
+});
 
 export const retireAssetSchema = z.object({
   reason: z.enum(['BROKEN', 'LOST', 'SOLD', 'DISPOSED'], {
@@ -56,4 +64,10 @@ export const retireAssetSchema = z.object({
 
 export const deleteAssetSchema = z.object({
   notes: z.string().max(1000).optional().nullable(),
+});
+
+export const updateAssetComponentSchema = createAssetComponentSchema.partial();
+
+export const createAssetWithComponentsSchema = createAssetSchema.extend({
+  components: z.array(createAssetComponentSchema).optional().nullable(),
 });
