@@ -1,6 +1,6 @@
 import { AppError } from '@/middleware/error-handler';
 import { getDb } from '@/database/client';
-import { assets as assetsTable, assetAssignments, users, departments, sites, buildings, floors, rooms, assetMovements } from '@/database/schema';
+import { assets as assetsTable, assetAssignments, assetMovements, assetTransfers, users, departments, sites, buildings, floors, rooms } from '@/database/schema';
 import { alias } from 'drizzle-orm/pg-core';
 import { sql, eq, and, desc as descOrder } from 'drizzle-orm';
 import { eventBus } from '@/lib/event-bus';
@@ -341,10 +341,13 @@ export async function getMovementHistory(assetId: string, scope?: AssetScope) {
       reason: assetMovements.reason,
       notes: assetMovements.notes,
       createdAt: assetMovements.createdAt,
+      transferId: assetMovements.transferId,
+
     })
     .from(assetMovements)
     .leftJoin(fromRooms, eq(assetMovements.fromRoomId, fromRooms.id))
     .leftJoin(toRooms, eq(assetMovements.toRoomId, toRooms.id))
+    .leftJoin(assetTransfers, eq(assetMovements.transferId, assetTransfers.id))
     .where(eq(assetMovements.assetId, sql`${assetId}::uuid`))
     .orderBy(descOrder(assetMovements.createdAt));
 

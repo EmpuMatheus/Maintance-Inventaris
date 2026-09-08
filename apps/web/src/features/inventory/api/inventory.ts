@@ -69,6 +69,33 @@ export function getMovementHistory(id: string) {
   return apiGet<any>(`/assets/${id}/movements`);
 }
 
+export function getActiveTransfer(assetId: string) {
+  return apiGet<any>(`/assets/${assetId}/transfers/active`);
+}
+
+export function getTransferById(transferId: string) {
+  return apiGet<any>(`/assets/transfers/${transferId}`);
+}
+
+export function createTransfer(assetId: string, data: Record<string, unknown>) {
+  const fd = new FormData();
+  fd.append('siteId', data.siteId as string);
+  fd.append('buildingId', data.buildingId as string);
+  fd.append('floorId', data.floorId as string);
+  fd.append('roomId', data.roomId as string);
+  if (data.reason) fd.append('reason', data.reason as string);
+  if (data.notes) fd.append('notes', data.notes as string);
+  return apiUpload<any>(`/assets/${assetId}/transfers`, 'POST', fd);
+}
+
+export function confirmTransfer(transferId: string) {
+  return apiPost<any>(`/assets/transfers/${transferId}/confirm`, {});
+}
+
+export function cancelTransfer(transferId: string) {
+  return apiPost<any>(`/assets/transfers/${transferId}/cancel`, {});
+}
+
 export function getComponents(assetId: string) {
   return apiGet<any>(`/assets/${assetId}/components`);
 }
