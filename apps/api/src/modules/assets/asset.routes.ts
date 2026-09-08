@@ -6,10 +6,12 @@ import { photoUpload, documentUpload } from '@/lib/upload';
 import * as ctrl from './asset.controller';
 import * as docCtrl from './asset-document.controller';
 import * as asnCtrl from './assignment.controller';
+import * as trfCtrl from './transfer.controller';
 import * as compCtrl from './component.controller';
 import { createAssetWithComponentsSchema, updateAssetSchema, retireAssetSchema, deleteAssetSchema, createAssetComponentSchema, updateAssetComponentSchema } from './asset.schema';
 import { updateConditionSchema } from './condition.schema';
 import { assignSchema, returnSchema, transferSchema } from './assignment.schema';
+import { createTransferSchema } from './transfer.schema';
 
 const router = Router();
 
@@ -37,6 +39,12 @@ router.post('/:id/assignments/return', ...asn, validate(returnSchema), asnCtrl.r
 router.get('/:id/assignments', ...read, asnCtrl.assignmentHistoryController);
 router.post('/:id/movements', ...trn, validate(transferSchema), asnCtrl.transferController);
 router.get('/:id/movements', ...read, asnCtrl.movementHistoryController);
+
+router.get('/:id/transfers/active', ...read, trfCtrl.activeTransferController);
+router.post('/:id/transfers', ...trn, documentUpload.single('authorizationLetter'), validate(createTransferSchema), trfCtrl.createTransferController);
+router.post('/transfers/:transferId/confirm', ...trn, trfCtrl.confirmTransferController);
+router.post('/transfers/:transferId/cancel', ...trn, trfCtrl.cancelTransferController);
+router.get('/transfers/:transferId', ...read, trfCtrl.transferByIdController);
 
 router.post('/:id/photo', ...mut, photoUpload.single('photo'), docCtrl.uploadPhoto);
 router.get('/:id/documents', ...read, docCtrl.listDocuments);

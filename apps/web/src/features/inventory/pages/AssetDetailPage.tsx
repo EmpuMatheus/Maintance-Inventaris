@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Loader2, Package, Upload, Trash2, XCircle, FileText, Image, Activity, QrCode, User, MapPin, ArrowLeftRight } from 'lucide-react';
+import { ArrowLeft, Pencil, Loader2, Package, Upload, Trash2, XCircle, FileText, Image, Activity, QrCode, User, MapPin, ArrowLeftRight, Printer, Ban, Eye, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { getAsset, uploadPhoto, listDocuments, uploadDocument, deleteDocument, assignAsset, returnAsset, getAssignmentHistory, transferAsset, getMovementHistory, listMaster, retireAsset, deleteAssetPermanently, getComponents, deleteComponent } from '../api/inventory';
+import { getAsset, uploadPhoto, listDocuments, uploadDocument, deleteDocument, assignAsset, returnAsset, getAssignmentHistory, getMovementHistory, listMaster, retireAsset, deleteAssetPermanently, getComponents, deleteComponent, getActiveTransfer, getTransferById, createTransfer, confirmTransfer, cancelTransfer } from '../api/inventory';
 import { apiGet, apiPatch } from '@/lib/api-client';
 import ConditionBadge from '@/components/ui/ConditionBadge';
 import QrModal from '@/features/qr/components/QrModal';
@@ -14,10 +14,310 @@ import { listSchedules } from '@/features/maintenance-schedules/api/schedules';
 
 const ASGN_STYLES: Record<string, string> = { ACTIVE: 'bg-green-50 text-green-700', RETURNED: 'bg-slate-100 text-slate-500' };
 
+function escHtml(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function fmtDateId(d: string | Date | null | undefined): string {
+  if (!d) return '-';
+  try {
+    return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+  } catch {
+    return String(d);
+  }
+}
+
+const fNa = (v: unknown) => (v == null || v === '' ? 'N/A' : escHtml(v));
+
+function buildTransferSuratHtml(at: any, a: any, requesterName?: string): string {
+  const nomor = at?.id ?? '-';
+  const tglPengajuan = fmtDateId(at?.requestedAt);
+  const tglCetak = fmtDateId(new Date());
+  const diajukan = requesterName ? escHtml(requesterName) : 'N/A';
+
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Surat Kuasa Transfer Asset</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      margin: 0;
+      padding: 40px;
+      background-color: #f5f5f5;
+      line-height: 1.6;
+    }
+    .container {
+      background-color: white;
+      padding: 40px;
+      max-width: 850px;
+      margin: 0 auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      border-bottom: 3px solid #1a3a3a;
+      padding-bottom: 20px;
+    }
+    .header-title {
+      font-size: 24px;
+      font-weight: bold;
+      color: #1a3a3a;
+      margin: 0 0 10px 0;
+    }
+    .header-subtitle {
+      font-size: 14px;
+      color: #666;
+      margin: 0;
+    }
+    .doc-number {
+      text-align: right;
+      margin-bottom: 30px;
+      font-size: 12px;
+      color: #666;
+    }
+    .section-title {
+      font-weight: bold;
+      color: #1a3a3a;
+      margin-top: 25px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      text-transform: uppercase;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 5px;
+    }
+    .info-row {
+      display: flex;
+      margin-bottom: 10px;
+      font-size: 12px;
+    }
+    .info-label {
+      width: 150px;
+      font-weight: bold;
+      color: #333;
+    }
+    .info-value {
+      flex: 1;
+      color: #555;
+    }
+    .location-box {
+      background-color: #f9f9f9;
+      padding: 15px;
+      margin: 10px 0;
+      border-left: 4px solid #1a3a3a;
+      font-size: 12px;
+    }
+    .location-title {
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #1a3a3a;
+    }
+    .statement {
+      background-color: #f0f4f8;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.8;
+      color: #333;
+    }
+    .signatures {
+      margin-top: 40px;
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .signature-block {
+      flex: 1;
+      text-align: center;
+      font-size: 12px;
+    }
+    .signature-space {
+      border-top: 1px solid #333;
+      height: 60px;
+      margin: 5px 0;
+    }
+    .signature-label {
+      font-weight: bold;
+      margin-top: 10px;
+      color: #1a3a3a;
+    }
+    .date-footer {
+      margin-top: 40px;
+      text-align: right;
+      font-size: 12px;
+      color: #666;
+    }
+    .page-break {
+      page-break-after: always;
+    }
+    @media print {
+      body {
+        background-color: white;
+        padding: 0;
+      }
+      .container {
+        box-shadow: none;
+        padding: 20px;
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-title">SURAT KUASA TRANSFER ASSET</div>
+      <div class="header-subtitle">Otorisasi Pemindahan Aset Tetap</div>
+    </div>
+
+    <div class="doc-number">
+      <strong>Nomor Transfer:</strong> ${escHtml(nomor)}
+    </div>
+
+    <!-- Asset Information Section -->
+    <div class="section-title">Informasi Asset</div>
+    <div class="info-row">
+      <span class="info-label">Nama Asset:</span>
+      <span class="info-value">${fNa(a?.assetName)}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Kode Asset:</span>
+      <span class="info-value">${fNa(a?.assetCode)}</span>
+    </div>
+
+    <div class="info-row">
+      <span class="info-label">Nomor Seri:</span>
+      <span class="info-value">${fNa(a?.serialNumber)}</span>
+    </div>
+
+
+    <!-- Assignment Information -->
+    <div class="section-title">Informasi Penugasan</div>
+
+
+    <!-- Location Information -->
+    <div class="section-title">Lokasi Transfer</div>
+
+    <div class="location-box">
+      <div class="location-title">Lokasi Asal (From):</div>
+      <div class="info-row">
+        <span class="info-label">Site:</span>
+        <span class="info-value">${fNa(at?.fromSiteName)}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Building:</span>
+        <span class="info-value">${fNa(at?.fromBuildingName)}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Floor:</span>
+        <span class="info-value">${fNa(at?.fromFloorName)}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Room:</span>
+        <span class="info-value">${fNa(at?.fromRoomName)}</span>
+      </div>
+    </div>
+
+    <div class="location-box" style="border-left-color: #2d5016;">
+      <div class="location-title">Lokasi Tujuan (To):</div>
+      <div class="info-row">
+        <span class="info-label">Site:</span>
+        <span class="info-value">${fNa(at?.toSiteName)}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Building:</span>
+        <span class="info-value">${fNa(at?.toBuildingName)}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Floor:</span>
+        <span class="info-value">${fNa(at?.toFloorName)}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Room:</span>
+        <span class="info-value">${fNa(at?.toRoomName)}</span>
+      </div>
+    </div>
+
+    <!-- Transfer Details -->
+    <div class="section-title">Detail Transfer</div>
+    <div class="info-row">
+      <span class="info-label">Tanggal Pengajuan:</span>
+      <span class="info-value">${tglPengajuan}</span>
+    </div>
+
+    <div class="info-row">
+      <span class="info-label">Diajukan Oleh:</span>
+      <span class="info-value">${diajukan}</span>
+    </div>
+
+
+
+
+    <!-- Statement Section -->
+    <div class="statement">
+      <strong>PERNYATAAN:</strong><br><br>
+      Dengan ini kami memberikan kuasa untuk melakukan pemindahan Asset sesuai data yang tercantum di atas.
+      Pemindahan ini dilakukan atas perintah dan tanggung jawab pihak yang bersangkutan.
+      Semua prosedur telah diikuti sesuai dengan peraturan yang berlaku.
+    </div>
+
+    <!-- Signature Section -->
+    <div class="signatures">
+      <div class="signature-block">
+        <div style="font-weight: bold; color: #1a3a3a; margin-bottom: 10px;">Yang Menyerahkan</div>
+        <div class="signature-space"></div>
+        <div>Nama: ___________________</div>
+        <div>Jabatan: ___________________</div>
+        <div>Tanggal: ___________________</div>
+      </div>
+
+      <div class="signature-block">
+        <div style="font-weight: bold; color: #1a3a3a; margin-bottom: 10px;">Yang Menerima</div>
+        <div class="signature-space"></div>
+        <div>Nama: ___________________</div>
+        <div>Jabatan: ___________________</div>
+        <div>Tanggal: ___________________</div>
+      </div>
+
+      <div class="signature-block">
+        <div style="font-weight: bold; color: #1a3a3a; margin-bottom: 10px;">Mengetahui/Menyetujui</div>
+        <div class="signature-space"></div>
+        <div>Nama: ___________________</div>
+        <div>Jabatan: ___________________</div>
+        <div>Tanggal: ___________________</div>
+      </div>
+    </div>
+
+    <div class="date-footer">
+      Tanggal Cetak: ${tglCetak}
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function printTransferSurat(at: any, a: any, requesterName?: string) {
+  const w = window.open('', '_blank');
+  if (!w) return;
+  w.document.write(buildTransferSuratHtml(at, a, requesterName));
+  w.document.close();
+  w.onload = () => w.print();
+}
+
 export default function AssetDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const qc = useQueryClient();
   const photoRef = useRef<HTMLInputElement>(null);
   const docRef = useRef<HTMLInputElement>(null);
@@ -29,6 +329,8 @@ export default function AssetDetailPage() {
   const [showAssign, setShowAssign] = useState(false);
   const [showReturn, setShowReturn] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [viewingTransferProof, setViewingTransferProof] = useState<string | null>(null);
   const [asnForm, setAsnForm] = useState({ userId: '', departmentId: '', assignedDate: '', notes: '' });
   const [retForm, setRetForm] = useState({ returnedDate: '', notes: '' });
   const [trfForm, setTrfForm] = useState({ siteId: '', buildingId: '', floorId: '', roomId: '', reason: '', notes: '' });
@@ -51,6 +353,14 @@ export default function AssetDetailPage() {
   });
   const { data: movHist, refetch: refetchMH } = useQuery({
     queryKey: ['asset-movements', id], queryFn: () => getMovementHistory(id!), enabled: !!id,
+  });
+  const { data: activeTransferData, refetch: refetchAT } = useQuery({
+    queryKey: ['asset-active-transfer', id], queryFn: () => getActiveTransfer(id!), enabled: !!id,
+  });
+  const { data: transferProofData, isLoading: transferProofLoading } = useQuery({
+    queryKey: ['asset-transfer-proof', viewingTransferProof],
+    queryFn: () => getTransferById(viewingTransferProof!),
+    enabled: !!viewingTransferProof,
   });
   const { data: components } = useQuery({
     queryKey: ['asset-components', id], queryFn: () => getComponents(id!), enabled: !!id,
@@ -99,9 +409,32 @@ export default function AssetDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
   const trfMut = useMutation({
-    mutationFn: (b: Record<string, unknown>) => transferAsset(id!, b),
-    onSuccess: () => { toast.success('Asset transferred'); setShowTransfer(false); qc.invalidateQueries({ queryKey: ['asset', id] }); refetchMH(); },
+    mutationFn: (b: Record<string, unknown>) => createTransfer(id!, b),
+    onSuccess: () => { toast.success('Transfer created'); setShowTransfer(false); qc.invalidateQueries({ queryKey: ['asset', id] }); qc.invalidateQueries({ queryKey: ['asset-active-transfer', id] }); refetchAT(); },
     onError: (e: Error) => toast.error(e.message),
+  });
+  const confirmTrfMut = useMutation({
+    mutationFn: (transferId: string) => confirmTransfer(transferId),
+    onSuccess: () => {
+      toast.success('Transfer confirmed');
+      setShowConfirmDialog(false);
+      qc.invalidateQueries({ queryKey: ['asset', id] });
+      qc.invalidateQueries({ queryKey: ['asset-active-transfer', id] });
+      qc.invalidateQueries({ queryKey: ['asset-movements', id] });
+      refetchAT();
+      refetchMH();
+    },
+    onError: (e: Error) => { toast.error(e.message); refetchAT(); },
+  });
+  const cancelTrfMut = useMutation({
+    mutationFn: (transferId: string) => cancelTransfer(transferId),
+    onSuccess: () => {
+      toast.success('Transfer cancelled');
+      qc.invalidateQueries({ queryKey: ['asset', id] });
+      qc.invalidateQueries({ queryKey: ['asset-active-transfer', id] });
+      refetchAT();
+    },
+    onError: (e: Error) => { toast.error(e.message); refetchAT(); },
   });
   const retireMut = useMutation({
     mutationFn: (b: { reason: string; notes?: string }) => retireAsset(id!, b),
@@ -145,6 +478,20 @@ export default function AssetDetailPage() {
   const scheduleData = (schedules?.data ?? []) as any[];
   const activeAsn = asnData.find((x: any) => x.status === 'ACTIVE');
   const conds = ['GOOD', 'FAIR', 'NEED_ATTENTION', 'BROKEN', 'CRITICAL'];
+
+  if (viewingTransferProof) {
+    const transfer = transferProofData?.data;
+    return (
+      <div className="mx-auto max-w-4xl p-4 md:p-6">
+        <button onClick={() => setViewingTransferProof(null)} className="mb-4 inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
+          <ArrowLeft className="h-4 w-4" /> Kembali ke Detail Asset
+        </button>
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          {transferProofLoading || !transfer ? <div className="p-8 text-center text-slate-500">Memuat bukti transfer...</div> : <iframe srcDoc={buildTransferSuratHtml(transfer, a, user?.name)} title="Bukti Transfer" className="h-[80vh] w-full border-0" />}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-4xl p-4 md:p-6">
@@ -219,8 +566,77 @@ export default function AssetDetailPage() {
               <p className="mb-3 text-sm text-slate-400">Not currently assigned.</p>
               {can('asset.assign') && a.status !== 'RETIRED' && <button onClick={() => { setAsnForm({ userId: '', departmentId: '', assignedDate: new Date().toISOString().slice(0, 10), notes: '' }); setShowAssign(true); }} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"><User className="h-4 w-4" /> Assign Asset</button>}
             </>
+          )          }
+          {can('asset.transfer') && a.status !== 'RETIRED' && (
+            <div className="mt-2">
+              {activeTransferData?.data && activeTransferData.data.id ? (
+                (() => {
+                  const at = activeTransferData.data;
+                  const isPending = at.status === 'PENDING' || at.status === 'IN_PROGRESS';
+                  const isCompleted = at.status === 'COMPLETED' || at.status === 'CANCELLED';
+                  return (
+                    <div className="space-y-2">
+                      <div className={`rounded-lg border px-3 py-2 text-sm ${
+                        at.status === 'COMPLETED' ? 'border-green-200 bg-green-50 text-green-700'
+                        : at.status === 'CANCELLED' ? 'border-slate-200 bg-slate-50 text-slate-600'
+                        : 'border-amber-200 bg-amber-50 text-amber-700'
+                      }`}>
+                        <span className="font-medium">
+                          {at.status === 'COMPLETED' ? 'Transfer Completed'
+                          : at.status === 'CANCELLED' ? 'Transfer Cancelled'
+                          : 'Transfer Pending'}
+                        </span>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {at.fromRoomName || '-'} → {at.toRoomName || '-'}
+                        </div>
+                      </div>
+                      {isPending && (
+                        <div className="flex gap-2">
+
+                          <button
+                            onClick={() => {
+                              printTransferSurat(at, a, user?.name);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                          >
+                            <Printer className="h-3.5 w-3.5" /> Print
+                          </button>
+                          <button
+                            onClick={() => setShowConfirmDialog(true)}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white hover:bg-indigo-700"
+                          >
+                            Confirm Transfer
+                          </button>
+                          <button
+                            onClick={() => cancelTrfMut.mutate(at.id)}
+                            disabled={cancelTrfMut.isPending}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            <Ban className="h-3.5 w-3.5" /> {cancelTrfMut.isPending ? 'Cancelling...' : 'Cancel'}
+                          </button>
+                        </div>
+                      )}
+                      {isCompleted && (
+                        <div className="flex gap-2">
+
+                          <button
+                            onClick={() => {
+                              printTransferSurat(at, a, user?.name);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                          >
+                            <Printer className="h-3.5 w-3.5" /> Print
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
+              ) : (
+                <button onClick={() => { setTrfForm({ siteId: '', buildingId: '', floorId: '', roomId: '', reason: '', notes: '' }); setShowTransfer(true); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"><MapPin className="h-4 w-4" /> Transfer Location</button>
+              )}
+            </div>
           )}
-          {can('asset.transfer') && a.status !== 'RETIRED' && <div className="mt-2"><button onClick={() => { setTrfForm({ siteId: '', buildingId: '', floorId: '', roomId: '', reason: '', notes: '' }); setShowTransfer(true); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"><MapPin className="h-4 w-4" /> Transfer Location</button></div>}
         </div>
 
         {/* Purchase & Warranty */}
@@ -313,8 +729,22 @@ export default function AssetDetailPage() {
         {movData.length === 0 && <p className="text-sm text-slate-400">No movement history.</p>}
         <div className="space-y-3">{movData.map((h: any, i: number) => (
           <div key={h.id || i} className="rounded-lg border border-slate-100 p-3">
-            <div className="mb-1 text-xs text-slate-400">{h.movementDate || new Date(h.createdAt).toLocaleDateString('en-GB')}</div>
-            <div className="flex items-center gap-2 text-sm"><span className="text-slate-500">{h.fromRoomName || '-'}</span><ArrowLeftRight className="h-3 w-3 text-slate-300" /><span className="font-medium text-slate-700">{h.toRoomName || '-'}</span></div>
+            <div className="mb-1 flex justify-between text-xs text-slate-400">
+              <span>{h.movementDate || new Date(h.createdAt).toLocaleDateString('en-GB')}</span>
+              {h.transferId && (
+                <button
+                  onClick={() => setViewingTransferProof(h.transferId)}
+                  className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800"
+                >
+                  <Eye className="h-3.5 w-3.5" /> Lihat Bukti
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-slate-500">{h.fromRoomName || '-'}</span>
+              <ArrowLeftRight className="h-3 w-3 text-slate-300" />
+              <span className="font-medium text-slate-700">{h.toRoomName || '-'}</span>
+            </div>
             {h.reason && <p className="mt-1 text-xs text-slate-500">{h.reason}</p>}
           </div>
         ))}</div>
@@ -526,12 +956,58 @@ export default function AssetDetailPage() {
                   {rmList?.data?.map((r: any) => <option key={r.id} value={r.id}>{r.code} - {r.name}</option>)}
                 </select>
               </div>
-              <div><label className="block text-sm font-medium text-slate-700">Reason</label><textarea value={trfForm.reason} onChange={(e) => setTrfForm(p => ({ ...p, reason: e.target.value }))} rows={2} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" /></div>
-            </div>
+               <div><label className="block text-sm font-medium text-slate-700">Reason</label><textarea value={trfForm.reason} onChange={(e) => setTrfForm(p => ({ ...p, reason: e.target.value }))} rows={2} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" /></div>
+             </div>
             <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
               <button onClick={() => setShowTransfer(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
               <button onClick={() => { if (!trfForm.siteId || !trfForm.buildingId || !trfForm.floorId || !trfForm.roomId) { toast.error('Please select a complete location'); return; } trfMut.mutate(trfForm); }} disabled={trfMut.isPending} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
                 {trfMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}Transfer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Transfer Dialog */}
+      {showConfirmDialog && activeTransferData?.data && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 pt-12" onClick={() => setShowConfirmDialog(false)}>
+          <div className="w-full max-w-md rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b border-slate-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-slate-900">Confirm Transfer</h3>
+            </div>
+            <div className="space-y-4 px-6 py-4">
+              <div className="rounded-lg bg-slate-50 px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Asset</p>
+                <p className="font-mono text-sm text-slate-700">{activeTransferData.data.assetCode || a.assetCode}</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 px-4 py-3">
+                <p className="text-xs text-slate-400 mb-2">Transfer Location</p>
+                <p className="text-sm text-slate-700">
+                  From: {movHist ? 'Current Location' : '-'}
+                  <br />
+                  To: {activeTransferData.data.toRoomName || '-'}
+                </p>
+              </div>
+              <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-sm text-amber-800">
+                  Once confirmed, the asset location will be updated to the new location and a movement record will be created. This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
+              <button
+                onClick={() => setShowConfirmDialog(false)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmTrfMut.mutate(activeTransferData.data.id)}
+                disabled={confirmTrfMut.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {confirmTrfMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}Confirm Transfer
               </button>
             </div>
           </div>
