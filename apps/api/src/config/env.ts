@@ -72,6 +72,7 @@ const envSchema = z.object({
   APP_VERSION: z.string().default('1.0.0'),
   APP_BUILD_TIME: z.string().default(''),
   SERVE_SPA_DIR: z.string().default(''),
+  NETWORK_MONITORING_INTERVAL_MINUTES: z.coerce.number().default(2),
   ANALYTICS_RECALC_INTERVAL_MINUTES: z.coerce.number().default(1440),
   ANALYTICS_WEIGHT_AGE: z.coerce.number().default(20),
   ANALYTICS_WEIGHT_MAINTENANCE: z.coerce.number().default(20),

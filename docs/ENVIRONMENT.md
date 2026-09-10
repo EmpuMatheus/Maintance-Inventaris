@@ -112,6 +112,7 @@ to change its password (`must_change_password`) after first login.
 |----------|---------|-------|
 | `REQUEST_BODY_LIMIT` | `2mb` | JSON body size limit |
 | `SCHEDULE_PROCESS_INTERVAL_MINUTES` | `60` | Preventive-maintenance processor interval |
+| `NETWORK_MONITORING_INTERVAL_MINUTES` | `2` | Network monitoring runner interval (overlapping cycles are skipped) |
 | `RATE_LIMIT_*` / `AUTH_RATE_LIMIT_*` | see example | Login brute-force protection tuning |
 
 ## Frontend (VITE_*)

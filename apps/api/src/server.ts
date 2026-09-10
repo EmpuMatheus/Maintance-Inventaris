@@ -6,13 +6,19 @@ import { buildHttpsOptions } from '@/config/https';
 import { logger } from '@/lib/logger';
 import { startMaintenanceScheduler } from '@/lib/scheduler';
 import { startBackupScheduler } from '@/lib/backup/scheduler';
+import { startNetworkMonitoringRunner, stopNetworkMonitoringRunner } from '@/lib/network-monitoring/runner';
+import { initSocketServer, closeSocketServer } from '@/lib/socket';
+import { setupNetworkMonitoringSocketBridge } from '@/lib/network-monitoring/socket-bridge';
 import { setupNotificationConsumer } from '@/modules/notifications/notification.service';
 
 setupNotificationConsumer();
+setupNetworkMonitoringSocketBridge();
 
 const httpsOptions = buildHttpsOptions();
 const protocol = httpsOptions ? 'https' : 'http';
 const server = httpsOptions ? https.createServer(httpsOptions, app) : http.createServer(app);
+
+initSocketServer(server);
 
 server.listen(env.PORT, () => {
   logger.info(
@@ -21,6 +27,7 @@ server.listen(env.PORT, () => {
   );
   startMaintenanceScheduler();
   startBackupScheduler();
+  startNetworkMonitoringRunner();
   startParentWatchdog();
 });
 
@@ -38,6 +45,7 @@ function startParentWatchdog(): void {
     } catch {
       clearInterval(timer);
       logger.info('Launcher process stopped; shutting down backend.');
+      stopNetworkMonitoringRunner();
       server.close(() => process.exit(0));
     }
   }, 5000);
@@ -46,6 +54,8 @@ function startParentWatchdog(): void {
 
 const shutdown = (signal: string): void => {
   logger.info({ signal }, 'Received shutdown signal, closing server');
+  stopNetworkMonitoringRunner();
+  void closeSocketServer();
   server.close(() => {
     logger.info('Server closed');
     process.exit(0);

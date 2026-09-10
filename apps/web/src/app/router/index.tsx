@@ -41,6 +41,7 @@ const RoleListPage = lazy(() => import('@/features/roles/pages/RoleListPage'));
 const RoleFormPage = lazy(() => import('@/features/roles/pages/RoleFormPage'));
 const RoleDetailPage = lazy(() => import('@/features/roles/pages/RoleDetailPage'));
 const AnalyticsDashboardPage = lazy(() => import('@/features/analytics/pages/AnalyticsDashboardPage'));
+const NetworkMonitoringPage = lazy(() => import('@/features/network-monitoring/pages/NetworkMonitoringPage'));
 const NotFoundPage = lazy(() => import('@/features/misc/NotFoundPage'));
 
 const protectedLayout = (
@@ -79,6 +80,7 @@ const router = createBrowserRouter([
       { path: 'tickets/:id/edit', element: <RequirePermission permission="ticket.update"><TicketFormPage /></RequirePermission> },
       { path: 'notifications', element: <NotificationsPage /> },
       { path: 'analytics', element: <RequirePermission permission="analytics.read"><AnalyticsDashboardPage /></RequirePermission> },
+      { path: 'network-monitoring', element: <RequirePermission permission="network_device.read"><NetworkMonitoringPage /></RequirePermission> },
       { path: 'reports/inventory', element: <RequirePermission permission="report.read"><InventoryReportPage /></RequirePermission> },
       { path: 'reports/maintenance', element: <RequirePermission permission="report.read"><MaintenanceReportPage /></RequirePermission> },
       { path: 'reports/maintenance-cost', element: <RequirePermission permission="report.read"><MaintenanceCostReportPage /></RequirePermission> },

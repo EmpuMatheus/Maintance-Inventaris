@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Package, LayoutDashboard, ClipboardList, Database, Wrench, Scan, LogOut, Menu, User,
-  ChevronDown, ChevronRight, CalendarClock, CalendarDays, TicketCheck, BarChart3, Settings2, TrendingUp, Bell,
+  ChevronDown, ChevronRight, CalendarClock, CalendarDays, TicketCheck, BarChart3, Settings2, TrendingUp, Bell, Activity,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
@@ -165,6 +165,17 @@ export default function AppLayout() {
             }`}
           >
             <TrendingUp className="h-4 w-4 shrink-0" /> Analytics
+          </button>
+        )}
+
+        {(can('network_device.read') || can('network_device.manage')) && (
+          <button
+            onClick={() => go('/network-monitoring')}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              isActive('/network-monitoring') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <Activity className="h-4 w-4 shrink-0" /> Network Monitoring
           </button>
         )}
 
