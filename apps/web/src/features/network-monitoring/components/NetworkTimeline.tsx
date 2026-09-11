@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { Activity, Loader2, RefreshCw, WifiOff, Wifi } from 'lucide-react';
 import DeviceTypeBadge from './DeviceTypeBadge';
 import NetworkStatusBadge from './NetworkStatusBadge';
@@ -103,14 +103,8 @@ export default function NetworkTimeline({
     return groups;
   }, [entries]);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }, [entries.length]);
-
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-xl border border-slate-200 bg-slate-50">
+    <div className="flex flex-col rounded-xl border border-slate-200 bg-slate-50">
       <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-indigo-600" />
@@ -134,7 +128,7 @@ export default function NetworkTimeline({
         )}
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="p-4">
         {isLoading ? (
           <TimelineSkeleton />
         ) : isError ? (

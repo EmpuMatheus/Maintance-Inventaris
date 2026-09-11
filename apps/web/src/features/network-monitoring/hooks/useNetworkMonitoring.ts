@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   connectSocket,
-  disconnectSocket,
   NETWORK_SOCKET_EVENTS,
   type NetworkDeviceOfflinePayload,
   type NetworkDeviceRestoredPayload,
@@ -91,7 +90,12 @@ export function useNetworkMonitoring({
       socket.off('disconnect', handleDisconnect);
       socket.off(NETWORK_SOCKET_EVENTS.offline, handleOffline);
       socket.off(NETWORK_SOCKET_EVENTS.restored, handleRestored);
-      disconnectSocket();
+      // NOTE: the shared socket singleton is intentionally NOT disconnected here.
+      // React StrictMode mounts effects twice in development (mount -> cleanup ->
+      // mount); disconnecting a still-connecting socket tears down a valid
+      // handshake and produces "WebSocket is closed before the connection is
+      // established". Leaving the singleton connected keeps reconnects stable;
+      // logout calls disconnectSocket() explicitly when teardown is required.
     };
   }, [enabled]);
 

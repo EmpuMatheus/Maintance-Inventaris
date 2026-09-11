@@ -87,6 +87,12 @@ function mapDevice(row: DeviceRow) {
       code: row.roomCode as string,
       name: row.roomName as string,
       location: location || null,
+      floorId: (row.roomFloorId as string | null) ?? null,
+      floorName: (row.roomFloorName as string | null) ?? null,
+      buildingId: (row.roomBuildingId as string | null) ?? null,
+      buildingName: (row.roomBuildingName as string | null) ?? null,
+      siteId: (row.roomSiteId as string | null) ?? null,
+      siteName: (row.roomSiteName as string | null) ?? null,
     },
     asset: row.assetId
       ? {

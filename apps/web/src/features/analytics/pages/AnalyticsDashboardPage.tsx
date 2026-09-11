@@ -28,7 +28,7 @@ export default function AnalyticsDashboardPage() {
   const s = data.summary;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 md:p-6">
       <div>
         <h1 className="text-xl font-bold text-slate-900">Advanced Analytics</h1>
         <p className="mt-1 text-sm text-slate-500">Asset health, repeated failures, replacement recommendations and trends.</p>

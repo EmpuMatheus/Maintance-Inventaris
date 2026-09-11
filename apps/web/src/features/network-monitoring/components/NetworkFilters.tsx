@@ -1,4 +1,5 @@
 import { Search, X } from 'lucide-react';
+import DateRangePicker from './DateRangePicker';
 import type { NetworkMonitoringFilters } from '../types';
 
 const STATUS_OPTIONS = ['ONLINE', 'OFFLINE', 'UNKNOWN'];
@@ -17,7 +18,7 @@ interface NetworkFiltersProps {
 }
 
 const inputClass =
-  'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500';
+  'w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500';
 
 export default function NetworkFilters({ value, rooms, onChange, onReset }: NetworkFiltersProps) {
   const hasFilters =
@@ -25,9 +26,9 @@ export default function NetworkFilters({ value, rooms, onChange, onReset }: Netw
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        <div className="relative lg:col-span-2">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12">
+        <div className="relative sm:col-span-2 lg:col-span-4">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             placeholder="Search device, IP..."
@@ -36,7 +37,11 @@ export default function NetworkFilters({ value, rooms, onChange, onReset }: Netw
             className={`${inputClass} pl-10`}
           />
         </div>
-        <select value={value.status} onChange={(e) => onChange({ status: e.target.value })} className={inputClass}>
+        <select
+          value={value.status}
+          onChange={(e) => onChange({ status: e.target.value })}
+          className={`${inputClass} lg:col-span-2`}
+        >
           <option value="">All Statuses</option>
           {STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>
@@ -44,7 +49,11 @@ export default function NetworkFilters({ value, rooms, onChange, onReset }: Netw
             </option>
           ))}
         </select>
-        <select value={value.deviceType} onChange={(e) => onChange({ deviceType: e.target.value })} className={inputClass}>
+        <select
+          value={value.deviceType}
+          onChange={(e) => onChange({ deviceType: e.target.value })}
+          className={`${inputClass} lg:col-span-2`}
+        >
           <option value="">All Types</option>
           {TYPE_OPTIONS.map((t) => (
             <option key={t} value={t}>
@@ -52,7 +61,11 @@ export default function NetworkFilters({ value, rooms, onChange, onReset }: Netw
             </option>
           ))}
         </select>
-        <select value={value.roomId} onChange={(e) => onChange({ roomId: e.target.value })} className={inputClass}>
+        <select
+          value={value.roomId}
+          onChange={(e) => onChange({ roomId: e.target.value })}
+          className={`${inputClass} lg:col-span-2`}
+        >
           <option value="">All Rooms</option>
           {rooms.map((r) => (
             <option key={r.id} value={r.id}>
@@ -60,29 +73,11 @@ export default function NetworkFilters({ value, rooms, onChange, onReset }: Netw
             </option>
           ))}
         </select>
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            aria-label="From date"
-            value={value.from ? value.from.slice(0, 10) : ''}
-            onChange={(e) => onChange({ from: e.target.value ? new Date(e.target.value).toISOString() : '' })}
-            className={inputClass}
-          />
-          <input
-            type="date"
-            aria-label="To date"
-            value={value.to ? value.to.slice(0, 10) : ''}
-            onChange={(e) => {
-              if (!e.target.value) {
-                onChange({ to: '' });
-                return;
-              }
-              // Iterate the ISO string so `to` covers the whole selected local day.
-              const end = new Date(e.target.value);
-              end.setHours(23, 59, 59, 999);
-              onChange({ to: end.toISOString() });
-            }}
-            className={inputClass}
+        <div className="min-w-0 sm:col-span-2 lg:col-span-2">
+          <DateRangePicker
+            from={value.from}
+            to={value.to}
+            onChange={({ from, to }) => onChange({ from, to })}
           />
         </div>
       </div>

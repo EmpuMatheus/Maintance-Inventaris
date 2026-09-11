@@ -117,8 +117,8 @@ export async function update(id: string, body: UpdateInput) {
 
   if (body.name !== undefined) data.name = body.name;
   if (body.deviceType !== undefined) data.deviceType = body.deviceType;
-  if (body.hostname !== undefined) data.hostname = body.hostname || undefined;
-  if (body.macAddress !== undefined) data.macAddress = body.macAddress || undefined;
+  if (body.hostname !== undefined) data.hostname = body.hostname || null;
+  if (body.macAddress !== undefined) data.macAddress = body.macAddress || null;
 
   if (body.ipAddress !== undefined) {
     const dup = await repo.findActiveByIp(body.ipAddress, id);
@@ -133,7 +133,7 @@ export async function update(id: string, body: UpdateInput) {
 
   if (body.assetId !== undefined) {
     if (body.assetId) await assertAssetExists(body.assetId);
-    data.assetId = body.assetId ? sql`${body.assetId}::uuid` : undefined;
+    data.assetId = body.assetId ? sql`${body.assetId}::uuid` : null;
   }
 
   // Business rule: do NOT allow monitoring state to be changed through UPDATE.

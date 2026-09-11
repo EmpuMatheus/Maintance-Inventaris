@@ -142,17 +142,15 @@ export default function NetworkMonitoringPage() {
       </div>
 
       {panel === 'timeline' ? (
-        <div className="max-h-[calc(100vh-24rem)] min-h-[24rem]">
-          <NetworkTimeline
-            entries={timeline.entries}
-            isLoading={timeline.isLoading}
-            isError={timeline.isError}
-            errorMessage={timeline.error?.message}
-            onRetry={() => timeline.refetch()}
-            connected={connected}
-            onRefresh={recoverFromApi}
-          />
-        </div>
+        <NetworkTimeline
+          entries={timeline.entries}
+          isLoading={timeline.isLoading}
+          isError={timeline.isError}
+          errorMessage={timeline.error?.message}
+          onRetry={() => timeline.refetch()}
+          connected={connected}
+          onRefresh={recoverFromApi}
+        />
       ) : (
         <NetworkDeviceTable devices={filteredDevices} isLoading={statusQuery.isLoading} />
       )}
