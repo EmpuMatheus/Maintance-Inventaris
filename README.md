@@ -344,6 +344,7 @@ Configuration is read from `.env` (see `.env.example`). **`DATABASE_URL` is requ
 | `SERVE_SPA_DIR` | *(empty)* | Serve a built React SPA from the same origin (desktop launcher) |
 | `STORAGE_ROOT` | derived | Override the storage root (uploads/logs/backups) |
 | `SCHEDULE_PROCESS_INTERVAL_MINUTES` | `60` | Preventive-maintenance background processor interval |
+| `NETWORK_MONITORING_INTERVAL_MINUTES` | `2` | Network monitoring runner interval (overlapping cycles are skipped) |
 
 ### Frontend (`VITE_*` — public, bundled into the browser)
 

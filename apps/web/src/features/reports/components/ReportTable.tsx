@@ -120,7 +120,11 @@ export default function ReportTable<T>({
           </div>
         )}
         {!isLoading && !isError && items.map((item) => (
-          <button key={rowKey(item)} onClick={onRowClick ? () => onRowClick(item) : undefined} className="block w-full rounded-lg border border-slate-200 bg-white p-4 text-left">
+          <div
+            key={rowKey(item)}
+            onClick={onRowClick ? () => onRowClick(item) : undefined}
+            className={`block w-full rounded-lg border border-slate-200 bg-white p-4 text-left${onRowClick ? ' cursor-pointer' : ''}`}
+          >
             <p className="mb-1 text-sm font-semibold text-slate-800">{primary ? cellValue(item, primary) : ''}</p>
             {rest.map((col) => (
               <div key={col.key} className="flex items-start justify-between gap-2 border-t border-slate-100 py-1 first:border-t-0">
@@ -128,7 +132,7 @@ export default function ReportTable<T>({
                 <span className="text-right text-xs font-medium text-slate-700">{cellValue(item, col)}</span>
               </div>
             ))}
-          </button>
+          </div>
         ))}
       </div>
 

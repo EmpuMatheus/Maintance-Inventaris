@@ -27,6 +27,8 @@ import roleRoutes from '@/modules/roles/role.routes';
 import profileRoutes from '@/modules/profile/profile.routes';
 import backupRoutes from '@/modules/backup/backup.routes';
 import analyticsRoutes from '@/modules/analytics/analytics.routes';
+import networkDeviceRoutes from '@/modules/network-devices/network-device.routes';
+import networkMonitoringRoutes from '@/modules/network-monitoring/monitoring.routes';
 
 const app = express();
 
@@ -71,6 +73,8 @@ app.use(`${env.API_PREFIX}/roles`, roleRoutes);
 app.use(`${env.API_PREFIX}/profile`, profileRoutes);
 app.use(env.API_PREFIX, backupRoutes);
 app.use(env.API_PREFIX, analyticsRoutes);
+app.use(`${env.API_PREFIX}/network-devices`, networkDeviceRoutes);
+app.use(`${env.API_PREFIX}/network-monitoring`, networkMonitoringRoutes);
 
 // Single-origin SPA serving (desktop launcher / standalone deployments).
 // When SERVE_SPA_DIR points at a built React SPA, serve it from the same

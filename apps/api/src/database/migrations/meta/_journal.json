@@ -113,6 +113,20 @@
       "when": 1788000000001,
       "tag": "0015_add_transfer_id_to_movements",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788992843013,
+      "tag": "0016_flaky_veda",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788998400000,
+      "tag": "0017_create_maintenance_code_seq",
+      "breakpoints": true
     }
   ]
 }

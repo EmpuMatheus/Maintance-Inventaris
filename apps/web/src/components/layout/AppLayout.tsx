@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Package, LayoutDashboard, ClipboardList, Database, Wrench, Scan, LogOut, Menu, User,
-  ChevronDown, ChevronRight, CalendarClock, CalendarDays, TicketCheck, BarChart3, Settings2, TrendingUp, Bell,
+  ChevronDown, ChevronRight, CalendarClock, CalendarDays, TicketCheck, BarChart3, Settings2, TrendingUp, Bell, Activity,
+  Network, Server,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
+import { canReadNetworkDevices } from '@/features/network-devices/utils/permissions';
 
 const MASTER_DATA_ITEMS = [
   { label: 'Categories', section: 'categories' },
@@ -28,6 +30,7 @@ export default function AppLayout() {
   const [mdOpen, setMdOpen] = useState(() => location.pathname.startsWith('/master-data'));
   const [reportsOpen, setReportsOpen] = useState(() => location.pathname.startsWith('/reports'));
   const [adminOpen, setAdminOpen] = useState(() => location.pathname.startsWith('/audit') || location.pathname.startsWith('/users') || location.pathname.startsWith('/roles'));
+  const [networkOpen, setNetworkOpen] = useState(() => location.pathname.startsWith('/network-monitoring') || location.pathname.startsWith('/network-devices'));
 
   const handleLogout = () => {
     logout();
@@ -166,6 +169,41 @@ export default function AppLayout() {
           >
             <TrendingUp className="h-4 w-4 shrink-0" /> Analytics
           </button>
+        )}
+
+        {canReadNetworkDevices(can) && (
+          <div>
+            <button
+              onClick={() => { setNetworkOpen(!networkOpen); if (!networkOpen) go('/network-monitoring'); }}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                isActive('/network-monitoring') || isActive('/network-devices') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <Network className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-left">Network</span>
+              {networkOpen ? <ChevronDown className="h-3.5 w-3.5 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}
+            </button>
+            {networkOpen && (
+              <div className="ml-3 mt-0.5 space-y-0.5 border-l-2 border-slate-200 pl-3">
+                <button
+                  onClick={() => go('/network-monitoring')}
+                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    isActive('/network-monitoring') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                  }`}
+                >
+                  <Activity className="h-3.5 w-3.5 shrink-0" /> Network Monitoring
+                </button>
+                <button
+                  onClick={() => go('/network-devices')}
+                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    isActive('/network-devices') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                  }`}
+                >
+                  <Server className="h-3.5 w-3.5 shrink-0" /> Network Devices
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {can('report.read') && (

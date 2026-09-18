@@ -51,6 +51,8 @@ const PERMISSIONS = [
   { code: 'settings.manage', name: 'Manage System Settings' },
   { code: 'backup.manage', name: 'Manage Backups' },
   { code: 'analytics.read', name: 'Read Analytics' },
+  { code: 'network_device.read', name: 'Read Network Device' },
+  { code: 'network_device.manage', name: 'Manage Network Device' },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
@@ -64,6 +66,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'report.read', 'report.export',
     'notification.read',
     'analytics.read',
+    'network_device.read', 'network_device.manage',
   ],
   TECHNICIAN: [
     'asset.read', 'asset.retire',

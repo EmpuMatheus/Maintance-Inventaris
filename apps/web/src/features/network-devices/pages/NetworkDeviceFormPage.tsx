@@ -1,0 +1,71 @@
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  createNetworkDevice,
+  getNetworkDevice,
+  updateNetworkDevice,
+  networkDeviceKeys,
+} from '../api/network-devices';
+import NetworkDeviceForm from '../components/NetworkDeviceForm';
+import type { NetworkDeviceInput } from '../types';
+
+export default function NetworkDeviceFormPage() {
+  const { id } = useParams();
+  const isEdit = !!id;
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: networkDeviceKeys.detail(id ?? ''),
+    queryFn: () => getNetworkDevice(id!),
+    enabled: isEdit,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (payload: NetworkDeviceInput) =>
+      isEdit ? updateNetworkDevice(id!, payload) : createNetworkDevice(payload),
+    onSuccess: (res) => {
+      toast.success(isEdit ? 'Network device updated.' : 'Network device created.');
+      qc.invalidateQueries({ queryKey: networkDeviceKeys.all });
+      if (isEdit) {
+        qc.invalidateQueries({ queryKey: networkDeviceKeys.detail(id!) });
+      } else {
+        qc.invalidateQueries({ queryKey: networkDeviceKeys.detail(res.data.id) });
+      }
+      navigate('/network-devices', { replace: true });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (isEdit && isLoading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
+  if (isEdit && isError) {
+    return (
+      <div className="p-6 text-center">
+        <p className="mb-2 text-sm text-red-500">{(error as Error)?.message || 'Unable to load network device.'}</p>
+        <button
+          onClick={() => refetch()}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <NetworkDeviceForm
+      device={data?.data}
+      isSubmitting={mutation.isPending}
+      onSubmit={(payload) => mutation.mutate(payload)}
+    />
+  );
+}

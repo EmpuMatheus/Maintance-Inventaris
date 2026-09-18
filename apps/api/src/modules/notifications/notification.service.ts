@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { AppError } from '@/middleware/error-handler';
-import { eventBus, type NotificationEvent } from '@/lib/event-bus';
+import { eventBus, isNotificationEvent, type BusEvent } from '@/lib/event-bus';
 import { formatNotificationEvent } from './notification.templates';
 import * as repo from './notification.repository';
 import type { NotificationFilters } from './notification.repository';
@@ -30,7 +30,10 @@ async function createForUser(params: {
 }
 
 /** Consumes a domain event and persists an in-app notification (if enabled). */
-async function consumeEvent(event: NotificationEvent) {
+async function consumeEvent(event: BusEvent) {
+  // Network monitoring alerts use their own realtime channel and must NOT be
+  // written into the notification bell.
+  if (!isNotificationEvent(event)) return;
   if (!event.targetUserId) return;
   const formatted = formatNotificationEvent(event);
   if (!formatted) return;
