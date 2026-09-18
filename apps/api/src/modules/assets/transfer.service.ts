@@ -195,12 +195,33 @@ export async function getTransferById(transferId: string, scope?: AssetScope) {
   const [transfer] = await db
     .select({
       id: assetTransfers.id,
-       assetId: assetTransfers.assetId,
-       status: assetTransfers.status,
-       authorizationLetterUrl: assetTransfers.authorizationLetterUrl,
-       createdAt: assetTransfers.createdAt,
+      assetId: assetTransfers.assetId,
+      status: assetTransfers.status,
+      authorizationLetterUrl: assetTransfers.authorizationLetterUrl,
+      reason: assetTransfers.reason,
+      notes: assetTransfers.notes,
+      fromSiteName: transferFromSites.name,
+      fromBuildingName: transferFromBuildings.name,
+      fromFloorName: transferFromFloors.name,
+      fromRoomName: transferFromRooms.name,
+      toSiteName: transferToSites.name,
+      toBuildingName: transferToBuildings.name,
+      toFloorName: transferToFloors.name,
+      toRoomName: transferToRooms.name,
+      requestedAt: assetTransfers.requestedAt,
+      completedAt: assetTransfers.completedAt,
+      createdAt: assetTransfers.createdAt,
+      updatedAt: assetTransfers.updatedAt,
     })
     .from(assetTransfers)
+    .leftJoin(transferFromSites, eq(assetTransfers.fromSiteId, transferFromSites.id))
+    .leftJoin(transferFromBuildings, eq(assetTransfers.fromBuildingId, transferFromBuildings.id))
+    .leftJoin(transferFromFloors, eq(assetTransfers.fromFloorId, transferFromFloors.id))
+    .leftJoin(transferFromRooms, eq(assetTransfers.fromRoomId, transferFromRooms.id))
+    .leftJoin(transferToSites, eq(assetTransfers.toSiteId, transferToSites.id))
+    .leftJoin(transferToBuildings, eq(assetTransfers.toBuildingId, transferToBuildings.id))
+    .leftJoin(transferToFloors, eq(assetTransfers.toFloorId, transferToFloors.id))
+    .leftJoin(transferToRooms, eq(assetTransfers.toRoomId, transferToRooms.id))
     .where(eq(assetTransfers.id, sql`${transferId}::uuid`))
     .limit(1);
 

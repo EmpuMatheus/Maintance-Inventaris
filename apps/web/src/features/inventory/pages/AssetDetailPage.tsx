@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Loader2, Package, Upload, Trash2, XCircle, FileText, Image, Activity, QrCode, User, MapPin, ArrowLeftRight, Printer, Ban, Eye, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Pencil, Loader2, Package, Upload, Trash2, XCircle, FileText, Image, Activity, QrCode, User, MapPin, Printer, Ban, Eye, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { getAsset, uploadPhoto, listDocuments, uploadDocument, deleteDocument, assignAsset, returnAsset, getAssignmentHistory, getMovementHistory, listMaster, retireAsset, deleteAssetPermanently, getComponents, deleteComponent, getActiveTransfer, getTransferById, createTransfer, confirmTransfer, cancelTransfer } from '../api/inventory';
@@ -11,305 +11,14 @@ import QrModal from '@/features/qr/components/QrModal';
 import RetireDialog from '../components/RetireDialog';
 import DeleteDialog from '../components/DeleteDialog';
 import { listSchedules } from '@/features/maintenance-schedules/api/schedules';
+import { buildBeritaAcaraHtml } from '../transferProof';
 
 const ASGN_STYLES: Record<string, string> = { ACTIVE: 'bg-green-50 text-green-700', RETURNED: 'bg-slate-100 text-slate-500' };
 
-function escHtml(v: unknown): string {
-  if (v === null || v === undefined) return '';
-  return String(v)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function fmtDateId(d: string | Date | null | undefined): string {
-  if (!d) return '-';
-  try {
-    return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
-  } catch {
-    return String(d);
-  }
-}
-
-const fNa = (v: unknown) => (v == null || v === '' ? 'N/A' : escHtml(v));
-
-function buildTransferSuratHtml(at: any, a: any, requesterName?: string): string {
-  const nomor = at?.id ?? '-';
-  const tglPengajuan = fmtDateId(at?.requestedAt);
-  const tglCetak = fmtDateId(new Date());
-  const diajukan = requesterName ? escHtml(requesterName) : 'N/A';
-
-  return `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Surat Kuasa Transfer Asset</title>
-  <style>
-    body {
-      font-family: 'Arial', sans-serif;
-      margin: 0;
-      padding: 40px;
-      background-color: #f5f5f5;
-      line-height: 1.6;
-    }
-    .container {
-      background-color: white;
-      padding: 40px;
-      max-width: 850px;
-      margin: 0 auto;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    .header {
-      text-align: center;
-      margin-bottom: 40px;
-      border-bottom: 3px solid #1a3a3a;
-      padding-bottom: 20px;
-    }
-    .header-title {
-      font-size: 24px;
-      font-weight: bold;
-      color: #1a3a3a;
-      margin: 0 0 10px 0;
-    }
-    .header-subtitle {
-      font-size: 14px;
-      color: #666;
-      margin: 0;
-    }
-    .doc-number {
-      text-align: right;
-      margin-bottom: 30px;
-      font-size: 12px;
-      color: #666;
-    }
-    .section-title {
-      font-weight: bold;
-      color: #1a3a3a;
-      margin-top: 25px;
-      margin-bottom: 10px;
-      font-size: 13px;
-      text-transform: uppercase;
-      border-bottom: 1px solid #ddd;
-      padding-bottom: 5px;
-    }
-    .info-row {
-      display: flex;
-      margin-bottom: 10px;
-      font-size: 12px;
-    }
-    .info-label {
-      width: 150px;
-      font-weight: bold;
-      color: #333;
-    }
-    .info-value {
-      flex: 1;
-      color: #555;
-    }
-    .location-box {
-      background-color: #f9f9f9;
-      padding: 15px;
-      margin: 10px 0;
-      border-left: 4px solid #1a3a3a;
-      font-size: 12px;
-    }
-    .location-title {
-      font-weight: bold;
-      margin-bottom: 8px;
-      color: #1a3a3a;
-    }
-    .statement {
-      background-color: #f0f4f8;
-      padding: 15px;
-      margin: 20px 0;
-      border-radius: 4px;
-      font-size: 12px;
-      line-height: 1.8;
-      color: #333;
-    }
-    .signatures {
-      margin-top: 40px;
-      display: flex;
-      justify-content: space-between;
-      gap: 20px;
-    }
-    .signature-block {
-      flex: 1;
-      text-align: center;
-      font-size: 12px;
-    }
-    .signature-space {
-      border-top: 1px solid #333;
-      height: 60px;
-      margin: 5px 0;
-    }
-    .signature-label {
-      font-weight: bold;
-      margin-top: 10px;
-      color: #1a3a3a;
-    }
-    .date-footer {
-      margin-top: 40px;
-      text-align: right;
-      font-size: 12px;
-      color: #666;
-    }
-    .page-break {
-      page-break-after: always;
-    }
-    @media print {
-      body {
-        background-color: white;
-        padding: 0;
-      }
-      .container {
-        box-shadow: none;
-        padding: 20px;
-        max-width: 100%;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <div class="header-title">SURAT KUASA TRANSFER ASSET</div>
-      <div class="header-subtitle">Otorisasi Pemindahan Aset Tetap</div>
-    </div>
-
-    <div class="doc-number">
-      <strong>Nomor Transfer:</strong> ${escHtml(nomor)}
-    </div>
-
-    <!-- Asset Information Section -->
-    <div class="section-title">Informasi Asset</div>
-    <div class="info-row">
-      <span class="info-label">Nama Asset:</span>
-      <span class="info-value">${fNa(a?.assetName)}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Kode Asset:</span>
-      <span class="info-value">${fNa(a?.assetCode)}</span>
-    </div>
-
-    <div class="info-row">
-      <span class="info-label">Nomor Seri:</span>
-      <span class="info-value">${fNa(a?.serialNumber)}</span>
-    </div>
-
-
-    <!-- Assignment Information -->
-    <div class="section-title">Informasi Penugasan</div>
-
-
-    <!-- Location Information -->
-    <div class="section-title">Lokasi Transfer</div>
-
-    <div class="location-box">
-      <div class="location-title">Lokasi Asal (From):</div>
-      <div class="info-row">
-        <span class="info-label">Site:</span>
-        <span class="info-value">${fNa(at?.fromSiteName)}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Building:</span>
-        <span class="info-value">${fNa(at?.fromBuildingName)}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Floor:</span>
-        <span class="info-value">${fNa(at?.fromFloorName)}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Room:</span>
-        <span class="info-value">${fNa(at?.fromRoomName)}</span>
-      </div>
-    </div>
-
-    <div class="location-box" style="border-left-color: #2d5016;">
-      <div class="location-title">Lokasi Tujuan (To):</div>
-      <div class="info-row">
-        <span class="info-label">Site:</span>
-        <span class="info-value">${fNa(at?.toSiteName)}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Building:</span>
-        <span class="info-value">${fNa(at?.toBuildingName)}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Floor:</span>
-        <span class="info-value">${fNa(at?.toFloorName)}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Room:</span>
-        <span class="info-value">${fNa(at?.toRoomName)}</span>
-      </div>
-    </div>
-
-    <!-- Transfer Details -->
-    <div class="section-title">Detail Transfer</div>
-    <div class="info-row">
-      <span class="info-label">Tanggal Pengajuan:</span>
-      <span class="info-value">${tglPengajuan}</span>
-    </div>
-
-    <div class="info-row">
-      <span class="info-label">Diajukan Oleh:</span>
-      <span class="info-value">${diajukan}</span>
-    </div>
-
-
-
-
-    <!-- Statement Section -->
-    <div class="statement">
-      <strong>PERNYATAAN:</strong><br><br>
-      Dengan ini kami memberikan kuasa untuk melakukan pemindahan Asset sesuai data yang tercantum di atas.
-      Pemindahan ini dilakukan atas perintah dan tanggung jawab pihak yang bersangkutan.
-      Semua prosedur telah diikuti sesuai dengan peraturan yang berlaku.
-    </div>
-
-    <!-- Signature Section -->
-    <div class="signatures">
-      <div class="signature-block">
-        <div style="font-weight: bold; color: #1a3a3a; margin-bottom: 10px;">Yang Menyerahkan</div>
-        <div class="signature-space"></div>
-        <div>Nama: ___________________</div>
-        <div>Jabatan: ___________________</div>
-        <div>Tanggal: ___________________</div>
-      </div>
-
-      <div class="signature-block">
-        <div style="font-weight: bold; color: #1a3a3a; margin-bottom: 10px;">Yang Menerima</div>
-        <div class="signature-space"></div>
-        <div>Nama: ___________________</div>
-        <div>Jabatan: ___________________</div>
-        <div>Tanggal: ___________________</div>
-      </div>
-
-      <div class="signature-block">
-        <div style="font-weight: bold; color: #1a3a3a; margin-bottom: 10px;">Mengetahui/Menyetujui</div>
-        <div class="signature-space"></div>
-        <div>Nama: ___________________</div>
-        <div>Jabatan: ___________________</div>
-        <div>Tanggal: ___________________</div>
-      </div>
-    </div>
-
-    <div class="date-footer">
-      Tanggal Cetak: ${tglCetak}
-    </div>
-  </div>
-</body>
-</html>`;
-}
-
-function printTransferSurat(at: any, a: any, requesterName?: string) {
+function printBeritaAcara(html: string) {
   const w = window.open('', '_blank');
   if (!w) return;
-  w.document.write(buildTransferSuratHtml(at, a, requesterName));
+  w.document.write(html);
   w.document.close();
   w.onload = () => w.print();
 }
@@ -317,7 +26,7 @@ function printTransferSurat(at: any, a: any, requesterName?: string) {
 export default function AssetDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { can, user } = useAuth();
+  const { can } = useAuth();
   const qc = useQueryClient();
   const photoRef = useRef<HTMLInputElement>(null);
   const docRef = useRef<HTMLInputElement>(null);
@@ -338,6 +47,8 @@ export default function AssetDetailPage() {
   const [showDelete, setShowDelete] = useState(false);
   const [showDeleteComponent, setShowDeleteComponent] = useState(false);
   const [componentToDelete, setComponentToDelete] = useState<{ id: string; componentName: string } | null>(null);
+  const [movementPage, setMovementPage] = useState(1);
+  const MOVEMENTS_PER_PAGE = 5;
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['asset', id], queryFn: () => getAsset(id!), enabled: !!id,
@@ -487,7 +198,7 @@ export default function AssetDetailPage() {
           <ArrowLeft className="h-4 w-4" /> Kembali ke Detail Asset
         </button>
         <div className="rounded-lg border border-slate-200 bg-white p-4">
-          {transferProofLoading || !transfer ? <div className="p-8 text-center text-slate-500">Memuat bukti transfer...</div> : <iframe srcDoc={buildTransferSuratHtml(transfer, a, user?.name)} title="Bukti Transfer" className="h-[80vh] w-full border-0" />}
+          {transferProofLoading || !transfer ? <div className="p-8 text-center text-slate-500">Memuat bukti transfer...</div> : <iframe srcDoc={buildBeritaAcaraHtml(transfer, a, components?.data)} title="Berita Acara Transfer Aset" className="h-[80vh] w-full border-0" />}
         </div>
       </div>
     );
@@ -594,12 +305,10 @@ export default function AssetDetailPage() {
                         <div className="flex gap-2">
 
                           <button
-                            onClick={() => {
-                              printTransferSurat(at, a, user?.name);
-                            }}
+                            onClick={() => printBeritaAcara(buildBeritaAcaraHtml(at, a, components?.data))}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
                           >
-                            <Printer className="h-3.5 w-3.5" /> Print
+                            <Printer className="h-3.5 w-3.5" /> Print Bukti Transfer
                           </button>
                           <button
                             onClick={() => setShowConfirmDialog(true)}
@@ -620,12 +329,10 @@ export default function AssetDetailPage() {
                         <div className="flex gap-2">
 
                           <button
-                            onClick={() => {
-                              printTransferSurat(at, a, user?.name);
-                            }}
+                            onClick={() => printBeritaAcara(buildBeritaAcaraHtml(at, a, components?.data))}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
                           >
-                            <Printer className="h-3.5 w-3.5" /> Print
+                            <Printer className="h-3.5 w-3.5" /> Print Bukti Transfer
                           </button>
                         </div>
                       )}
@@ -727,27 +434,57 @@ export default function AssetDetailPage() {
       <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Movement History</h2>
         {movData.length === 0 && <p className="text-sm text-slate-400">No movement history.</p>}
-        <div className="space-y-3">{movData.map((h: any, i: number) => (
-          <div key={h.id || i} className="rounded-lg border border-slate-100 p-3">
-            <div className="mb-1 flex justify-between text-xs text-slate-400">
-              <span>{h.movementDate || new Date(h.createdAt).toLocaleDateString('en-GB')}</span>
-              {h.transferId && (
-                <button
-                  onClick={() => setViewingTransferProof(h.transferId)}
-                  className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800"
-                >
-                  <Eye className="h-3.5 w-3.5" /> Lihat Bukti
-                </button>
+        {movData.length > 0 && (() => {
+          const totalPages = Math.max(1, Math.ceil(movData.length / MOVEMENTS_PER_PAGE));
+          const currentPage = Math.min(movementPage, totalPages);
+          const pageRows = movData.slice((currentPage - 1) * MOVEMENTS_PER_PAGE, currentPage * MOVEMENTS_PER_PAGE);
+          return (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px] text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wider text-slate-500">
+                      <th className="px-3 py-2 font-medium">Tanggal</th>
+                      <th className="px-3 py-2 font-medium">Dari</th>
+                      <th className="px-3 py-2 font-medium">Ke</th>
+                      <th className="px-3 py-2 text-right font-medium">Bukti</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageRows.map((h: any, i: number) => (
+                      <tr key={h.id || i} className="border-b border-slate-100 last:border-0">
+                        <td className="whitespace-nowrap px-3 py-3 text-slate-500">{h.movementDate || new Date(h.createdAt).toLocaleDateString('en-GB')}</td>
+                        <td className="px-3 py-3 text-slate-500">{h.fromRoomName || '-'}</td>
+                        <td className="px-3 py-3 font-medium text-slate-700">{h.toRoomName || '-'}</td>
+                        <td className="px-3 py-3 text-right">
+                          {h.transferId ? (
+                            <button
+                              onClick={() => setViewingTransferProof(h.transferId)}
+                              className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> Lihat Bukti
+                            </button>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {totalPages > 1 && (
+                <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+                  <span>Page {currentPage} of {totalPages} ({movData.length} total)</span>
+                  <div className="flex items-center gap-2">
+                    <button disabled={currentPage <= 1} onClick={() => setMovementPage((p) => Math.max(1, p - 1))} className="rounded-lg border border-slate-300 p-2 disabled:opacity-30 hover:bg-slate-50"><ChevronLeft className="h-4 w-4" /></button>
+                    <button disabled={currentPage >= totalPages} onClick={() => setMovementPage((p) => Math.min(totalPages, p + 1))} className="rounded-lg border border-slate-300 p-2 disabled:opacity-30 hover:bg-slate-50"><ChevronRight className="h-4 w-4" /></button>
+                  </div>
+                </div>
               )}
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-slate-500">{h.fromRoomName || '-'}</span>
-              <ArrowLeftRight className="h-3 w-3 text-slate-300" />
-              <span className="font-medium text-slate-700">{h.toRoomName || '-'}</span>
-            </div>
-            {h.reason && <p className="mt-1 text-xs text-slate-500">{h.reason}</p>}
-          </div>
-        ))}</div>
+            </>
+          );
+        })()}
       </div>
 
       {/* Documents */}
