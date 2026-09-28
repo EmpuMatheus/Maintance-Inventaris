@@ -79,35 +79,35 @@ export default function AssetFormPage() {
     enabled: isEdit,
   });
 
-  const { data: categories } = useQuery({ queryKey: ['master', 'categories'], queryFn: () => listMaster('categories') });
-  const { data: brands } = useQuery({ queryKey: ['master', 'brands'], queryFn: () => listMaster('brands') });
-  const { data: departments } = useQuery({ queryKey: ['master', 'departments'], queryFn: () => listMaster('departments') });
-  const { data: sites } = useQuery({ queryKey: ['master', 'sites'], queryFn: () => listMaster('sites') });
-  const { data: vendors } = useQuery({ queryKey: ['master', 'vendors'], queryFn: () => listMaster('vendors') });
+  const { data: categories } = useQuery({ queryKey: ['master', 'active', 'categories'], queryFn: () => listMaster('categories', { isActive: 'true' }) });
+  const { data: brands } = useQuery({ queryKey: ['master', 'active', 'brands'], queryFn: () => listMaster('brands', { isActive: 'true' }) });
+  const { data: departments } = useQuery({ queryKey: ['master', 'active', 'departments'], queryFn: () => listMaster('departments', { isActive: 'true' }) });
+  const { data: sites } = useQuery({ queryKey: ['master', 'active', 'sites'], queryFn: () => listMaster('sites', { isActive: 'true' }) });
+  const { data: vendors } = useQuery({ queryKey: ['master', 'active', 'vendors'], queryFn: () => listMaster('vendors', { isActive: 'true' }) });
 
   const categoryId = form.categoryId;
   const { data: subcategories } = useQuery({
-    queryKey: ['master', 'subcategories', categoryId],
-    queryFn: () => listMaster('subcategories', { categoryId }),
+    queryKey: ['master', 'active', 'subcategories', categoryId],
+    queryFn: () => listMaster('subcategories', { categoryId, isActive: 'true' }),
     enabled: !!categoryId,
   });
 
   const siteId = form.siteId;
   const { data: buildings } = useQuery({
-    queryKey: ['master', 'buildings', siteId],
-    queryFn: () => listMaster('buildings', { siteId }),
+    queryKey: ['master', 'active', 'buildings', siteId],
+    queryFn: () => listMaster('buildings', { siteId, isActive: 'true' }),
     enabled: !!siteId,
   });
   const buildingId = form.buildingId;
   const { data: floors } = useQuery({
-    queryKey: ['master', 'floors', buildingId],
-    queryFn: () => listMaster('floors', { buildingId }),
+    queryKey: ['master', 'active', 'floors', buildingId],
+    queryFn: () => listMaster('floors', { buildingId, isActive: 'true' }),
     enabled: !!buildingId,
   });
   const floorId = form.floorId;
   const { data: rooms } = useQuery({
-    queryKey: ['master', 'rooms', floorId],
-    queryFn: () => listMaster('rooms', { floorId }),
+    queryKey: ['master', 'active', 'rooms', floorId],
+    queryFn: () => listMaster('rooms', { floorId, isActive: 'true' }),
     enabled: !!floorId,
   });
 

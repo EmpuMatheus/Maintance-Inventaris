@@ -1,6 +1,7 @@
 import { apiGet, apiPost, apiPut, apiPatch } from '@/lib/api-client';
 import type {
   NetworkDevice,
+  NetworkDeviceAssetPreview,
   NetworkDeviceFilters,
   NetworkDeviceInput,
   PaginationMeta,
@@ -15,6 +16,14 @@ export function listNetworkDevices(filters?: NetworkDeviceFilters) {
 
 export function getNetworkDevice(id: string) {
   return apiGet<{ success: boolean; data: NetworkDevice }>(`/network-devices/${id}`);
+}
+
+/** Derived readonly values for an eligible asset (device type, hostname, room). */
+export function getAssetPreview(assetId: string, excludeNetworkDeviceId?: string) {
+  return apiGet<{ success: boolean; data: NetworkDeviceAssetPreview }>(
+    `/network-devices/assets/${assetId}/preview`,
+    excludeNetworkDeviceId ? { excludeNetworkDeviceId } : undefined,
+  );
 }
 
 export function createNetworkDevice(data: NetworkDeviceInput) {

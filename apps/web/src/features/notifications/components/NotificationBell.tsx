@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { listNotifications, getUnreadCount, markNotificationRead, notificationKeys } from '../api/notifications';
 import type { AppNotification } from '../types';
+import { TransferNotificationActions } from './TransferNotificationActions';
 
 const POLL_INTERVAL = 30_000;
 
@@ -45,9 +46,17 @@ function groupLabel(date: Date): 'Today' | 'Yesterday' | 'Older' {
 
 function entityRoute(n: AppNotification): string | null {
   if (n.entityType === 'asset' && n.entityId) return `/assets/${n.entityId}`;
+  if (n.entityType === 'asset_transfer') {
+    const assetId = (n.data as Record<string, unknown> | null)?.assetId;
+    if (typeof assetId === 'string' && assetId) return `/assets/${assetId}`;
+  }
   if (n.entityType === 'maintenance' && n.entityId) return `/maintenance/${n.entityId}`;
   if (n.entityType === 'ticket' && n.entityId) return `/tickets/${n.entityId}`;
   return null;
+}
+
+function isActionableTransfer(n: AppNotification): boolean {
+  return n.entityType === 'asset_transfer' && (n.data as Record<string, unknown> | null)?.actionsEnabled === true;
 }
 
 export default function NotificationBell() {
@@ -123,10 +132,13 @@ export default function NotificationBell() {
                   <div key={group.label}>
                     <p className="bg-slate-50 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{group.label}</p>
                     {group.items.map((n) => (
-                      <button
+                      <div
                         key={n.id}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => handleClick(n)}
-                        className={`flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left hover:bg-slate-50 ${n.isRead ? 'opacity-70' : ''}`}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClick(n); }}
+                        className={`flex w-full cursor-pointer items-start gap-3 border-b border-slate-100 px-4 py-3 text-left hover:bg-slate-50 ${n.isRead ? 'opacity-70' : ''}`}
                       >
                         <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
                           {TYPE_ICON[n.type] ?? <Bell className="h-4 w-4" />}
@@ -138,9 +150,12 @@ export default function NotificationBell() {
                           </span>
                           {n.message && <span className="mt-0.5 block truncate text-xs text-slate-500">{n.message}</span>}
                           <span className="mt-0.5 block text-[10px] text-slate-400">{new Date(n.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                          {isActionableTransfer(n) && (
+                            <TransferNotificationActions notification={n} onDone={() => setOpen(false)} />
+                          )}
                         </span>
                         {!n.isRead && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-indigo-500" />}
-                      </button>
+                      </div>
                     ))}
                   </div>
                 ))

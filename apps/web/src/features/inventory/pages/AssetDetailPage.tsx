@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Loader2, Package, Upload, Trash2, XCircle, FileText, Image, Activity, QrCode, User, MapPin, Printer, Ban, Eye, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Pencil, Loader2, Package, Upload, Trash2, XCircle, FileText, Image, Activity, QrCode, User, MapPin, Printer, Eye, AlertCircle, ChevronLeft, ChevronRight, CheckCircle2, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { getAsset, uploadPhoto, listDocuments, uploadDocument, deleteDocument, assignAsset, returnAsset, getAssignmentHistory, getMovementHistory, listMaster, retireAsset, deleteAssetPermanently, getComponents, deleteComponent, getActiveTransfer, getTransferById, createTransfer, confirmTransfer, cancelTransfer } from '../api/inventory';
+import { getAsset, uploadPhoto, listDocuments, uploadDocument, deleteDocument, assignAsset, getAssignmentHistory, getMovementHistory, listMaster, retireAsset, deleteAssetPermanently, getComponents, deleteComponent, getActiveTransfer, getLatestTransfer, getTransferById, createTransfer, confirmTransfer, rejectTransfer, getReceiverContext } from '../api/inventory';
 import { apiGet, apiPatch } from '@/lib/api-client';
 import ConditionBadge from '@/components/ui/ConditionBadge';
 import QrModal from '@/features/qr/components/QrModal';
@@ -15,6 +15,25 @@ import { buildBeritaAcaraHtml } from '../transferProof';
 
 const ASGN_STYLES: Record<string, string> = { ACTIVE: 'bg-green-50 text-green-700', RETURNED: 'bg-slate-100 text-slate-500' };
 
+const TRANSFER_ROLE_LABELS: Record<string, string> = {
+  PREVIOUS_HOLDER: 'Pemegang Sebelumnya',
+  NEXT_RECEIVER: 'Penerima Selanjutnya',
+  CREATOR: 'Pembuat Transfer',
+  KNOWER: 'Pihak Mengetahui',
+};
+
+function roleLabel(roles?: string[] | null): string {
+  if (!roles || roles.length === 0) return '-';
+  return roles.map((r) => TRANSFER_ROLE_LABELS[r] || r).join(' / ');
+}
+
+function fmtDateTime(value?: string | Date | null): string {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 function printBeritaAcara(html: string) {
   const w = window.open('', '_blank');
   if (!w) return;
@@ -23,10 +42,72 @@ function printBeritaAcara(html: string) {
   w.onload = () => w.print();
 }
 
+/**
+ * Renders the Berita Acara document inside a fixed-size card. The iframe is
+ * laid out at true A4 width. On load the real document height is measured and a
+ * uniform scale is computed so the ENTIRE document fits inside the card (both
+ * width and height) — no internal scrollbar, no clipping, and the card never
+ * grows. Fonts only shrink when the content genuinely exceeds the page.
+ */
+function TransferProofPreview({ html }: { html: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [scale, setScale] = useState(1);
+  const [contentHeight, setContentHeight] = useState(1123);
+  const A4_WIDTH = 794; // ~210mm at 96dpi
+  const A4_HEIGHT = 1123; // ~297mm at 96dpi
+
+  const recompute = useCallback((docHeight?: number) => {
+    const el = containerRef.current;
+    if (!el) return;
+    const availW = el.clientWidth;
+    const availH = el.clientHeight;
+    const h = docHeight ?? contentHeight;
+    if (availW <= 0 || availH <= 0 || h <= 0) return;
+    setScale(Math.min(1, availW / A4_WIDTH, availH / h));
+  }, [contentHeight]);
+
+  const handleLoad = useCallback(() => {
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentDocument;
+    const h = doc?.body?.scrollHeight || doc?.documentElement?.scrollHeight || A4_HEIGHT;
+    setContentHeight(h);
+    recompute(h);
+  }, [recompute]);
+
+  useEffect(() => {
+    recompute();
+    const ro = new ResizeObserver(() => recompute());
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, [recompute]);
+
+  const scaledW = A4_WIDTH * scale;
+  const scaledH = contentHeight * scale;
+
+  return (
+    <div ref={containerRef} className="flex h-[80vh] w-full items-start justify-center overflow-hidden">
+      <div style={{ width: scaledW, height: scaledH }}>
+        <div style={{ width: A4_WIDTH, height: contentHeight, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+          <iframe
+            ref={iframeRef}
+            srcDoc={html}
+            title="Berita Acara Transfer Aset"
+            scrolling="no"
+            onLoad={handleLoad}
+            className="border-0"
+            style={{ width: A4_WIDTH, height: contentHeight }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AssetDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const qc = useQueryClient();
   const photoRef = useRef<HTMLInputElement>(null);
   const docRef = useRef<HTMLInputElement>(null);
@@ -36,13 +117,16 @@ export default function AssetDetailPage() {
   const [showCond, setShowCond] = useState(false);
   const [condForm, setCondForm] = useState({ condition: '', reason: '', notes: '' });
   const [showAssign, setShowAssign] = useState(false);
-  const [showReturn, setShowReturn] = useState(false);
+
   const [showTransfer, setShowTransfer] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [viewingReject, setViewingReject] = useState<{ userName: string; reason: string } | null>(null);
   const [viewingTransferProof, setViewingTransferProof] = useState<string | null>(null);
-  const [asnForm, setAsnForm] = useState({ userId: '', departmentId: '', assignedDate: '', notes: '' });
-  const [retForm, setRetForm] = useState({ returnedDate: '', notes: '' });
-  const [trfForm, setTrfForm] = useState({ siteId: '', buildingId: '', floorId: '', roomId: '', reason: '', notes: '' });
+  const [asnForm, setAsnForm] = useState({ userId: '', assignedDate: '', notes: '' });
+
+  const [trfForm, setTrfForm] = useState({ siteId: '', buildingId: '', floorId: '', roomId: '', departmentId: '', receiverUserId: '', witnessUserIds: [] as string[], reason: '', notes: '' });
   const [showRetire, setShowRetire] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [showDeleteComponent, setShowDeleteComponent] = useState(false);
@@ -68,6 +152,9 @@ export default function AssetDetailPage() {
   const { data: activeTransferData, refetch: refetchAT } = useQuery({
     queryKey: ['asset-active-transfer', id], queryFn: () => getActiveTransfer(id!), enabled: !!id,
   });
+  const { data: latestTransferData, refetch: refetchLT } = useQuery({
+    queryKey: ['asset-latest-transfer', id], queryFn: () => getLatestTransfer(id!), enabled: !!id,
+  });
   const { data: transferProofData, isLoading: transferProofLoading } = useQuery({
     queryKey: ['asset-transfer-proof', viewingTransferProof],
     queryFn: () => getTransferById(viewingTransferProof!),
@@ -82,12 +169,33 @@ export default function AssetDetailPage() {
     enabled: !!id,
   });
 
-  const { data: picList } = useQuery({ queryKey: ['master', 'users'], queryFn: () => apiGet<any>('/master/users'), enabled: showAssign });
-  const { data: deptList } = useQuery({ queryKey: ['master', 'departments'], queryFn: () => listMaster('departments'), enabled: showAssign });
-  const { data: siteList } = useQuery({ queryKey: ['master', 'sites'], queryFn: () => listMaster('sites'), enabled: showTransfer });
-  const { data: bldgList } = useQuery({ queryKey: ['master', 'buildings', trfForm.siteId], queryFn: () => listMaster('buildings', { siteId: trfForm.siteId }), enabled: !!trfForm.siteId });
-  const { data: flrList } = useQuery({ queryKey: ['master', 'floors', trfForm.buildingId], queryFn: () => listMaster('floors', { buildingId: trfForm.buildingId }), enabled: !!trfForm.buildingId });
-  const { data: rmList } = useQuery({ queryKey: ['master', 'rooms', trfForm.floorId], queryFn: () => listMaster('rooms', { floorId: trfForm.floorId }), enabled: !!trfForm.floorId });
+  const { data: picList } = useQuery({ queryKey: ['master', 'users'], queryFn: () => apiGet<any>('/master/users'), enabled: showAssign || showTransfer });
+  const selectedAssignUser = picList?.data?.find((u: any) => u.id === asnForm.userId);
+  const { data: siteList } = useQuery({ queryKey: ['master', 'active', 'sites'], queryFn: () => listMaster('sites', { isActive: 'true' }), enabled: showTransfer });
+  const { data: bldgList } = useQuery({ queryKey: ['master', 'active', 'buildings', trfForm.siteId], queryFn: () => listMaster('buildings', { siteId: trfForm.siteId, isActive: 'true' }), enabled: !!trfForm.siteId });
+  const { data: flrList } = useQuery({ queryKey: ['master', 'active', 'floors', trfForm.buildingId], queryFn: () => listMaster('floors', { buildingId: trfForm.buildingId, isActive: 'true' }), enabled: !!trfForm.buildingId });
+  const { data: rmList } = useQuery({ queryKey: ['master', 'active', 'rooms', trfForm.floorId], queryFn: () => listMaster('rooms', { floorId: trfForm.floorId, isActive: 'true' }), enabled: !!trfForm.floorId });
+  const { data: receiverCtx } = useQuery({
+    queryKey: ['transfer-receiver-context', trfForm.receiverUserId],
+    queryFn: () => getReceiverContext(trfForm.receiverUserId),
+    enabled: showTransfer && !!trfForm.receiverUserId,
+  });
+  const receiverAutoLocation = !!(receiverCtx?.data?.location);
+
+  useEffect(() => {
+    const ctx = receiverCtx?.data;
+    if (!showTransfer || !ctx) return;
+    setTrfForm((p) => ({
+      ...p,
+      departmentId: ctx.departmentId ?? '',
+      // When the receiver has an active location, follow it; otherwise clear any
+      // stale location carried over from a previously selected PIC.
+      siteId: ctx.location?.siteId ?? '',
+      buildingId: ctx.location?.buildingId ?? '',
+      floorId: ctx.location?.floorId ?? '',
+      roomId: ctx.location?.roomId ?? '',
+    }));
+  }, [receiverCtx, showTransfer]);
 
   const photoMut = useMutation({
     mutationFn: (f: File) => uploadPhoto(id!, f),
@@ -114,38 +222,41 @@ export default function AssetDetailPage() {
     onSuccess: () => { toast.success('Asset assigned'); setShowAssign(false); qc.invalidateQueries({ queryKey: ['asset', id] }); refetchAH(); },
     onError: (e: Error) => toast.error(e.message),
   });
-  const retMut = useMutation({
-    mutationFn: (b: Record<string, unknown>) => returnAsset(id!, b),
-    onSuccess: () => { toast.success('Asset returned'); setShowReturn(false); qc.invalidateQueries({ queryKey: ['asset', id] }); refetchAH(); },
-    onError: (e: Error) => toast.error(e.message),
-  });
+
   const trfMut = useMutation({
     mutationFn: (b: Record<string, unknown>) => createTransfer(id!, b),
-    onSuccess: () => { toast.success('Transfer created'); setShowTransfer(false); qc.invalidateQueries({ queryKey: ['asset', id] }); qc.invalidateQueries({ queryKey: ['asset-active-transfer', id] }); refetchAT(); },
+    onSuccess: () => { toast.success('Transfer created'); setShowTransfer(false); qc.invalidateQueries({ queryKey: ['asset', id] }); qc.invalidateQueries({ queryKey: ['asset-active-transfer', id] }); qc.invalidateQueries({ queryKey: ['asset-latest-transfer', id] }); refetchAT(); refetchLT(); },
     onError: (e: Error) => toast.error(e.message),
   });
   const confirmTrfMut = useMutation({
     mutationFn: (transferId: string) => confirmTransfer(transferId),
-    onSuccess: () => {
-      toast.success('Transfer confirmed');
+    onSuccess: (res: any) => {
+      toast.success(res?.data?.completed ? 'All parties confirmed — transfer completed' : 'Confirmation recorded');
       setShowConfirmDialog(false);
       qc.invalidateQueries({ queryKey: ['asset', id] });
       qc.invalidateQueries({ queryKey: ['asset-active-transfer', id] });
+      qc.invalidateQueries({ queryKey: ['asset-latest-transfer', id] });
       qc.invalidateQueries({ queryKey: ['asset-movements', id] });
       refetchAT();
+      refetchLT();
       refetchMH();
+      refetchAH();
     },
-    onError: (e: Error) => { toast.error(e.message); refetchAT(); },
+    onError: (e: Error) => { toast.error(e.message); refetchAT(); refetchLT(); },
   });
-  const cancelTrfMut = useMutation({
-    mutationFn: (transferId: string) => cancelTransfer(transferId),
+  const rejectTrfMut = useMutation({
+    mutationFn: ({ transferId, reason }: { transferId: string; reason: string }) => rejectTransfer(transferId, reason),
     onSuccess: () => {
-      toast.success('Transfer cancelled');
+      toast.success('Transfer rejected');
+      setRejectTarget(null);
+      setRejectReason('');
       qc.invalidateQueries({ queryKey: ['asset', id] });
       qc.invalidateQueries({ queryKey: ['asset-active-transfer', id] });
+      qc.invalidateQueries({ queryKey: ['asset-latest-transfer', id] });
       refetchAT();
+      refetchLT();
     },
-    onError: (e: Error) => { toast.error(e.message); refetchAT(); },
+    onError: (e: Error) => toast.error(e.message),
   });
   const retireMut = useMutation({
     mutationFn: (b: { reason: string; notes?: string }) => retireAsset(id!, b),
@@ -198,7 +309,7 @@ export default function AssetDetailPage() {
           <ArrowLeft className="h-4 w-4" /> Kembali ke Detail Asset
         </button>
         <div className="rounded-lg border border-slate-200 bg-white p-4">
-          {transferProofLoading || !transfer ? <div className="p-8 text-center text-slate-500">Memuat bukti transfer...</div> : <iframe srcDoc={buildBeritaAcaraHtml(transfer, a, components?.data)} title="Berita Acara Transfer Aset" className="h-[80vh] w-full border-0" />}
+          {transferProofLoading || !transfer ? <div className="p-8 text-center text-slate-500">Memuat bukti transfer...</div> : <TransferProofPreview html={buildBeritaAcaraHtml(transfer, a, components?.data)} />}
         </div>
       </div>
     );
@@ -269,79 +380,142 @@ export default function AssetDetailPage() {
               <InfoRow label="Department" value={activeAsn.departmentName || '-'} />
               <InfoRow label="Assigned Since" value={activeAsn.assignedDate} />
               <div className="mt-3 flex gap-2">
-                {can('asset.assign') && a.status !== 'RETIRED' && <button onClick={() => { setRetForm({ returnedDate: new Date().toISOString().slice(0, 10), notes: '' }); setShowReturn(true); }} className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">Return Asset</button>}
               </div>
             </>
           ) : (
             <>
               <p className="mb-3 text-sm text-slate-400">Not currently assigned.</p>
-              {can('asset.assign') && a.status !== 'RETIRED' && <button onClick={() => { setAsnForm({ userId: '', departmentId: '', assignedDate: new Date().toISOString().slice(0, 10), notes: '' }); setShowAssign(true); }} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"><User className="h-4 w-4" /> Assign Asset</button>}
+              {can('asset.assign') && a.status !== 'RETIRED' && <button onClick={() => { setAsnForm({ userId: '', assignedDate: new Date().toISOString().slice(0, 10), notes: '' }); setShowAssign(true); }} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"><User className="h-4 w-4" /> Assign Asset</button>}
             </>
           )          }
-          {can('asset.transfer') && a.status !== 'RETIRED' && (
+          {(!!latestTransferData?.data || !!activeTransferData?.data || (activeAsn && can('asset.transfer'))) && a.status !== 'RETIRED' && (
             <div className="mt-2">
-              {activeTransferData?.data && activeTransferData.data.id ? (
-                (() => {
-                  const at = activeTransferData.data;
-                  const isPending = at.status === 'PENDING' || at.status === 'IN_PROGRESS';
-                  const isCompleted = at.status === 'COMPLETED' || at.status === 'CANCELLED';
+              {(() => {
+                const lt = latestTransferData?.data;
+                const at = activeTransferData?.data;
+                // Prefer the still-open transfer; otherwise the latest terminal one.
+                const transfer = at || lt;
+                const status = transfer?.status as string | undefined;
+                const isPending = status === 'PENDING' || status === 'IN_PROGRESS';
+                const confirmations = (transfer?.confirmations || []) as any[];
+                const myConfirmation = confirmations.find((c) => c.userId === user?.id);
+
+                // No transfer yet: only offer Transfer Location with an active assignment.
+                if (!transfer) {
+                  if (!activeAsn || !can('asset.transfer')) return null;
                   return (
-                    <div className="space-y-2">
-                      <div className={`rounded-lg border px-3 py-2 text-sm ${
-                        at.status === 'COMPLETED' ? 'border-green-200 bg-green-50 text-green-700'
-                        : at.status === 'CANCELLED' ? 'border-slate-200 bg-slate-50 text-slate-600'
-                        : 'border-amber-200 bg-amber-50 text-amber-700'
-                      }`}>
-                        <span className="font-medium">
-                          {at.status === 'COMPLETED' ? 'Transfer Completed'
-                          : at.status === 'CANCELLED' ? 'Transfer Cancelled'
-                          : 'Transfer Pending'}
-                        </span>
+                    <button onClick={() => { setTrfForm({ siteId: '', buildingId: '', floorId: '', roomId: '', departmentId: '', receiverUserId: '', witnessUserIds: [], reason: '', notes: '' }); setShowTransfer(true); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"><MapPin className="h-4 w-4" /> Transfer Location</button>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2">
+                    {/* PENDING: status + confirmation block + actions */}
+                    {transfer && isPending && (
+                      <>
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                          <span className="font-medium">Menunggu Konfirmasi</span>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {transfer.fromRoomName || '-'} → {transfer.toRoomName || '-'}
+                          </div>
+                        </div>
+
+                        {confirmations.length > 0 && (
+                          <div className="space-y-1.5 rounded-lg border border-slate-100 bg-slate-50/60 p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Transfer Confirmation</p>
+                            {confirmations.map((c) => {
+                              const cs = c.status as string;
+                              const rejected = cs === 'REJECTED';
+                              return (
+                                <div
+                                  key={c.userId}
+                                  className={`flex items-start gap-2 text-sm ${rejected && c.reason ? 'cursor-pointer rounded px-1 -mx-1 hover:bg-red-50' : ''}`}
+                                  onClick={() => rejected && c.reason && setViewingReject({ userName: c.userName || 'User', reason: c.reason })}
+                                >
+                                  <span className="mt-0.5 shrink-0">
+                                    {cs === 'CONFIRMED' ? <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                      : rejected ? <XCircle className="h-4 w-4 text-red-500" />
+                                      : <Clock className="h-4 w-4 text-slate-400" />}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-slate-700">{c.userName || 'Unknown User'}</p>
+                                    <p className="text-xs text-slate-500">{roleLabel(c.roles)}</p>
+                                    <p className="text-xs text-slate-400">
+                                      {cs === 'CONFIRMED' ? `Confirmed — ${fmtDateTime(c.confirmedAt)}`
+                                        : rejected ? 'Rejected (klik untuk alasan)'
+                                        : 'Pending'}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => printBeritaAcara(buildBeritaAcaraHtml(transfer, a, components?.data))}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                          >
+                            <Printer className="h-3.5 w-3.5" /> Print Bukti Transfer
+                          </button>
+                          {myConfirmation?.status === 'PENDING' && (
+                            <>
+                              <button
+                                onClick={() => setShowConfirmDialog(true)}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white hover:bg-indigo-700"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Confirm Transfer
+                              </button>
+                              <button
+                                onClick={() => { setRejectReason(''); setRejectTarget(transfer.id); }}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                              >
+                                <XCircle className="h-3.5 w-3.5" /> Reject
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {/* COMPLETED: concise summary only (no confirmation list) */}
+                    {transfer && status === 'COMPLETED' && (
+                      <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+                        <span className="inline-flex items-center gap-1.5 font-medium"><CheckCircle2 className="h-4 w-4" /> Selesai</span>
                         <div className="mt-1 text-xs text-slate-500">
-                          {at.fromRoomName || '-'} → {at.toRoomName || '-'}
+                          {transfer.fromRoomName || '-'} → {transfer.toRoomName || '-'}
                         </div>
                       </div>
-                      {isPending && (
-                        <div className="flex gap-2">
+                    )}
 
-                          <button
-                            onClick={() => printBeritaAcara(buildBeritaAcaraHtml(at, a, components?.data))}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
-                          >
-                            <Printer className="h-3.5 w-3.5" /> Print Bukti Transfer
-                          </button>
-                          <button
-                            onClick={() => setShowConfirmDialog(true)}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white hover:bg-indigo-700"
-                          >
-                            Confirm Transfer
-                          </button>
-                          <button
-                            onClick={() => cancelTrfMut.mutate(at.id)}
-                            disabled={cancelTrfMut.isPending}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
-                          >
-                            <Ban className="h-3.5 w-3.5" /> {cancelTrfMut.isPending ? 'Cancelling...' : 'Cancel'}
-                          </button>
+                    {/* REJECTED: concise summary, click to view reason (no confirmation list) */}
+                    {transfer && status === 'REJECTED' && (
+                      <button
+                        type="button"
+                        onClick={() => setViewingReject({ userName: transfer.rejectedByName || 'User', reason: transfer.rejectionReason || '' })}
+                        className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-100"
+                      >
+                        <span className="font-medium">Ditolak</span>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {transfer.fromRoomName || '-'} → {transfer.toRoomName || '-'}
                         </div>
-                      )}
-                      {isCompleted && (
-                        <div className="flex gap-2">
+                        <div className="mt-1 text-xs text-red-600">
+                          Ditolak oleh: <span className="font-medium">{transfer.rejectedByName || '-'}</span>
+                        </div>
+                        <div className="text-xs text-red-500">{fmtDateTime(transfer.rejectedAt)}</div>
+                        <div className="mt-0.5 text-[11px] text-red-400 underline">Klik untuk melihat alasan</div>
+                      </button>
+                    )}
 
-                          <button
-                            onClick={() => printBeritaAcara(buildBeritaAcaraHtml(at, a, components?.data))}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
-                          >
-                            <Printer className="h-3.5 w-3.5" /> Print Bukti Transfer
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()
-              ) : (
-                <button onClick={() => { setTrfForm({ siteId: '', buildingId: '', floorId: '', roomId: '', reason: '', notes: '' }); setShowTransfer(true); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"><MapPin className="h-4 w-4" /> Transfer Location</button>
-              )}
+                    {/* Transfer Location is only offered for a fresh transfer and
+                        only when the asset currently has an ACTIVE assignment. */}
+                    {(status === 'COMPLETED' || status === 'REJECTED' || status === 'CANCELLED') && activeAsn && can('asset.transfer') && (
+                      <button onClick={() => { setTrfForm({ siteId: '', buildingId: '', floorId: '', roomId: '', departmentId: '', receiverUserId: '', witnessUserIds: [], reason: '', notes: '' }); setShowTransfer(true); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"><MapPin className="h-4 w-4" /> Transfer Location</button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -622,10 +796,23 @@ export default function AssetDetailPage() {
                 </select>
               </div>
               <div><label className="block text-sm font-medium text-slate-700">Department</label>
-                <select value={asnForm.departmentId} onChange={(e) => setAsnForm(p => ({ ...p, departmentId: e.target.value }))} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
-                  <option value="">None</option>
-                  {deptList?.data?.map((d: any) => <option key={d.id} value={d.id}>{d.code} - {d.name}</option>)}
-                </select>
+                <input
+                  type="text"
+                  readOnly
+                  disabled
+                  value={
+                    !asnForm.userId
+                      ? ''
+                      : selectedAssignUser?.departmentName
+                      ? `${selectedAssignUser.departmentCode ? selectedAssignUser.departmentCode + ' - ' : ''}${selectedAssignUser.departmentName}`
+                      : '-'
+                  }
+                  placeholder="Otomatis dari data user"
+                  className="mt-1 block w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-600 cursor-not-allowed"
+                />
+                {asnForm.userId && !selectedAssignUser?.departmentName && (
+                  <p className="mt-1 text-xs text-amber-600">User yang dipilih belum memiliki department.</p>
+                )}
               </div>
               <div><label className="block text-sm font-medium text-slate-700">Assignment Date</label><input type="date" value={asnForm.assignedDate} onChange={(e) => setAsnForm(p => ({ ...p, assignedDate: e.target.value }))} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" /></div>
               <div><label className="block text-sm font-medium text-slate-700">Notes</label><textarea value={asnForm.notes} onChange={(e) => setAsnForm(p => ({ ...p, notes: e.target.value }))} rows={2} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" /></div>
@@ -640,27 +827,6 @@ export default function AssetDetailPage() {
         </div>
       )}
 
-      {/* Return Modal */}
-      {showReturn && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 pt-12" onClick={() => setShowReturn(false)}>
-          <div className="w-full max-w-md rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="border-b border-slate-200 px-6 py-4"><h3 className="text-lg font-semibold text-slate-900">Return Asset</h3></div>
-            <div className="space-y-4 px-6 py-4">
-              <div className="rounded-lg bg-slate-50 px-4 py-3"><p className="text-xs font-medium uppercase tracking-wider text-slate-400">Asset</p><p className="font-mono text-sm text-slate-700">{a.assetCode}</p><p className="text-sm text-slate-600">{a.assetName}</p></div>
-              {activeAsn && <div className="rounded-lg bg-slate-50 px-4 py-3"><p className="text-xs text-slate-400">Currently assigned to</p><p className="text-sm font-medium text-slate-700">{activeAsn.userName || '-'} {activeAsn.departmentName ? `(${activeAsn.departmentName})` : ''}</p></div>}
-              <div><label className="block text-sm font-medium text-slate-700">Return Date</label><input type="date" value={retForm.returnedDate} onChange={(e) => setRetForm(p => ({ ...p, returnedDate: e.target.value }))} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" /></div>
-              <div><label className="block text-sm font-medium text-slate-700">Notes</label><textarea value={retForm.notes} onChange={(e) => setRetForm(p => ({ ...p, notes: e.target.value }))} rows={2} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" /></div>
-            </div>
-            <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
-              <button onClick={() => setShowReturn(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
-              <button onClick={() => retMut.mutate(retForm)} disabled={retMut.isPending} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
-                {retMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}Confirm Return
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Transfer Modal */}
       {showTransfer && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 pt-12" onClick={() => setShowTransfer(false)}>
@@ -669,35 +835,98 @@ export default function AssetDetailPage() {
             <div className="space-y-4 px-6 py-4">
               <div className="rounded-lg bg-slate-50 px-4 py-3"><p className="text-xs font-medium uppercase tracking-wider text-slate-400">Asset</p><p className="font-mono text-sm text-slate-700">{a.assetCode}</p><p className="text-sm text-slate-600">{a.assetName}</p></div>
               <div className="rounded-lg bg-slate-50 px-4 py-3"><p className="text-xs text-slate-400">Current Location</p><p className="text-sm text-slate-700">{a.siteName || '-'} / {a.buildingName || '-'} / {a.floorName || '-'} / {a.roomName || '-'}</p></div>
-              <div><label className="block text-sm font-medium text-slate-700">New Site *</label>
-                <select value={trfForm.siteId} onChange={(e) => setTrfForm(p => ({ ...p, siteId: e.target.value, buildingId: '', floorId: '', roomId: '' }))} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
-                  <option value="">Select site...</option>
-                  {siteList?.data?.map((s: any) => <option key={s.id} value={s.id}>{s.code} - {s.name}</option>)}
-                </select>
+
+              <div className="rounded-lg border border-slate-200 p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Pihak yang Terlibat</p>
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500">Pemegang Sebelumnya</label>
+                    <p className="text-sm text-slate-700">{activeAsn?.userName || a.picName || 'Tidak ada (tidak ter-assign)'}</p>
+                  </div>
+                  <div className="border-t border-slate-100 pt-2">
+                    <label className="block text-xs font-medium text-slate-500">Pembuat Transfer</label>
+                    <p className="text-sm text-slate-700">{user?.name || '-'}</p>
+                  </div>
+                  <div className="border-t border-slate-100 pt-2">
+                    <label className="block text-sm font-medium text-slate-700">Penerima Selanjutnya *</label>
+                    <select value={trfForm.receiverUserId} onChange={(e) => setTrfForm(p => ({ ...p, receiverUserId: e.target.value }))} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
+                      <option value="">Select user...</option>
+                      {picList?.data?.map((u: any) => <option key={u.id} value={u.id}>{u.name} ({u.username})</option>)}
+                    </select>
+                    {receiverCtx?.data && (
+                      <div className="mt-2 grid gap-1 text-xs text-slate-500">
+                        <div><span className="text-slate-400">Department: </span><span className="font-medium text-slate-700">{receiverCtx.data.departmentName || '-'}</span></div>
+                        {receiverCtx.data.location ? (
+                          <div><span className="text-slate-400">Lokasi Tujuan: </span><span className="font-medium text-slate-700">{[receiverCtx.data.location.siteName, receiverCtx.data.location.buildingName, receiverCtx.data.location.floorName, receiverCtx.data.location.roomName].filter(Boolean).join(' / ') || '-'}</span></div>
+                        ) : (
+                          <div className="text-amber-600">PIC ini belum memiliki lokasi aktif; tentukan lokasi tujuan secara manual.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="border-t border-slate-100 pt-2">
+                    <label className="block text-sm font-medium text-slate-700">Pihak yang Mengetahui</label>
+                    <p className="mb-1 text-xs text-slate-400">Pihak yang perlu mengetahui transfer ini.</p>
+                    <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                      {picList?.data?.length ? picList.data.map((u: any) => (
+                        <label key={u.id} className="flex items-center gap-2 text-sm text-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={trfForm.witnessUserIds.includes(u.id)}
+                            onChange={(e) => setTrfForm((p) => ({
+                              ...p,
+                              witnessUserIds: e.target.checked ? [...p.witnessUserIds, u.id] : p.witnessUserIds.filter((x) => x !== u.id),
+                            }))}
+                          />
+                          {u.name} ({u.username})
+                        </label>
+                      )) : <p className="text-xs text-slate-400">No users available.</p>}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div><label className="block text-sm font-medium text-slate-700">Building *</label>
-                <select value={trfForm.buildingId} onChange={(e) => setTrfForm(p => ({ ...p, buildingId: e.target.value, floorId: '', roomId: '' }))} disabled={!trfForm.siteId} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none disabled:bg-slate-50">
-                  <option value="">Select building...</option>
-                  {bldgList?.data?.map((b: any) => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}
-                </select>
-              </div>
-              <div><label className="block text-sm font-medium text-slate-700">Floor *</label>
-                <select value={trfForm.floorId} onChange={(e) => setTrfForm(p => ({ ...p, floorId: e.target.value, roomId: '' }))} disabled={!trfForm.buildingId} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none disabled:bg-slate-50">
-                  <option value="">Select floor...</option>
-                  {flrList?.data?.map((f: any) => <option key={f.id} value={f.id}>{f.code} - {f.name}</option>)}
-                </select>
-              </div>
-              <div><label className="block text-sm font-medium text-slate-700">Room *</label>
-                <select value={trfForm.roomId} onChange={(e) => setTrfForm(p => ({ ...p, roomId: e.target.value }))} disabled={!trfForm.floorId} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none disabled:bg-slate-50">
-                  <option value="">Select room...</option>
-                  {rmList?.data?.map((r: any) => <option key={r.id} value={r.id}>{r.code} - {r.name}</option>)}
-                </select>
-              </div>
+
+              {receiverAutoLocation ? (
+                <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-xs text-indigo-700">
+                  Lokasi tujuan otomatis mengikuti PIC yang dipilih.
+                </div>
+              ) : (
+                <>
+                  <div><label className="block text-sm font-medium text-slate-700">New Site *</label>
+                    <select value={trfForm.siteId} onChange={(e) => setTrfForm(p => ({ ...p, siteId: e.target.value, buildingId: '', floorId: '', roomId: '' }))} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
+                      <option value="">Select site...</option>
+                      {siteList?.data?.map((s: any) => <option key={s.id} value={s.id}>{s.code} - {s.name}</option>)}
+                    </select>
+                  </div>
+                  <div><label className="block text-sm font-medium text-slate-700">Building *</label>
+                    <select value={trfForm.buildingId} onChange={(e) => setTrfForm(p => ({ ...p, buildingId: e.target.value, floorId: '', roomId: '' }))} disabled={!trfForm.siteId} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none disabled:bg-slate-50">
+                      <option value="">Select building...</option>
+                      {bldgList?.data?.map((b: any) => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}
+                    </select>
+                  </div>
+                  <div><label className="block text-sm font-medium text-slate-700">Floor *</label>
+                    <select value={trfForm.floorId} onChange={(e) => setTrfForm(p => ({ ...p, floorId: e.target.value, roomId: '' }))} disabled={!trfForm.buildingId} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none disabled:bg-slate-50">
+                      <option value="">Select floor...</option>
+                      {flrList?.data?.map((f: any) => <option key={f.id} value={f.id}>{f.code} - {f.name}</option>)}
+                    </select>
+                  </div>
+                  <div><label className="block text-sm font-medium text-slate-700">Room *</label>
+                    <select value={trfForm.roomId} onChange={(e) => setTrfForm(p => ({ ...p, roomId: e.target.value }))} disabled={!trfForm.floorId} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none disabled:bg-slate-50">
+                      <option value="">Select room...</option>
+                      {rmList?.data?.map((r: any) => <option key={r.id} value={r.id}>{r.code} - {r.name}</option>)}
+                    </select>
+                  </div>
+                </>
+              )}
                <div><label className="block text-sm font-medium text-slate-700">Reason</label><textarea value={trfForm.reason} onChange={(e) => setTrfForm(p => ({ ...p, reason: e.target.value }))} rows={2} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" /></div>
              </div>
             <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
               <button onClick={() => setShowTransfer(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
-              <button onClick={() => { if (!trfForm.siteId || !trfForm.buildingId || !trfForm.floorId || !trfForm.roomId) { toast.error('Please select a complete location'); return; } trfMut.mutate(trfForm); }} disabled={trfMut.isPending} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
+              <button onClick={() => {
+                if (!trfForm.siteId || !trfForm.buildingId || !trfForm.floorId || !trfForm.roomId) { toast.error('Please select a complete location'); return; }
+                if (!trfForm.receiverUserId) { toast.error('Please select the next receiver'); return; }
+                trfMut.mutate(trfForm);
+              }} disabled={trfMut.isPending} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
                 {trfMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}Transfer
               </button>
             </div>
@@ -706,7 +935,7 @@ export default function AssetDetailPage() {
       )}
 
       {/* Confirm Transfer Dialog */}
-      {showConfirmDialog && activeTransferData?.data && (
+      {showConfirmDialog && (activeTransferData?.data?.id || latestTransferData?.data?.id) && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 pt-12" onClick={() => setShowConfirmDialog(false)}>
           <div className="w-full max-w-md rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="border-b border-slate-200 px-6 py-4">
@@ -715,20 +944,20 @@ export default function AssetDetailPage() {
             <div className="space-y-4 px-6 py-4">
               <div className="rounded-lg bg-slate-50 px-4 py-3">
                 <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Asset</p>
-                <p className="font-mono text-sm text-slate-700">{activeTransferData.data.assetCode || a.assetCode}</p>
+                <p className="font-mono text-sm text-slate-700">{a.assetCode}</p>
               </div>
               <div className="rounded-lg bg-slate-50 px-4 py-3">
                 <p className="text-xs text-slate-400 mb-2">Transfer Location</p>
                 <p className="text-sm text-slate-700">
-                  From: {movHist ? 'Current Location' : '-'}
+                  From: {(activeTransferData?.data?.fromRoomName || latestTransferData?.data?.fromRoomName) || '-'}
                   <br />
-                  To: {activeTransferData.data.toRoomName || '-'}
+                  To: {(activeTransferData?.data?.toRoomName || latestTransferData?.data?.toRoomName) || '-'}
                 </p>
               </div>
               <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
                 <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
                 <p className="text-sm text-amber-800">
-                  Once confirmed, the asset location will be updated to the new location and a movement record will be created. This action cannot be undone.
+                  Konfirmasi Anda akan dicatat. Aset hanya berpindah setelah SEMUA pihak yang terlibat menyelesaikan konfirmasi.
                 </p>
               </div>
             </div>
@@ -740,12 +969,57 @@ export default function AssetDetailPage() {
                 Cancel
               </button>
               <button
-                onClick={() => confirmTrfMut.mutate(activeTransferData.data.id)}
+                onClick={() => confirmTrfMut.mutate(activeTransferData?.data?.id || latestTransferData?.data?.id)}
                 disabled={confirmTrfMut.isPending}
                 className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {confirmTrfMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}Confirm Transfer
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Transfer Dialog */}
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 pt-12" onClick={() => { setRejectTarget(null); setRejectReason(''); }}>
+          <div className="w-full max-w-md rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b border-slate-200 px-6 py-4"><h3 className="text-lg font-semibold text-slate-900">Reject Transfer</h3></div>
+            <div className="space-y-4 px-6 py-4">
+              <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+                <p className="text-sm text-red-800">Menolak transfer ini akan langsung menghentikan proses transfer. Aset tidak akan berpindah. Alasan wajib diisi.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Alasan Reject *</label>
+                <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} rows={3} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" placeholder="Tulis alasan penolakan..." />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
+              <button onClick={() => { setRejectTarget(null); setRejectReason(''); }} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Batal</button>
+              <button
+                onClick={() => { if (!rejectReason.trim()) { toast.error('Alasan reject wajib diisi'); return; } rejectTrfMut.mutate({ transferId: rejectTarget, reason: rejectReason.trim() }); }}
+                disabled={rejectTrfMut.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {rejectTrfMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}Reject Transfer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Reason Detail Dialog */}
+      {viewingReject && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 pt-12" onClick={() => setViewingReject(null)}>
+          <div className="w-full max-w-md rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b border-slate-200 px-6 py-4"><h3 className="text-lg font-semibold text-slate-900">Alasan Reject</h3></div>
+            <div className="space-y-3 px-6 py-4">
+              <p className="text-sm text-slate-500">Ditolak oleh <span className="font-medium text-slate-700">{viewingReject.userName}</span></p>
+              <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800">{viewingReject.reason}</div>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
+              <button onClick={() => setViewingReject(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Tutup</button>
             </div>
           </div>
         </div>

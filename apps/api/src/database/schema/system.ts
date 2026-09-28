@@ -10,6 +10,7 @@ export const notifications = pgTable('notifications', {
   message: text('message'),
   entityType: varchar('entity_type', { length: 50 }),
   entityId: uuid('entity_id'),
+  data: jsonb('data'),
   isRead: boolean('is_read').default(false).notNull(),
   readAt: timestamp('read_at', { withTimezone: true }),
   archivedAt: timestamp('archived_at', { withTimezone: true }),

@@ -16,6 +16,7 @@ export interface MasterDataRecord {
   address?: string | null;
   notes?: string | null;
   maintenanceCategory?: string;
+  isNetworkDevice?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,7 +37,7 @@ export interface PaginatedResponse<T> {
 export interface FieldDefinition {
   key: string;
   label: string;
-  type: 'text' | 'select' | 'textarea' | 'email' | 'hidden';
+  type: 'text' | 'select' | 'textarea' | 'email' | 'checkbox' | 'hidden';
   required?: boolean;
   options?: { value: string; label: string }[];
   placeholder?: string;
@@ -48,4 +49,6 @@ export interface ModuleConfig {
   columns: { key: string; label: string; sortable?: boolean }[];
   fields: FieldDefinition[];
   searchFields?: string[];
+  /** Code must be unique within the given parent field (e.g. categoryId). */
+  uniqueByParent?: { parentKey: string };
 }

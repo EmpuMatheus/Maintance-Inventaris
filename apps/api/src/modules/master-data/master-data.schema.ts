@@ -12,6 +12,14 @@ export const paginationQuery = z.object({
   siteId: uuid.optional(),
   buildingId: uuid.optional(),
   floorId: uuid.optional(),
+  isActive: z
+    .string()
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true')),
+});
+
+export const setActiveSchema = z.object({
+  isActive: z.boolean(),
 });
 
 export const createCategorySchema = z.object({
@@ -23,11 +31,16 @@ export const createCategorySchema = z.object({
 
 export const updateCategorySchema = createCategorySchema.partial();
 
+export const deleteCategorySchema = z.object({
+  notes: z.string().max(1000).optional().nullable(),
+});
+
 export const createSubcategorySchema = z.object({
   categoryId: z.string().uuid(),
   code: z.string().min(1).max(50),
   name: z.string().min(1).max(150),
   description: z.string().optional().nullable(),
+  isNetworkDevice: z.boolean().optional(),
 });
 
 export const updateSubcategorySchema = createSubcategorySchema.partial();

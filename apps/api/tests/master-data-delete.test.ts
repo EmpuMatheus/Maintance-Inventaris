@@ -3,7 +3,7 @@ import postgres from 'postgres';
 import { env } from '@/config/env';
 import * as mdSvc from '@/modules/master-data/master-data.service';
 import * as mdRepo from '@/modules/master-data/master-data.repository';
-import { deactivate } from '@/modules/master-data/master-data.controller';
+import { deletePermanently } from '@/modules/master-data/master-data.controller';
 import * as assetSvc from '@/modules/assets/asset.service';
 
 const sql = postgres(env.DATABASE_URL, { max: 1 });
@@ -62,9 +62,9 @@ describe('Master data: category cleanup', () => {
     );
     assetId = asset.id as string;
 
-    // Asset child records are cleaned up first, then PostgreSQL CASCADE removes
-    // the subcategory and the asset. No FK error, no 500.
-    await mdSvc.deactivate('categories', refCatId);
+    // PostgreSQL CASCADE removes the subcategory, the asset and its children.
+    // No FK error, no 500.
+    await mdSvc.deletePermanently('categories', refCatId);
 
     expect((await sql`SELECT id FROM asset_categories WHERE id = ${refCatId}`).length).toBe(0);
     expect((await sql`SELECT id FROM asset_subcategories WHERE id = ${refSubId}`).length).toBe(0);
@@ -76,10 +76,11 @@ describe('Master data: category cleanup', () => {
     const cat = await mdRepo.create('categories', { code: 'QA_FREE', name: 'QA Unreferenced Category' });
     freeCatId = cat.id as string;
 
-    const handler = deactivate('categories');
+    const handler = deletePermanently('categories');
     let result: { success: boolean } | undefined;
     const req = {
       params: { id: freeCatId },
+      body: {},
       user: { id: adminId, username: 'admin', name: 'Admin', roles: ['SUPER_ADMIN'], permissions: [] },
       ip: '127.0.0.1',
       headers: {},

@@ -15,6 +15,7 @@ import {
 } from '../api/notifications';
 import { NOTIFICATION_TYPES, NOTIFICATION_PRIORITIES } from '../constants';
 import type { AppNotification, NotificationFilters, NotificationSettings } from '../types';
+import { TransferNotificationActions } from '../components/TransferNotificationActions';
 
 const PRIORITY_COLORS: Record<string, string> = {
   INFO: 'bg-slate-400',
@@ -173,6 +174,9 @@ export default function NotificationsPage() {
                     </div>
                     {n.message && <p className="mt-0.5 text-sm text-slate-600">{n.message}</p>}
                     <p className="mt-0.5 text-xs text-slate-400">{formatDateTime(n.createdAt)}</p>
+                    {n.entityType === 'asset_transfer' && (n.data as Record<string, unknown> | null)?.actionsEnabled === true && (
+                      <TransferNotificationActions notification={n} onDone={invalidate} />
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     {!n.isRead && (

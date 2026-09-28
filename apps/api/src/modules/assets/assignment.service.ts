@@ -57,11 +57,16 @@ export async function assign(
   }
 
   const picId = str(body.userId);
-  const departmentId = str(body.departmentId);
   if (!picId) throw new AppError(400, 'VALIDATION_ERROR', 'User/PIC is required.');
 
-  await ref('users', picId, 'User/PIC');
-  await ref('departments', departmentId, 'Department');
+  const [picUser] = await db
+    .select({ id: users.id, departmentId: users.departmentId })
+    .from(users)
+    .where(eq(users.id, sql`${picId}::uuid`))
+    .limit(1);
+  if (!picUser) throw new AppError(400, 'VALIDATION_ERROR', 'User/PIC not found.');
+
+  const departmentId = picUser.departmentId ? String(picUser.departmentId) : null;
 
   const [active] = await db
     .select({ id: assetAssignments.id })
@@ -79,7 +84,7 @@ export async function assign(
       const [record] = await tx.insert(assetAssignments).values({
         assetId: sql`${assetId}::uuid`,
         userId: sql`${picId}::uuid`,
-        departmentId: departmentId ? sql`${departmentId}::uuid` : undefined,
+        departmentId: departmentId ? sql`${departmentId}::uuid` : null,
         assignedDate: sql`${assignedDate}::date`,
         assignedBy: userId ? sql`${userId}::uuid` : undefined,
         notes: str(body.notes) ?? undefined,
@@ -89,7 +94,7 @@ export async function assign(
       await tx.update(assetsTable)
         .set({
           currentPicId: sql`${picId}::uuid`,
-          departmentId: departmentId ? sql`${departmentId}::uuid` : undefined,
+          departmentId: departmentId ? sql`${departmentId}::uuid` : null,
           status: sql`'ASSIGNED'::varchar`,
           updatedAt: sql`now()`,
         })

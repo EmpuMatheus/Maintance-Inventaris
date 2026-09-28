@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildNetworkDevicePayload,
+  DERIVED_FIELDS,
   MONITORING_FIELDS,
   networkDeviceFormSchema,
   type NetworkDeviceFormValues,
@@ -8,12 +9,9 @@ import {
 
 const validValues: NetworkDeviceFormValues = {
   name: 'PC Produksi 01',
-  deviceType: 'COMPUTER',
   ipAddress: '192.168.1.10',
-  hostname: '',
   macAddress: '',
-  roomId: '11111111-1111-1111-1111-111111111111',
-  assetId: '',
+  assetId: '22222222-2222-2222-2222-222222222222',
 };
 
 describe('networkDeviceFormSchema', () => {
@@ -22,18 +20,26 @@ describe('networkDeviceFormSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('requires a name', () => {
-    const result = networkDeviceFormSchema.safeParse({ ...validValues, name: '  ' });
+  it('requires an asset', () => {
+    const result = networkDeviceFormSchema.safeParse({ ...validValues, assetId: '' });
     expect(result.success).toBe(false);
   });
 
-  it('requires a device type', () => {
-    const result = networkDeviceFormSchema.safeParse({ ...validValues, deviceType: undefined });
+  it('rejects a malformed asset id', () => {
+    const result = networkDeviceFormSchema.safeParse({ ...validValues, assetId: 'not-a-uuid' });
     expect(result.success).toBe(false);
   });
 
-  it('requires a room', () => {
-    const result = networkDeviceFormSchema.safeParse({ ...validValues, roomId: '' });
+  it('does not accept a manually supplied device type', () => {
+    const result = networkDeviceFormSchema.safeParse({ ...validValues, deviceType: 'SWITCH' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty('deviceType');
+    }
+  });
+
+  it('requires an IP address', () => {
+    const result = networkDeviceFormSchema.safeParse({ ...validValues, ipAddress: '' });
     expect(result.success).toBe(false);
   });
 
@@ -42,29 +48,33 @@ describe('networkDeviceFormSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('treats hostname, MAC address and asset as optional', () => {
+  it('treats name and MAC address as optional', () => {
     const result = networkDeviceFormSchema.safeParse({
       ...validValues,
-      hostname: undefined,
+      name: undefined,
       macAddress: undefined,
-      assetId: undefined,
     });
     expect(result.success).toBe(true);
   });
 });
 
 describe('buildNetworkDevicePayload', () => {
-  it('maps only the editable identity/location/asset fields', () => {
+  it('maps only asset + network fields', () => {
     const parsed = networkDeviceFormSchema.parse({
       ...validValues,
-      hostname: 'pc-prod-01',
       macAddress: 'AA:BB:CC:DD:EE:FF',
-      assetId: '22222222-2222-2222-2222-222222222222',
     });
     const payload = buildNetworkDevicePayload(parsed);
     expect(Object.keys(payload).sort()).toEqual(
-      ['assetId', 'deviceType', 'hostname', 'ipAddress', 'macAddress', 'name', 'roomId'].sort(),
+      ['assetId', 'ipAddress', 'macAddress', 'name'].sort(),
     );
+  });
+
+  it('never includes backend-derived fields (deviceType/hostname/roomId)', () => {
+    const payload = buildNetworkDevicePayload(networkDeviceFormSchema.parse(validValues));
+    for (const field of DERIVED_FIELDS) {
+      expect(payload).not.toHaveProperty(field);
+    }
   });
 
   it('never includes backend-owned monitoring fields', () => {
@@ -74,11 +84,9 @@ describe('buildNetworkDevicePayload', () => {
     }
   });
 
-  it('normalises blank optional fields to null so they can be cleared', () => {
+  it('normalises a blank MAC address to null so it can be cleared', () => {
     const payload = buildNetworkDevicePayload(networkDeviceFormSchema.parse(validValues));
-    expect(payload.hostname).toBeNull();
     expect(payload.macAddress).toBeNull();
-    expect(payload.assetId).toBeNull();
   });
 
   it('trims text fields before submitting', () => {

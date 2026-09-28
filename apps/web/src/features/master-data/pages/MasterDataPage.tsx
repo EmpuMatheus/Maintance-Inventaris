@@ -16,19 +16,19 @@ export default function MasterDataPage() {
     async function loadOptions() {
       const cache: Record<string, { value: string; label: string }[]> = {};
       if (activeKey === 'subcategories') {
-        const res = await listResource('categories', { limit: 100 });
+        const res = await listResource('categories', { limit: 100, isActive: 'true' });
         cache['categoryId'] = (res.data as MasterDataRecord[]).map((r) => ({ value: r.id, label: `${r.code} - ${r.name}` }));
       }
       if (activeKey === 'buildings') {
-        const res = await listResource('sites', { limit: 100 });
+        const res = await listResource('sites', { limit: 100, isActive: 'true' });
         cache['siteId'] = (res.data as MasterDataRecord[]).map((r) => ({ value: r.id, label: `${r.code} - ${r.name}` }));
       }
       if (activeKey === 'floors') {
-        const res = await listResource('buildings', { limit: 100 });
+        const res = await listResource('buildings', { limit: 100, isActive: 'true' });
         cache['buildingId'] = (res.data as MasterDataRecord[]).map((r) => ({ value: r.id, label: `${r.code} - ${r.name}` }));
       }
       if (activeKey === 'rooms') {
-        const res = await listResource('floors', { limit: 100 });
+        const res = await listResource('floors', { limit: 100, isActive: 'true' });
         cache['floorId'] = (res.data as MasterDataRecord[]).map((r) => ({ value: r.id, label: `${r.code} - ${r.name}` }));
       }
       setOptionsCache(cache);

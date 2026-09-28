@@ -53,6 +53,7 @@ export async function findMany(userId: string, filters: NotificationFilters) {
       message: notifications.message,
       entityType: notifications.entityType,
       entityId: notifications.entityId,
+      data: notifications.data,
       isRead: notifications.isRead,
       readAt: notifications.readAt,
       archivedAt: notifications.archivedAt,
@@ -117,6 +118,31 @@ export async function remove(userId: string, id: string) {
   await db
     .delete(notifications)
     .where(and(eq(notifications.id, sql`${id}::uuid`), eq(notifications.userId, sql`${userId}::uuid`)));
+}
+
+/**
+ * Merges a JSON patch into the `data` column of transfer action notifications
+ * (entity_type = 'asset_transfer'). When `userId` is omitted every party's
+ * notification for the transfer is updated (used once the transfer reaches a
+ * terminal state). Returns the number of updated rows.
+ */
+export async function updateTransferActionData(
+  transferId: string,
+  patch: Record<string, unknown>,
+  userId?: string,
+) {
+  const db = getDb();
+  const conditions: SQL[] = [
+    eq(notifications.entityType, 'asset_transfer'),
+    eq(notifications.entityId, sql`${transferId}::uuid`),
+  ];
+  if (userId) conditions.push(eq(notifications.userId, sql`${userId}::uuid`));
+  const rows = await db
+    .update(notifications)
+    .set({ data: sql`COALESCE(${notifications.data}, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb` } as any)
+    .where(and(...conditions))
+    .returning();
+  return rows.length;
 }
 
 export type SettingsShape = Record<string, boolean>;

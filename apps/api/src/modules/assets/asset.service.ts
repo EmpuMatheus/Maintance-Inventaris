@@ -104,6 +104,8 @@ export async function list(params: Record<string, any>, scope?: AssetScope) {
     picId: str(params.picId) ?? undefined,
     ownUserId: scope?.ownUserId,
     categoryIds: scope?.categoryIds,
+    networkDeviceEligible: params.networkDeviceEligible === true || params.networkDeviceEligible === 'true',
+    excludeNetworkDeviceId: str(params.excludeNetworkDeviceId) ?? undefined,
   });
 }
 

@@ -1,20 +1,22 @@
 import { z } from 'zod';
-import { NETWORK_DEVICE_TYPES } from '@/database/schema';
 
-export const deviceType = z.enum(NETWORK_DEVICE_TYPES);
-
+// Asset is the source of truth for deviceType/hostname/roomId, so `name` and
+// `roomId` are optional and `deviceType`/`hostname` are no longer accepted from
+// the client. `assetId` is required on create.
 export const createSchema = z.object({
-  name: z.string().min(1).max(150),
-  deviceType: deviceType,
-  hostname: z.string().max(150).optional().nullable(),
+  name: z.string().min(1).max(150).optional(),
   ipAddress: z.string().ip({ version: 'v4' }),
   macAddress: z.string().max(100).optional().nullable(),
-  roomId: z.string().uuid(),
-  assetId: z.string().uuid().optional().nullable(),
+  assetId: z.string().uuid(),
   isActive: z.boolean().optional(),
 });
 
-export const updateSchema = createSchema.partial();
+export const updateSchema = z.object({
+  name: z.string().min(1).max(150).optional(),
+  ipAddress: z.string().ip({ version: 'v4' }).optional(),
+  macAddress: z.string().max(100).optional().nullable(),
+  assetId: z.string().uuid().optional().nullable(),
+});
 
 export const setStatusSchema = z.object({
   isActive: z.boolean(),
@@ -25,7 +27,6 @@ export const listQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   search: z.string().optional(),
-  deviceType: z.enum(NETWORK_DEVICE_TYPES).optional(),
   status: z.string().optional(),
   roomId: z.string().uuid().optional(),
   isActive: z

@@ -90,11 +90,15 @@ describe('Asset API', () => {
     expect(history.some((h) => h.previousCondition === 'GOOD' && h.newCondition === 'FAIR')).toBe(true);
   });
 
-  it('assigns the asset to a user', async () => {
-    const result = await assignmentSvc.assign(assetId, { userId: adminId }, adminId, 'Admin');
+  it('assigns the asset to a user and derives department from user', async () => {
+    const userRows = await sql`SELECT department_id FROM users WHERE id = ${adminId}::uuid`;
+    const expectedDeptId = userRows[0]?.department_id ?? null;
+    const result = await assignmentSvc.assign(assetId, { userId: adminId, departmentId: '00000000-0000-0000-0000-000000000099' }, adminId, 'Admin');
     expect(result.status).toBe('ACTIVE');
+    expect(result.departmentId).toBe(expectedDeptId);
     const history = await assignmentSvc.getAssignmentHistory(assetId);
     expect(history.length).toBeGreaterThan(0);
+    expect(history[0].departmentId).toBe(expectedDeptId);
   });
 
   it('transfers the asset to a new location', async () => {

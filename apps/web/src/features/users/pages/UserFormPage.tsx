@@ -20,7 +20,7 @@ export default function UserFormPage() {
   const { data: rolesData } = useQuery({ queryKey: ['roles', 'list'], queryFn: listRoles });
   const roles = (rolesData?.data ?? []) as RoleOption[];
 
-  const { data: categoriesData } = useQuery({ queryKey: ['master', 'categories'], queryFn: () => listMaster('categories') });
+  const { data: categoriesData } = useQuery({ queryKey: ['master', 'active', 'categories'], queryFn: () => listMaster('categories', { isActive: 'true' }) });
   const categories = (categoriesData?.data ?? []) as CategoryOption[];
 
   const { data, isLoading } = useQuery({

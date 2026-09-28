@@ -51,12 +51,31 @@ export default function NetworkMonitoringPage() {
     queryFn: () => listMaster('rooms'),
   });
 
+  const { data: subcategoriesData } = useQuery({
+    queryKey: ['master', 'subcategories'],
+    queryFn: () => listMaster('subcategories'),
+  });
+
   const rooms: RoomOption[] = useMemo(
     () => (roomsData?.data ?? []).map((r: { id: string; name?: string; code?: string }) => ({
       id: r.id,
       name: r.name || r.code || r.id,
     })),
     [roomsData],
+  );
+
+  // Device Type is the Asset subcategory name, so the type filter lists the
+  // network-device subcategories instead of a fixed enum.
+  const deviceTypes = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          ((subcategoriesData?.data ?? []) as { name?: string; isNetworkDevice?: boolean }[])
+            .filter((s) => s.isNetworkDevice && s.name)
+            .map((s) => s.name as string),
+        ),
+      ).sort(),
+    [subcategoriesData],
   );
 
   // Keep the latest socket push handlers in refs so the effect does not resubscribe.
@@ -119,7 +138,7 @@ export default function NetworkMonitoringPage() {
       </div>
 
       <div className="mb-4">
-        <NetworkFilters value={filters} rooms={rooms} onChange={onChange} onReset={onReset} />
+        <NetworkFilters value={filters} rooms={rooms} deviceTypes={deviceTypes} onChange={onChange} onReset={onReset} />
       </div>
 
       <div className="mb-3 flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">

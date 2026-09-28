@@ -35,8 +35,8 @@ export default function ScheduleFormModal({
   const queryClient = useQueryClient();
 
   const { data: types } = useQuery({
-    queryKey: ['master', 'maintenance-types'],
-    queryFn: () => listMaster('maintenance-types'),
+    queryKey: ['master', 'active', 'maintenance-types'],
+    queryFn: () => listMaster('maintenance-types', { isActive: 'true' }),
   });
   const maintenanceTypes = (types?.data ?? []) as { id: string; name: string; maintenanceCategory?: string }[];
 

@@ -18,16 +18,19 @@ export const MODULES: ModuleConfig[] = [
   },
   {
     label: 'Subcategories', path: 'subcategories',
+    uniqueByParent: { parentKey: 'categoryId' },
     columns: [
       { key: 'code', label: 'Code', sortable: true },
       { key: 'name', label: 'Name', sortable: true },
       { key: 'category', label: 'Category' },
+      { key: 'isNetworkDevice', label: 'Network Device' },
       { key: 'isActive', label: 'Status' },
     ],
     fields: [
       { key: 'categoryId', label: 'Category', type: 'select', required: true, options: [] },
       { key: 'code', label: 'Code', type: 'text', required: true, placeholder: 'e.g. LAP' },
       { key: 'name', label: 'Name', type: 'text', required: true, placeholder: 'e.g. Laptop' },
+      { key: 'isNetworkDevice', label: 'Is Network Device', type: 'checkbox' },
     ],
   },
   {
@@ -92,6 +95,7 @@ export const MODULES: ModuleConfig[] = [
   },
   {
     label: 'Buildings', path: 'buildings',
+    uniqueByParent: { parentKey: 'siteId' },
     columns: [
       { key: 'code', label: 'Code', sortable: true },
       { key: 'name', label: 'Name', sortable: true },
@@ -107,6 +111,7 @@ export const MODULES: ModuleConfig[] = [
   },
   {
     label: 'Floors', path: 'floors',
+    uniqueByParent: { parentKey: 'buildingId' },
     columns: [
       { key: 'code', label: 'Code', sortable: true },
       { key: 'name', label: 'Name', sortable: true },
@@ -122,6 +127,7 @@ export const MODULES: ModuleConfig[] = [
   },
   {
     label: 'Rooms', path: 'rooms',
+    uniqueByParent: { parentKey: 'floorId' },
     columns: [
       { key: 'code', label: 'Code', sortable: true },
       { key: 'name', label: 'Name', sortable: true },

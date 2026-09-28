@@ -45,6 +45,10 @@ const NetworkMonitoringPage = lazy(() => import('@/features/network-monitoring/p
 const NetworkDeviceListPage = lazy(() => import('@/features/network-devices/pages/NetworkDeviceListPage'));
 const NetworkDeviceFormPage = lazy(() => import('@/features/network-devices/pages/NetworkDeviceFormPage'));
 const NetworkDeviceDetailPage = lazy(() => import('@/features/network-devices/pages/NetworkDeviceDetailPage'));
+const CctvDeviceListPage = lazy(() => import('@/features/cctv/pages/CctvDeviceListPage'));
+const CctvDeviceFormPage = lazy(() => import('@/features/cctv/pages/CctvDeviceFormPage'));
+const CctvDeviceDetailPage = lazy(() => import('@/features/cctv/pages/CctvDeviceDetailPage'));
+const CctvStreamPage = lazy(() => import('@/features/cctv/pages/CctvStreamPage'));
 const NotFoundPage = lazy(() => import('@/features/misc/NotFoundPage'));
 
 const protectedLayout = (
@@ -88,6 +92,11 @@ const router = createBrowserRouter([
       { path: 'network-devices/new', element: <RequirePermission permission="network_device.manage"><NetworkDeviceFormPage /></RequirePermission> },
       { path: 'network-devices/:id', element: <RequirePermission permission="network_device.read"><NetworkDeviceDetailPage /></RequirePermission> },
       { path: 'network-devices/:id/edit', element: <RequirePermission permission="network_device.manage"><NetworkDeviceFormPage /></RequirePermission> },
+      { path: 'cctv/devices', element: <RequirePermission anyOf={['cctv_device.read', 'cctv_device.manage']}><CctvDeviceListPage /></RequirePermission> },
+      { path: 'cctv/devices/new', element: <RequirePermission permission="cctv_device.manage"><CctvDeviceFormPage /></RequirePermission> },
+      { path: 'cctv/devices/:id', element: <RequirePermission anyOf={['cctv_device.read', 'cctv_device.manage']}><CctvDeviceDetailPage /></RequirePermission> },
+      { path: 'cctv/devices/:id/edit', element: <RequirePermission permission="cctv_device.manage"><CctvDeviceFormPage /></RequirePermission> },
+      { path: 'cctv/streams', element: <RequirePermission anyOf={['cctv_stream.read', 'cctv_stream.manage', 'cctv_device.manage']}><CctvStreamPage /></RequirePermission> },
       { path: 'reports/inventory', element: <RequirePermission permission="report.read"><InventoryReportPage /></RequirePermission> },
       { path: 'reports/maintenance', element: <RequirePermission permission="report.read"><MaintenanceReportPage /></RequirePermission> },
       { path: 'reports/maintenance-cost', element: <RequirePermission permission="report.read"><MaintenanceCostReportPage /></RequirePermission> },

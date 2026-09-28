@@ -24,6 +24,8 @@ export function permissionGroup(code: string): string {
   if (code.startsWith('audit.')) return 'Audit';
   if (code.startsWith('user.') || code.startsWith('role.')) return 'Administration';
   if (code.startsWith('notification.') || code.startsWith('settings.')) return 'System';
+  if (code.startsWith('network_device.')) return 'Network';
+  if (code.startsWith('cctv_')) return 'CCTV';
   return 'System';
 }
 

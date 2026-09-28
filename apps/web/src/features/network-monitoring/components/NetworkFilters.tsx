@@ -3,7 +3,6 @@ import DateRangePicker from './DateRangePicker';
 import type { NetworkMonitoringFilters } from '../types';
 
 const STATUS_OPTIONS = ['ONLINE', 'OFFLINE', 'UNKNOWN'];
-const TYPE_OPTIONS = ['COMPUTER', 'SWITCH'];
 
 export interface RoomOption {
   id: string;
@@ -13,6 +12,7 @@ export interface RoomOption {
 interface NetworkFiltersProps {
   value: NetworkMonitoringFilters;
   rooms: RoomOption[];
+  deviceTypes?: string[];
   onChange: (patch: Partial<NetworkMonitoringFilters>) => void;
   onReset: () => void;
 }
@@ -20,7 +20,7 @@ interface NetworkFiltersProps {
 const inputClass =
   'w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500';
 
-export default function NetworkFilters({ value, rooms, onChange, onReset }: NetworkFiltersProps) {
+export default function NetworkFilters({ value, rooms, deviceTypes = [], onChange, onReset }: NetworkFiltersProps) {
   const hasFilters =
     value.search || value.status || value.deviceType || value.roomId || value.from || value.to;
 
@@ -55,9 +55,9 @@ export default function NetworkFilters({ value, rooms, onChange, onReset }: Netw
           className={`${inputClass} lg:col-span-2`}
         >
           <option value="">All Types</option>
-          {TYPE_OPTIONS.map((t) => (
+          {deviceTypes.map((t) => (
             <option key={t} value={t}>
-              {t.charAt(0) + t.slice(1).toLowerCase()}
+              {t}
             </option>
           ))}
         </select>

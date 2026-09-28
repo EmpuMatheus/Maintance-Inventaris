@@ -1,0 +1,2 @@
+ALTER TABLE "cctv_devices" ADD COLUMN "integration_protocol" varchar(20);--> statement-breakpoint
+ALTER TABLE "cctv_devices" ADD CONSTRAINT "cctv_devices_integration_protocol_check" CHECK ("cctv_devices"."integration_protocol" IS NULL OR "cctv_devices"."integration_protocol" in ('ISAPI', 'ONVIF'));

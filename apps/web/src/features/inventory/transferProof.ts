@@ -11,9 +11,24 @@ export interface BeritaAcaraTransferLike {
   toBuildingName?: string | null;
   toFloorName?: string | null;
   toRoomName?: string | null;
+  fromPicName?: string | null;
+  toPicName?: string | null;
+  requestedByName?: string | null;
   requestedAt?: string | Date | null;
   createdAt?: string | Date | null;
   completedAt?: string | Date | null;
+  confirmations?: BeritaAcaraConfirmationLike[] | null;
+}
+
+export interface BeritaAcaraConfirmationLike {
+  userId?: string | null;
+  userName?: string | null;
+  userPosition?: string | null;
+  roles?: string[] | null;
+  status?: string | null;
+  reason?: string | null;
+  confirmedAt?: string | Date | null;
+  rejectedAt?: string | Date | null;
 }
 
 export interface BeritaAcaraAssetLike {
@@ -28,6 +43,41 @@ export interface BeritaAcaraComponentLike {
   componentName?: string | null;
   model?: string | null;
   serialNumber?: string | null;
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  PREVIOUS_HOLDER: 'Yang Menyerahkan',
+  NEXT_RECEIVER: 'Yang Menerima',
+  CREATOR: 'Pembuat Transfer',
+  KNOWER: 'Pihak yang Mengetahui',
+};
+
+const PRIMARY_ROLES = ['PREVIOUS_HOLDER', 'NEXT_RECEIVER', 'CREATOR'];
+
+function roleLabels(roles?: string[] | null): string[] {
+  if (!roles || roles.length === 0) return [];
+  return roles.filter((r) => ROLE_LABELS[r]).map((r) => ROLE_LABELS[r]);
+}
+
+function roleLabelText(roles?: string[] | null): string {
+  const labels = roleLabels(roles);
+  return labels.length ? labels.join(' / ') : 'Pihak Terkait';
+}
+
+function statusLabel(status?: string | null): string {
+  if (status === 'CONFIRMED') return 'CONFIRMED';
+  if (status === 'REJECTED') return 'REJECTED';
+  return 'PENDING';
+}
+
+function fmtDateTimeId(d: string | Date | null | undefined): string {
+  if (!d) return '';
+  try {
+    const dt = new Date(d);
+    return `${dt.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} ${dt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
+  } catch {
+    return '';
+  }
 }
 
 function escHtml(v: unknown): string {
@@ -67,6 +117,75 @@ function clean(v: unknown): string {
 function locationLine(site?: string | null, building?: string | null, floor?: string | null, room?: string | null): string {
   const parts = [clean(site), clean(building), clean(floor), clean(room)].filter(Boolean);
   return parts.length ? parts.map(escHtml).join(' / ') : '-';
+}
+
+/**
+ * Renders one signature block per unique user (never duplicating a user who
+ * holds several roles). Shows the party role(s), the signature status and the
+ * confirmation timestamp when available.
+ */
+function signatureCard(c: BeritaAcaraConfirmationLike): string {
+  const name = clean(c.userName) || '(________________)';
+  const roleText = roleLabelText(c.roles);
+  const status = statusLabel(c.status);
+  const statusClass = status === 'CONFIRMED' ? 'status-confirmed' : status === 'REJECTED' ? 'status-rejected' : 'status-pending';
+  const when = status === 'CONFIRMED'
+    ? fmtDateTimeId(c.confirmedAt)
+    : status === 'REJECTED'
+      ? fmtDateTimeId(c.rejectedAt)
+      : '';
+  return `
+    <td>
+      <div class="sign-title">${escHtml(roleText)}</div>
+      <div class="sign-area"></div>
+      <div class="sign-name">${escHtml(name)}</div>
+      <div class="sign-status ${statusClass}">${status}</div>
+      ${when ? `<div class="sign-when">${escHtml(when)}</div>` : ''}
+      ${status === 'REJECTED' && clean(c.reason) ? `<div class="sign-reason">Alasan: ${escHtml(c.reason || '')}</div>` : ''}
+    </td>`;
+}
+
+function signatureCards(confirmations: BeritaAcaraConfirmationLike[]): string {
+  if (confirmations.length === 0) {
+    return `
+    <table class="signatures">
+      <tbody>
+        <tr>
+          <td>
+            <div class="sign-title">Yang Menyerahkan</div>
+            <div class="sign-area"></div>
+            <div class="sign-line">(________________)</div>
+          </td>
+          <td>
+            <div class="sign-title">Yang Menerima</div>
+            <div class="sign-area"></div>
+            <div class="sign-line">(________________)</div>
+          </td>
+          <td>
+            <div class="sign-title">Pembuat Transfer</div>
+            <div class="sign-area"></div>
+            <div class="sign-line">(________________)</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>`;
+  }
+  const mainParties = confirmations.filter((c) => (c.roles ?? []).some((r) => PRIMARY_ROLES.includes(r)));
+  const knowers = confirmations.filter(
+    (c) => !((c.roles ?? []).some((r) => PRIMARY_ROLES.includes(r))) && (c.roles ?? []).includes('KNOWER'),
+  );
+  const rows: string[] = [];
+  const cells = mainParties.map(signatureCard);
+  for (let i = 0; i < cells.length; i += 3) rows.push(`<tr>${cells.slice(i, i + 3).join('')}</tr>`);
+  if (rows.length === 0) rows.push('<tr><td colspan="3" class="sign-empty">-</td></tr>');
+  const mainTable = `<table class="signatures"><tbody>${rows.join('')}</tbody></table>`;
+
+  if (knowers.length === 0) return mainTable;
+
+  const knowingRows: string[] = [];
+  const knowingCells = knowers.map(signatureCard);
+  for (let i = 0; i < knowingCells.length; i += 3) knowingRows.push(`<tr>${knowingCells.slice(i, i + 3).join('')}</tr>`);
+  return `${mainTable}<p class="knowing-title">Mengetahui</p><table class="signatures"><tbody>${knowingRows.join('')}</tbody></table>`;
 }
 
 export function buildBeritaAcaraHtml(
@@ -170,7 +289,15 @@ export function buildBeritaAcaraHtml(
     .signatures { width: 100%; border-collapse: collapse; margin-top: 30px; }
     .signatures td { width: 33.33%; text-align: center; vertical-align: top; padding: 8px; border: 1px solid #4b5563; }
     .sign-title { font-weight: bold; margin-bottom: 4px; }
-    .sign-area { height: 68px; }
+    .sign-area { height: 60px; }
+    .sign-name { font-weight: bold; margin-top: 2px; }
+    .sign-status { font-size: 9pt; margin-top: 2px; }
+    .status-confirmed { color: #15803d; font-weight: bold; }
+    .status-rejected { color: #b91c1c; font-weight: bold; }
+    .status-pending { color: #64748b; }
+    .sign-when { font-size: 8pt; color: #6b7280; margin-top: 1px; }
+    .sign-reason { font-size: 8pt; color: #b91c1c; margin-top: 1px; }
+    .sign-empty { text-align: center; color: #9ca3af; }
     .sign-line { margin-top: 2px; }
     .knowing { width: 100%; border-collapse: collapse; margin-top: 0; }
     .knowing td { width: 50%; text-align: center; vertical-align: top; padding: 8px; border: 1px solid #4b5563; }
@@ -252,50 +379,7 @@ ${componentTableHtml}
       <p>Demikian Berita Acara Transfer Aset ini dibuat dengan sebenarnya agar dapat dipergunakan sebagaimana mestinya.</p>
     </div>
 
-    <table class="signatures">
-      <tbody>
-        <tr>
-          <td>
-            <div class="sign-title">Yang Menyerahkan</div>
-            <div class="sign-area"></div>
-            <div class="sign-line">(________________)</div>
-            <div class="sign-line">__________________</div>
-          </td>
-          <td>
-            <div class="sign-title">Checker</div>
-            <div class="sign-area"></div>
-            <div class="sign-line">(________________)</div>
-            <div class="sign-line">__________________</div>
-          </td>
-          <td>
-            <div class="sign-title">Yang Menerima</div>
-            <div class="sign-area"></div>
-            <div class="sign-line">(________________)</div>
-            <div class="sign-line">__________________</div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-
-    <p class="knowing-title">Mengetahui</p>
-    <table class="knowing">
-      <tbody>
-        <tr>
-          <td>
-            <div class="sign-title">HRD</div>
-            <div class="sign-area"></div>
-            <div class="sign-line">(________________)</div>
-            <div class="sign-line">__________________</div>
-          </td>
-          <td>
-            <div class="sign-title">Manager Supporting</div>
-            <div class="sign-area"></div>
-            <div class="sign-line">(________________)</div>
-            <div class="sign-line">__________________</div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+${signatureCards(at.confirmations ?? [])}
   </div>
 </body>
 </html>`;
