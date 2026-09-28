@@ -8,7 +8,7 @@ export type {
   PaginationMeta,
 } from '../api/monitoring';
 
-export type NetworkDeviceType = 'COMPUTER' | 'SWITCH';
+export type NetworkDeviceType = string;
 export type NetworkStatus = 'ONLINE' | 'OFFLINE' | 'UNKNOWN';
 
 /**

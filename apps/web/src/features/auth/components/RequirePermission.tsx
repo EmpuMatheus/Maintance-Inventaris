@@ -3,15 +3,24 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
 interface RequirePermissionProps {
-  permission: string;
+  /** Single required permission (backwards compatible). */
+  permission?: string;
+  /** Any-of permissions; access is granted when the user holds at least one. */
+  anyOf?: string[];
   children: ReactNode;
 }
 
-/** Renders children only when the user holds the given permission. */
-export default function RequirePermission({ permission, children }: RequirePermissionProps) {
+/** Renders children only when the user holds the given permission(s). */
+export default function RequirePermission({ permission, anyOf, children }: RequirePermissionProps) {
   const { can } = useAuth();
 
-  if (!can(permission)) {
+  const allowed = permission
+    ? can(permission)
+    : anyOf && anyOf.length > 0
+      ? anyOf.some((p) => can(p))
+      : false;
+
+  if (!allowed) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-6 text-center">
         <p className="text-6xl font-black text-slate-200">403</p>

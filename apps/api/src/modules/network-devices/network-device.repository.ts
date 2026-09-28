@@ -4,13 +4,20 @@ import {
   rooms,
   assets,
   assetCategories,
+  assetSubcategories,
   sites,
   buildings,
   floors,
   departments,
+  users,
 } from '@/database/schema';
+import { alias } from 'drizzle-orm/pg-core';
 import { eq, and, sql, desc, count } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
+import { deriveDeviceType } from './device-type';
+
+const assetRooms = alias(rooms, 'asset_rooms');
+const assetPics = alias(users, 'asset_pics');
 
 export interface DeviceFilters {
   page?: number;
@@ -54,24 +61,44 @@ const DEVICE_SELECT = {
   assetCondition: assets.condition,
   assetCategoryId: assets.categoryId,
   assetCategoryName: assetCategories.name,
-  assetDepartmentId: assets.departmentId,
-  assetDepartmentName: departments.name,
+  assetSubcategoryId: assets.subcategoryId,
+  assetSubcategoryCode: assetSubcategories.code,
+  assetSubcategoryName: assetSubcategories.name,
+  assetPicName: assetPics.name,
+  assetRoomId: assets.roomId,
+  assetRoomCode: assetRooms.code,
+  assetRoomName: assetRooms.name,
 };
 
 type DeviceRow = Record<string, unknown>;
 
 function mapDevice(row: DeviceRow) {
-  const location = [row.roomSiteName, row.roomBuildingName, row.roomFloorName, row.roomName]
+  const hasAsset = Boolean(row.assetId);
+  // When the device is linked to an Asset, its PIC (hostname) and Room are read
+  // live from the Asset so the device never shows stale data. The stored
+  // columns remain as a fallback for unlinked devices.
+  const hostname = hasAsset
+    ? ((row.assetPicName as string | null) ?? null)
+    : ((row.hostname as string | null) ?? null);
+  const roomId = hasAsset ? ((row.assetRoomId as string) ?? (row.roomId as string)) : (row.roomId as string);
+  const roomCode = hasAsset ? ((row.assetRoomCode as string | null) ?? (row.roomCode as string)) : (row.roomCode as string);
+  const roomName = hasAsset ? ((row.assetRoomName as string | null) ?? (row.roomName as string)) : (row.roomName as string);
+  // Device type also follows the asset's subcategory live, so editing the
+  // subcategory is reflected without a separate device update.
+  const deviceType = hasAsset
+    ? deriveDeviceType({ code: row.assetSubcategoryCode, name: row.assetSubcategoryName })
+    : (row.deviceType as string);
+  const location = [row.roomSiteName, row.roomBuildingName, row.roomFloorName, roomName]
     .filter((v): v is string => Boolean(v))
     .join(' / ');
   return {
     id: row.id as string,
     name: row.name as string,
-    deviceType: row.deviceType as string,
-    hostname: (row.hostname as string | null) ?? null,
+    deviceType,
+    hostname,
     ipAddress: row.ipAddress as string,
     macAddress: (row.macAddress as string | null) ?? null,
-    roomId: row.roomId as string,
+    roomId,
     assetId: (row.assetId as string | null) ?? null,
     status: row.status as string,
     consecutiveFailures: row.consecutiveFailures as number,
@@ -83,9 +110,9 @@ function mapDevice(row: DeviceRow) {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     room: {
-      id: row.roomId as string,
-      code: row.roomCode as string,
-      name: row.roomName as string,
+      id: roomId,
+      code: roomCode,
+      name: roomName,
       location: location || null,
       floorId: (row.roomFloorId as string | null) ?? null,
       floorName: (row.roomFloorName as string | null) ?? null,
@@ -94,7 +121,7 @@ function mapDevice(row: DeviceRow) {
       siteId: (row.roomSiteId as string | null) ?? null,
       siteName: (row.roomSiteName as string | null) ?? null,
     },
-    asset: row.assetId
+    asset: hasAsset
       ? {
           id: row.assetId as string,
           assetCode: row.assetCode as string,
@@ -103,8 +130,9 @@ function mapDevice(row: DeviceRow) {
           condition: row.assetCondition as string,
           categoryId: row.assetCategoryId as string | null,
           categoryName: row.assetCategoryName as string,
-          departmentId: row.assetDepartmentId as string | null,
-          departmentName: row.assetDepartmentName as string,
+          subcategoryId: (row.assetSubcategoryId as string | null) ?? null,
+          subcategoryName: (row.assetSubcategoryName as string | null) ?? null,
+          picName: (row.assetPicName as string | null) ?? null,
         }
       : null,
   } as any;
@@ -139,6 +167,9 @@ export async function findMany(filters: DeviceFilters) {
     .leftJoin(sites, eq(buildings.siteId, sites.id))
     .leftJoin(assets, eq(networkDevices.assetId, assets.id))
     .leftJoin(assetCategories, eq(assets.categoryId, assetCategories.id))
+    .leftJoin(assetSubcategories, eq(assets.subcategoryId, assetSubcategories.id))
+    .leftJoin(assetPics, eq(assets.currentPicId, assetPics.id))
+    .leftJoin(assetRooms, eq(assets.roomId, assetRooms.id))
     .leftJoin(departments, eq(assets.departmentId, departments.id))
     .where(where)
     .orderBy(desc(networkDevices.createdAt))
@@ -168,6 +199,9 @@ export async function findById(id: string) {
     .leftJoin(sites, eq(buildings.siteId, sites.id))
     .leftJoin(assets, eq(networkDevices.assetId, assets.id))
     .leftJoin(assetCategories, eq(assets.categoryId, assetCategories.id))
+    .leftJoin(assetSubcategories, eq(assets.subcategoryId, assetSubcategories.id))
+    .leftJoin(assetPics, eq(assets.currentPicId, assetPics.id))
+    .leftJoin(assetRooms, eq(assets.roomId, assetRooms.id))
     .leftJoin(departments, eq(assets.departmentId, departments.id))
     .where(eq(networkDevices.id, sql`${id}::uuid`))
     .limit(1);

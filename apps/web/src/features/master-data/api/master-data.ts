@@ -17,6 +17,10 @@ export function updateResource(resource: string, id: string, data: Record<string
   return apiPatch<{ success: boolean; data: MasterDataRecord }>(`/master/${resource}/${id}`, data);
 }
 
-export function deactivateResource(resource: string, id: string) {
-  return apiDelete<{ success: boolean; data: MasterDataRecord }>(`/master/${resource}/${id}`);
+export function setResourceActive(resource: string, id: string, isActive: boolean) {
+  return apiPatch<{ success: boolean; data: MasterDataRecord }>(`/master/${resource}/${id}/status`, { isActive });
+}
+
+export function deleteResourcePermanently(resource: string, id: string, data?: { notes?: string }) {
+  return apiDelete<{ success: boolean; data: MasterDataRecord }>(`/master/${resource}/${id}`, data);
 }

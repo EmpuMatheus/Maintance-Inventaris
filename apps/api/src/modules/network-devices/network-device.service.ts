@@ -1,8 +1,10 @@
 import { AppError } from '@/middleware/error-handler';
 import { getDb } from '@/database/client';
-import { rooms, assets } from '@/database/schema';
-import { eq, sql } from 'drizzle-orm';
+import { networkDevices } from '@/database/schema';
+import { eq, and, ne, sql } from 'drizzle-orm';
 import * as repo from './network-device.repository';
+import * as assetRepo from '@/modules/assets/asset.repository';
+import { deriveDeviceType } from './device-type';
 
 export interface ListParams {
   page?: number;
@@ -15,13 +17,13 @@ export interface ListParams {
 }
 
 export interface CreateInput {
-  name: string;
-  deviceType: string;
+  name?: string;
+  deviceType?: string;
   hostname?: string | null;
   ipAddress: string;
   macAddress?: string | null;
-  roomId: string;
-  assetId?: string | null;
+  roomId?: string;
+  assetId: string;
   isActive?: boolean;
 }
 
@@ -35,26 +37,18 @@ export interface UpdateInput {
   assetId?: string | null;
 }
 
-async function assertRoomExists(roomId: string) {
-  const db = getDb();
-  const rows = await db
-    .select({ id: rooms.id })
-    .from(rooms)
-    .where(eq(rooms.id, sql`${roomId}::uuid`))
-    .limit(1);
-  if (!rows[0]) throw new AppError(400, 'VALIDATION_ERROR', 'Room not found.');
-  return rows[0];
-}
-
-async function assertAssetExists(assetId: string) {
-  const db = getDb();
-  const rows = await db
-    .select({ id: assets.id, assetCode: assets.assetCode, assetName: assets.assetName })
-    .from(assets)
-    .where(eq(assets.id, sql`${assetId}::uuid`))
-    .limit(1);
-  if (!rows[0]) throw new AppError(400, 'VALIDATION_ERROR', 'Asset not found.');
-  return rows[0];
+interface DerivedAsset {
+  id: string;
+  assetCode: string;
+  assetName: string;
+  roomId: string | null;
+  roomName: string | null;
+  picName: string | null;
+  subcategoryId: string | null;
+  subcategoryCode: string | null;
+  subcategoryName: string | null;
+  isNetworkDevice: boolean | null;
+  deletedAt: Date | null;
 }
 
 function getPostgresErrorCode(err: unknown): string | undefined {
@@ -72,6 +66,87 @@ function isUniqueViolation(err: unknown): boolean {
   return getPostgresErrorCode(err) === '23505';
 }
 
+function getPostgresConstraint(err: unknown): string | undefined {
+  if (typeof err !== 'object' || err === null) return undefined;
+  const e = err as { constraint?: unknown; cause?: unknown };
+  if (typeof e.constraint === 'string') return e.constraint;
+  if (e.cause && typeof e.cause === 'object') {
+    const c = e.cause as { constraint?: unknown };
+    if (typeof c.constraint === 'string') return c.constraint;
+  }
+  return undefined;
+}
+
+function uniqueViolationMessage(err: unknown): string {
+  return getPostgresConstraint(err) === 'network_devices_active_ip_unique'
+    ? 'A device with this IP address is already active.'
+    : 'Asset is already used by another network device.';
+}
+
+/**
+ * Loads an asset and validates that it may back a Network Device:
+ * it must exist, have a subcategory flagged `is_network_device`, and not be
+ * linked to another Network Device (the current one is excluded on edit).
+ *
+ * Returns the raw asset info needed to derive `deviceType`/`hostname`/`roomId`.
+ */
+async function resolveEligibleAsset(assetId: string, excludeDeviceId?: string): Promise<DerivedAsset> {
+  const asset = (await assetRepo.findAssetNetworkInfo(assetId)) as DerivedAsset | null;
+  if (!asset || asset.deletedAt) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Asset not found.');
+  }
+  if (!asset.subcategoryId) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Asset does not have a subcategory.');
+  }
+  if (asset.isNetworkDevice !== true) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Asset subcategory is not marked as a network device.');
+  }
+
+  const db = getDb();
+  const conditions = [eq(networkDevices.assetId, sql`${assetId}::uuid`)];
+  if (excludeDeviceId) conditions.push(ne(networkDevices.id, sql`${excludeDeviceId}::uuid`));
+  const used = await db
+    .select({ id: networkDevices.id })
+    .from(networkDevices)
+    .where(and(...conditions))
+    .limit(1);
+  if (used[0]) {
+    throw new AppError(409, 'CONFLICT', 'Asset is already used by another network device.');
+  }
+
+  return asset;
+}
+
+/** Derived, read-only values the form shows once an asset is selected. */
+function deriveFromAsset(asset: DerivedAsset) {
+  return {
+    deviceType: deriveDeviceType({
+      code: asset.subcategoryCode,
+      name: asset.subcategoryName,
+    }),
+    hostname: asset.picName,
+    roomId: asset.roomId,
+  };
+}
+
+/** Public preview used by the form to auto-fill the readonly fields. */
+export async function getAssetPreview(assetId: string, excludeDeviceId?: string) {
+  const asset = await resolveEligibleAsset(assetId, excludeDeviceId);
+  const derived = deriveFromAsset(asset);
+  return {
+    assetId: asset.id,
+    assetCode: asset.assetCode,
+    assetName: asset.assetName,
+    subcategoryId: asset.subcategoryId,
+    subcategoryName: asset.subcategoryName,
+    picName: asset.picName,
+    roomId: derived.roomId,
+    roomName: asset.roomName,
+    deviceType: derived.deviceType,
+    hostname: derived.hostname,
+  };
+}
+
 export async function list(params: ListParams) {
   return repo.findMany(params);
 }
@@ -83,8 +158,11 @@ export async function getById(id: string) {
 }
 
 export async function create(body: CreateInput) {
-  await assertRoomExists(body.roomId);
-  if (body.assetId) await assertAssetExists(body.assetId);
+  const asset = await resolveEligibleAsset(body.assetId);
+  const derived = deriveFromAsset(asset);
+  if (!derived.roomId) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Asset does not have a room assigned.');
+  }
 
   if (body.isActive !== false) {
     const existing = await repo.findActiveByIp(body.ipAddress);
@@ -93,20 +171,26 @@ export async function create(body: CreateInput) {
     }
   }
 
-  const row = await repo.create({
-    name: body.name,
-    deviceType: body.deviceType,
-    hostname: body.hostname ?? undefined,
-    ipAddress: body.ipAddress,
-    macAddress: body.macAddress ?? undefined,
-    roomId: sql`${body.roomId}::uuid`,
-    assetId: body.assetId ? sql`${body.assetId}::uuid` : undefined,
-    isActive: body.isActive ?? true,
-    status: 'UNKNOWN',
-    consecutiveFailures: 0,
-  });
-
-  return repo.findById(row.id as string);
+  try {
+    const row = await repo.create({
+      name: body.name?.trim() || asset.assetName,
+      deviceType: derived.deviceType,
+      hostname: derived.hostname,
+      ipAddress: body.ipAddress,
+      macAddress: body.macAddress ?? undefined,
+      roomId: sql`${derived.roomId}::uuid`,
+      assetId: sql`${asset.id}::uuid`,
+      isActive: body.isActive ?? true,
+      status: 'UNKNOWN',
+      consecutiveFailures: 0,
+    });
+    return repo.findById(row.id as string);
+  } catch (err: unknown) {
+    if (isUniqueViolation(err)) {
+      throw new AppError(409, 'CONFLICT', uniqueViolationMessage(err));
+    }
+    throw err;
+  }
 }
 
 export async function update(id: string, body: UpdateInput) {
@@ -116,8 +200,6 @@ export async function update(id: string, body: UpdateInput) {
   const data: Record<string, unknown> = {};
 
   if (body.name !== undefined) data.name = body.name;
-  if (body.deviceType !== undefined) data.deviceType = body.deviceType;
-  if (body.hostname !== undefined) data.hostname = body.hostname || null;
   if (body.macAddress !== undefined) data.macAddress = body.macAddress || null;
 
   if (body.ipAddress !== undefined) {
@@ -126,14 +208,26 @@ export async function update(id: string, body: UpdateInput) {
     data.ipAddress = body.ipAddress;
   }
 
-  if (body.roomId !== undefined) {
-    await assertRoomExists(body.roomId);
-    data.roomId = sql`${body.roomId}::uuid`;
-  }
-
-  if (body.assetId !== undefined) {
-    if (body.assetId) await assertAssetExists(body.assetId);
-    data.assetId = body.assetId ? sql`${body.assetId}::uuid` : null;
+  // Asset is the source of truth. When it actually changes the derived fields
+  // are recomputed; when it is unchanged the derived fields already follow the
+  // asset (read live on the response), so nothing is rewritten. A null/empty
+  // assetId clears the relation.
+  const assetChanged = body.assetId !== undefined && body.assetId !== existing.assetId;
+  if (body.assetId !== undefined && body.assetId) {
+    if (assetChanged) {
+      const asset = await resolveEligibleAsset(body.assetId!, id);
+      const derived = deriveFromAsset(asset);
+      if (!derived.roomId) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'Asset does not have a room assigned.');
+      }
+      data.assetId = sql`${asset.id}::uuid`;
+      data.deviceType = derived.deviceType;
+      data.hostname = derived.hostname;
+      data.roomId = sql`${derived.roomId}::uuid`;
+      data.name = body.name !== undefined ? body.name : asset.assetName;
+    }
+  } else if (body.assetId === null && existing.assetId !== null) {
+    data.assetId = null;
   }
 
   // Business rule: do NOT allow monitoring state to be changed through UPDATE.
@@ -149,7 +243,7 @@ export async function update(id: string, body: UpdateInput) {
     await repo.update(id, data);
   } catch (err: unknown) {
     if (isUniqueViolation(err)) {
-      throw new AppError(409, 'CONFLICT', 'An active device with this IP address already exists.');
+      throw new AppError(409, 'CONFLICT', uniqueViolationMessage(err));
     }
     throw err;
   }

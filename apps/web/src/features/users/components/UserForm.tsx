@@ -54,7 +54,7 @@ export default function UserForm({
   const navigate = useNavigate();
   const isEdit = !!user;
 
-  const { data: departments } = useQuery({ queryKey: ['master', 'departments'], queryFn: () => listMaster('departments') });
+  const { data: departments } = useQuery({ queryKey: ['master', 'active', 'departments'], queryFn: () => listMaster('departments', { isActive: 'true' }) });
   const depts = ((departments as unknown as { data?: { id: string; name: string; code?: string }[] })?.data ?? []) as { id: string; name: string; code?: string }[];
 
   const selectedRole = roles.find((r) => r.id === roleId);

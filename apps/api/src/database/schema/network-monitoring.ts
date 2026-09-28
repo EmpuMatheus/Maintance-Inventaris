@@ -3,9 +3,6 @@ import { sql } from 'drizzle-orm';
 import { rooms } from './master-data';
 import { assets } from './assets';
 
-export const NETWORK_DEVICE_TYPES = ['COMPUTER', 'SWITCH'] as const;
-export type NetworkDeviceType = (typeof NETWORK_DEVICE_TYPES)[number];
-
 export const NETWORK_DEVICE_STATUSES = ['ONLINE', 'OFFLINE', 'UNKNOWN'] as const;
 export type NetworkDeviceStatus = (typeof NETWORK_DEVICE_STATUSES)[number];
 
@@ -17,7 +14,7 @@ export const networkDevices = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
     name: varchar('name', { length: 150 }).notNull(),
-    deviceType: varchar('device_type', { length: 50 }).notNull().default('COMPUTER'),
+    deviceType: varchar('device_type', { length: 150 }).notNull().default(''),
     hostname: varchar('hostname', { length: 150 }),
     ipAddress: varchar('ip_address', { length: 45 }).notNull(),
     macAddress: varchar('mac_address', { length: 100 }),
@@ -36,7 +33,6 @@ export const networkDevices = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    check('network_devices_device_type_check', sql`${table.deviceType} in ('COMPUTER', 'SWITCH')`),
     check('network_devices_status_check', sql`${table.status} in ('ONLINE', 'OFFLINE', 'UNKNOWN')`),
     check(
       'network_devices_consecutive_failures_nonnegative',
@@ -51,7 +47,10 @@ export const networkDevices = pgTable(
       .where(sql`${table.isActive} = true`),
     index('network_devices_status_idx').on(table.status),
     index('network_devices_room_id_idx').on(table.roomId),
-    index('network_devices_asset_id_idx').on(table.assetId),
+    // Business rule: one Asset can be linked to at most one Network Device.
+    uniqueIndex('network_devices_asset_id_unique')
+      .on(table.assetId)
+      .where(sql`${table.assetId} IS NOT NULL`),
   ],
 );
 

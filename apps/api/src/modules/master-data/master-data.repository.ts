@@ -11,7 +11,7 @@ import {
   rooms,
   maintenanceTypes,
 } from '@/database/schema';
-import { eq, like, and, or, sql, asc, desc, count } from 'drizzle-orm';
+import { eq, ne, like, and, or, sql, asc, desc, count } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 
@@ -95,6 +95,7 @@ export async function list(
         code: assetSubcategories.code,
         name: assetSubcategories.name,
         description: assetSubcategories.description,
+        isNetworkDevice: assetSubcategories.isNetworkDevice,
         isActive: assetSubcategories.isActive,
         createdAt: assetSubcategories.createdAt,
         updatedAt: assetSubcategories.updatedAt,
@@ -150,6 +151,7 @@ export async function getById(resource: string, id: string): Promise<Row | undef
         code: assetSubcategories.code,
         name: assetSubcategories.name,
         description: assetSubcategories.description,
+        isNetworkDevice: assetSubcategories.isNetworkDevice,
         isActive: assetSubcategories.isActive,
         createdAt: assetSubcategories.createdAt,
         updatedAt: assetSubcategories.updatedAt,
@@ -166,6 +168,43 @@ export async function getById(resource: string, id: string): Promise<Row | undef
       .where(eq(cfg.table['id' as keyof typeof cfg.table] as unknown as SQL, sql`${id}::uuid`))
       .limit(1)) as Row[];
   }
+
+  return rows[0] as Row | undefined;
+}
+
+/**
+ * Finds a record that shares the same `code` within the same parent.
+ *
+ * Used to enforce `parent_id + code` uniqueness for subcategories, buildings,
+ * floors and rooms. `excludeId` skips the record currently being edited so it
+ * is not treated as a duplicate of itself. Inactive records are included on
+ * purpose: a code stays reserved inside its parent regardless of status.
+ */
+export async function findByParentAndCode(
+  resource: string,
+  parentField: string,
+  parentId: string,
+  code: string,
+  excludeId?: string,
+): Promise<Row | undefined> {
+  const cfg = TABLES[resource];
+  if (!cfg) throw new Error(`Unknown resource: ${resource}`);
+
+  const db = getDb();
+  const conditions: SQL[] = [
+    eq(cfg.table[parentField as keyof typeof cfg.table] as unknown as SQL, sql`${parentId}::uuid`),
+    eq(cfg.table['code' as keyof typeof cfg.table] as unknown as SQL, code),
+  ];
+  if (excludeId) {
+    const idCol = cfg.table['id' as keyof typeof cfg.table] as unknown as SQL;
+    conditions.push(ne(idCol, sql`${excludeId}::uuid`));
+  }
+
+  const rows = (await db
+    .select()
+    .from(cfg.table)
+    .where(and(...conditions))
+    .limit(1)) as Row[];
 
   return rows[0] as Row | undefined;
 }
@@ -201,11 +240,19 @@ export async function update(
   return rows[0] as Row | undefined;
 }
 
+export async function setActive(
+  resource: string,
+  id: string,
+  isActive: boolean,
+): Promise<Row | undefined> {
+  return update(resource, id, { isActive } as Record<string, unknown>);
+}
+
 export async function deactivate(
   resource: string,
   id: string,
 ): Promise<Row | undefined> {
-  return update(resource, id, { isActive: false } as Record<string, unknown>);
+  return setActive(resource, id, false);
 }
 
 /** Hard-deletes a master data row (used for category cleanup). */
@@ -223,4 +270,33 @@ export async function remove(
     .returning();
 
   return rows[0] as Row | undefined;
+}
+
+/**
+ * Hard-deletes a category and every record that depends on it.
+ *
+ * `asset_code_counters` has no foreign key to categories/subcategories, so it
+ * is cleaned up explicitly inside the same transaction to avoid orphan rows.
+ * All other dependent tables (subcategories, assets, user_categories and the
+ * asset child records) are removed by PostgreSQL through ON DELETE CASCADE.
+ */
+export async function removeCategory(id: string): Promise<Row | undefined> {
+  const db = getDb();
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      DELETE FROM asset_code_counters
+      WHERE category_id = ${id}::uuid
+         OR subcategory_id IN (
+           SELECT id FROM asset_subcategories WHERE category_id = ${id}::uuid
+         )
+    `);
+
+    const rows = await tx
+      .delete(assetCategories)
+      .where(eq(assetCategories.id, sql`${id}::uuid`))
+      .returning();
+
+    return rows[0] as Row | undefined;
+  });
 }

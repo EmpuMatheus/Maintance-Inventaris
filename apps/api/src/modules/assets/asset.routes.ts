@@ -11,7 +11,7 @@ import * as compCtrl from './component.controller';
 import { createAssetWithComponentsSchema, updateAssetSchema, retireAssetSchema, deleteAssetSchema, createAssetComponentSchema, updateAssetComponentSchema } from './asset.schema';
 import { updateConditionSchema } from './condition.schema';
 import { assignSchema, returnSchema, transferSchema } from './assignment.schema';
-import { createTransferSchema } from './transfer.schema';
+import { createTransferSchema, rejectTransferSchema } from './transfer.schema';
 
 const router = Router();
 
@@ -41,8 +41,12 @@ router.post('/:id/movements', ...trn, validate(transferSchema), asnCtrl.transfer
 router.get('/:id/movements', ...read, asnCtrl.movementHistoryController);
 
 router.get('/:id/transfers/active', ...read, trfCtrl.activeTransferController);
+router.get('/:id/transfers/latest', ...read, trfCtrl.latestTransferController);
+router.get('/transfers/receiver-context/:userId', ...read, trfCtrl.receiverContextController);
 router.post('/:id/transfers', ...trn, documentUpload.single('authorizationLetter'), validate(createTransferSchema), trfCtrl.createTransferController);
-router.post('/transfers/:transferId/confirm', ...trn, trfCtrl.confirmTransferController);
+// Confirmation/rejection are available to any authenticated party (checked in service).
+router.post('/transfers/:transferId/confirm', authenticate, trfCtrl.confirmTransferController);
+router.post('/transfers/:transferId/reject', authenticate, validate(rejectTransferSchema), trfCtrl.rejectTransferController);
 router.post('/transfers/:transferId/cancel', ...trn, trfCtrl.cancelTransferController);
 router.get('/transfers/:transferId', ...read, trfCtrl.transferByIdController);
 

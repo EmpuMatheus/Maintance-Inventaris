@@ -1,0 +1,2 @@
+DROP INDEX "network_devices_asset_id_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX "network_devices_asset_id_unique" ON "network_devices" USING btree ("asset_id") WHERE "network_devices"."asset_id" IS NOT NULL;

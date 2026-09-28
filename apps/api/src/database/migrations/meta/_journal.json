@@ -127,6 +127,69 @@
       "when": 1788998400000,
       "tag": "0017_create_maintenance_code_seq",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789797695984,
+      "tag": "0019_tan_scarecrow",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789800756227,
+      "tag": "0020_perfect_living_lightning",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789950417904,
+      "tag": "0021_bizarre_scarlet_witch",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790067945842,
+      "tag": "0022_rich_bloodaxe",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790068211905,
+      "tag": "0023_melodic_kate_bishop",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790068221564,
+      "tag": "0024_omniscient_firebird",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790299921037,
+      "tag": "0025_sad_killmonger",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790323001770,
+      "tag": "0026_outgoing_george_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1790325999243,
+      "tag": "0027_stormy_living_lightning",
+      "breakpoints": true
     }
   ]
 }

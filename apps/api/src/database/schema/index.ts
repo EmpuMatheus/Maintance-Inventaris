@@ -7,3 +7,4 @@ export * from './system';
 export * from './counters';
 export * from './analytics';
 export * from './network-monitoring';
+export * from './cctv';

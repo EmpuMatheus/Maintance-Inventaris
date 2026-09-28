@@ -9,6 +9,7 @@ import DeviceTypeBadge from '@/features/network-monitoring/components/DeviceType
 import NetworkStatusBadge from '@/features/network-monitoring/components/NetworkStatusBadge';
 import { networkMonitoringKeys } from '@/features/network-monitoring/api/monitoring';
 import { formatEventDateTime } from '@/features/network-monitoring/utils/format';
+import { listMaster } from '@/features/inventory/api/inventory';
 import { listNetworkDevices, setNetworkDeviceStatus, networkDeviceKeys } from '../api/network-devices';
 import NetworkDeviceFilters from '../components/NetworkDeviceFilters';
 import ActiveStatusBadge from '../components/ActiveStatusBadge';
@@ -29,6 +30,20 @@ export default function NetworkDeviceListPage() {
     queryKey: networkDeviceKeys.list(filters),
     queryFn: () => listNetworkDevices(filters),
   });
+
+  // Device Type options are the network-device subcategory names, since a
+  // device's type is derived from its Asset's subcategory.
+  const { data: subcategoriesData } = useQuery({
+    queryKey: ['master', 'subcategories'],
+    queryFn: () => listMaster('subcategories'),
+  });
+  const deviceTypes = Array.from(
+    new Set(
+      ((subcategoriesData?.data ?? []) as { name?: string; isNetworkDevice?: boolean }[])
+        .filter((s) => s.isNetworkDevice && s.name)
+        .map((s) => s.name as string),
+    ),
+  ).sort();
 
   const toggleStatus = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => setNetworkDeviceStatus(id, isActive),
@@ -138,7 +153,12 @@ export default function NetworkDeviceListPage() {
         )}
       </div>
 
-      <NetworkDeviceFilters value={filters} onChange={onChange} onReset={() => setFilters(INITIAL)} />
+      <NetworkDeviceFilters
+        value={filters}
+        deviceTypes={deviceTypes}
+        onChange={onChange}
+        onReset={() => setFilters(INITIAL)}
+      />
 
       {showEmptyState ? (
         <div className="rounded-lg border border-slate-200 bg-white p-12 text-center">

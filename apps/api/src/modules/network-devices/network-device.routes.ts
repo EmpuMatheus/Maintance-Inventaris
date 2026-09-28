@@ -11,6 +11,7 @@ const read = [authenticate, authorizeAny('network_device.read', 'network_device.
 const write = [authenticate, authorize('network_device.manage')];
 
 router.get('/', ...read, ctrl.listController);
+router.get('/assets/:assetId/preview', ...read, ctrl.assetPreviewController);
 router.get('/:id', ...read, ctrl.getByIdController);
 router.post('/', ...write, validate(s.createSchema), ctrl.createController);
 router.put('/:id', ...write, validate(s.updateSchema), ctrl.updateController);

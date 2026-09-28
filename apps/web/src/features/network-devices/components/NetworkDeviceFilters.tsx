@@ -4,17 +4,18 @@ import { listMaster } from '@/features/inventory/api/inventory';
 import type { NetworkDeviceFilters } from '../types';
 
 const STATUS_OPTIONS = ['ONLINE', 'OFFLINE', 'UNKNOWN'];
-const TYPE_OPTIONS = ['COMPUTER', 'SWITCH'];
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500';
 
 export default function NetworkDeviceFilters({
   value,
+  deviceTypes = [],
   onChange,
   onReset,
 }: {
   value: NetworkDeviceFilters;
+  deviceTypes?: string[];
   onChange: (patch: Partial<NetworkDeviceFilters>) => void;
   onReset: () => void;
 }) {
@@ -40,9 +41,9 @@ export default function NetworkDeviceFilters({
         aria-label="Filter by device type"
       >
         <option value="">All Types</option>
-        {TYPE_OPTIONS.map((t) => (
+        {deviceTypes.map((t) => (
           <option key={t} value={t}>
-            {t.charAt(0) + t.slice(1).toLowerCase()}
+            {t}
           </option>
         ))}
       </select>

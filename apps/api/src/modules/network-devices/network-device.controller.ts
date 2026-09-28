@@ -37,6 +37,21 @@ export async function getByIdController(req: Request, res: Response, next: NextF
   } catch (e) { next(e); }
 }
 
+/**
+ * Preview of the derived (read-only) values for an eligible asset. Used by the
+ * form to auto-fill Device Type, Hostname and Room right after asset selection.
+ */
+export async function assetPreviewController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const exclude =
+      typeof req.query.excludeNetworkDeviceId === 'string'
+        ? req.query.excludeNetworkDeviceId
+        : undefined;
+    const data = await svc.getAssetPreview(req.params.assetId as string, exclude);
+    res.json({ success: true, data });
+  } catch (e) { next(e); }
+}
+
 export async function createController(req: Request, res: Response, next: NextFunction) {
   try {
     const row = await svc.create(req.body);

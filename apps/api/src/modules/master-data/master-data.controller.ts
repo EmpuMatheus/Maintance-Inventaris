@@ -2,6 +2,11 @@ import type { Request, Response, NextFunction } from 'express';
 import * as service from './master-data.service';
 import { auditFromRequest } from '@/modules/audit/audit.service';
 
+function qBool(v: unknown): boolean | undefined {
+  if (v === undefined || v === '') return undefined;
+  return v === 'true';
+}
+
 export function list(resource: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -16,6 +21,7 @@ export function list(resource: string) {
         siteId: typeof q.siteId === 'string' ? q.siteId : undefined,
         buildingId: typeof q.buildingId === 'string' ? q.buildingId : undefined,
         floorId: typeof q.floorId === 'string' ? q.floorId : undefined,
+        isActive: qBool(q.isActive),
       });
       res.json({ success: true, ...result });
     } catch (error) {
@@ -59,21 +65,60 @@ export function update(resource: string) {
   };
 }
 
+export function setActive(resource: string) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params.id as string;
+      const isActive = Boolean(req.body?.isActive);
+      const row = await service.setActive(resource, id, isActive);
+      auditFromRequest(req, {
+        module: 'MASTER_DATA',
+        action: 'UPDATE',
+        entityType: `master_${resource.replace(/-/g, '_')}`,
+        entityId: id,
+        description: `${resource} ${String(row.code ?? row.name ?? id)} ${isActive ? 'activated' : 'deactivated'}.`,
+        newData: { isActive: row.isActive },
+      });
+      res.json({ success: true, data: row });
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
 export function deactivate(resource: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params.id as string;
       const row = await service.deactivate(resource, id);
-      if (resource === 'categories') {
-        auditFromRequest(req, {
-          module: 'MASTER_DATA',
-          action: 'DELETE',
-          entityType: 'asset_category',
-          entityId: id,
-          description: `Asset category ${row.code} deleted.`,
-          newData: { code: row.code, name: row.name },
-        });
-      }
+      auditFromRequest(req, {
+        module: 'MASTER_DATA',
+        action: 'UPDATE',
+        entityType: `master_${resource.replace(/-/g, '_')}`,
+        entityId: id,
+        description: `${resource} ${String(row.code ?? row.name ?? id)} deactivated.`,
+        newData: { isActive: row.isActive },
+      });
+      res.json({ success: true, data: row });
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+export function deletePermanently(resource: string) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params.id as string;
+      const row = await service.deletePermanently(resource, id);
+      auditFromRequest(req, {
+        module: 'MASTER_DATA',
+        action: 'DELETE',
+        entityType: 'asset_category',
+        entityId: id,
+        description: `Asset category ${row.code} permanently deleted (Wrong Registration).`,
+        newData: { code: row.code, name: row.name, reason: 'WRONG_REGISTRATION', notes: req.body?.notes ?? null },
+      });
       res.json({ success: true, data: row });
     } catch (error) {
       next(error);

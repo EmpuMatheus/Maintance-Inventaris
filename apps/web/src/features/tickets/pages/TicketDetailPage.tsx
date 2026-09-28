@@ -87,7 +87,7 @@ export default function TicketDetailPage() {
   });
 
   const { data: users } = useQuery({ queryKey: ['master', 'users'], queryFn: () => listMaster('users', {}) });
-  const { data: types } = useQuery({ queryKey: ['master', 'maintenance-types'], queryFn: () => listMaster('maintenance-types') });
+  const { data: types } = useQuery({ queryKey: ['master', 'active', 'maintenance-types'], queryFn: () => listMaster('maintenance-types', { isActive: 'true' }) });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ticketKeys.all });

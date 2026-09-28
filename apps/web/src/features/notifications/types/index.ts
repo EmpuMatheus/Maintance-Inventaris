@@ -10,6 +10,7 @@ export interface AppNotification {
   message: string | null;
   entityType: string | null;
   entityId: string | null;
+  data: Record<string, unknown> | null;
   isRead: boolean;
   readAt: string | null;
   archivedAt: string | null;

@@ -73,6 +73,14 @@ export function getActiveTransfer(assetId: string) {
   return apiGet<any>(`/assets/${assetId}/transfers/active`);
 }
 
+export function getLatestTransfer(assetId: string) {
+  return apiGet<any>(`/assets/${assetId}/transfers/latest`);
+}
+
+export function getReceiverContext(userId: string) {
+  return apiGet<any>(`/assets/transfers/receiver-context/${userId}`);
+}
+
 export function getTransferById(transferId: string) {
   return apiGet<any>(`/assets/transfers/${transferId}`);
 }
@@ -83,6 +91,10 @@ export function createTransfer(assetId: string, data: Record<string, unknown>) {
   fd.append('buildingId', data.buildingId as string);
   fd.append('floorId', data.floorId as string);
   fd.append('roomId', data.roomId as string);
+  if (data.departmentId) fd.append('departmentId', data.departmentId as string);
+  if (data.receiverUserId) fd.append('receiverUserId', data.receiverUserId as string);
+  const witnessIds = Array.isArray(data.witnessUserIds) ? (data.witnessUserIds as string[]) : [];
+  fd.append('witnessUserIds', JSON.stringify(witnessIds.filter(Boolean)));
   if (data.reason) fd.append('reason', data.reason as string);
   if (data.notes) fd.append('notes', data.notes as string);
   return apiUpload<any>(`/assets/${assetId}/transfers`, 'POST', fd);
@@ -90,6 +102,10 @@ export function createTransfer(assetId: string, data: Record<string, unknown>) {
 
 export function confirmTransfer(transferId: string) {
   return apiPost<any>(`/assets/transfers/${transferId}/confirm`, {});
+}
+
+export function rejectTransfer(transferId: string, reason: string) {
+  return apiPost<any>(`/assets/transfers/${transferId}/reject`, { reason });
 }
 
 export function cancelTransfer(transferId: string) {

@@ -1,4 +1,4 @@
-export type NetworkDeviceType = 'COMPUTER' | 'SWITCH';
+export type NetworkDeviceType = string;
 export type NetworkStatus = 'ONLINE' | 'OFFLINE' | 'UNKNOWN';
 
 export interface NetworkDeviceRoom {
@@ -22,8 +22,25 @@ export interface NetworkDeviceAsset {
   condition: string;
   categoryId: string | null;
   categoryName: string | null;
+  subcategoryId: string | null;
+  subcategoryName: string | null;
+  picName: string | null;
   departmentId: string | null;
   departmentName: string | null;
+}
+
+/** Derived, read-only values returned by the asset eligibility preview. */
+export interface NetworkDeviceAssetPreview {
+  assetId: string;
+  assetCode: string;
+  assetName: string;
+  subcategoryId: string | null;
+  subcategoryName: string | null;
+  picName: string | null;
+  roomId: string | null;
+  roomName: string | null;
+  deviceType: NetworkDeviceType;
+  hostname: string | null;
 }
 
 export interface NetworkDevice {
@@ -58,15 +75,16 @@ export interface NetworkDeviceFilters {
   isActive?: boolean;
 }
 
-/** Only identity/location/asset fields are editable; monitoring state is backend-owned. */
+/**
+ * Only asset + network fields are submitted. `deviceType`, `hostname` and
+ * `roomId` are derived from the selected asset by the backend (source of truth).
+ * Monitoring state is backend-owned.
+ */
 export interface NetworkDeviceInput {
-  name: string;
-  deviceType: NetworkDeviceType;
+  name?: string;
   ipAddress: string;
-  hostname?: string | null;
   macAddress?: string | null;
-  roomId: string;
-  assetId?: string | null;
+  assetId: string | null;
 }
 
 export interface PaginationMeta {

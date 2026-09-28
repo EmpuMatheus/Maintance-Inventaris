@@ -17,6 +17,11 @@ export const listAssetsQuery = z.object({
   floorId: z.string().uuid().optional(),
   roomId: z.string().uuid().optional(),
   picId: z.string().uuid().optional(),
+  networkDeviceEligible: z
+    .string()
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true')),
+  excludeNetworkDeviceId: z.string().uuid().optional(),
 });
 
 export const createAssetComponentSchema = z.object({

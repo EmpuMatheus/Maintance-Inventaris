@@ -53,6 +53,34 @@ export function formatNotificationEvent(event: NotificationEvent): FormattedNoti
       break;
 
     case 'MOVEMENT':
+      if (event.action === 'transfer_requested') {
+        return {
+          title: '🚚 Transfer Confirmation Required',
+          message: `${asset || 'An asset'} has a pending transfer. Please confirm or reject.`,
+          priority: 'WARNING',
+        };
+      }
+      if (event.action === 'transfer_confirmed') {
+        return {
+          title: '✅ Transfer Confirmed',
+          message: `${s(event.data, 'userName') || 'A party'} confirmed the transfer of ${asset || 'an asset'}.`,
+          priority: 'INFO',
+        };
+      }
+      if (event.action === 'transfer_rejected') {
+        return {
+          title: '❌ Transfer Rejected',
+          message: `${asset || 'An asset'} transfer was rejected by ${s(event.data, 'userName') || 'a party'}: ${s(event.data, 'reason') || 'no reason provided'}.`,
+          priority: 'CRITICAL',
+        };
+      }
+      if (event.action === 'transfer_completed') {
+        return {
+          title: '🚚 Asset Transfer Completed',
+          message: `${asset || 'An asset'} transfer completed; asset moved to ${s(event.data, 'toRoomName') || 'a new location'}.`,
+          priority: 'SUCCESS',
+        };
+      }
       return { title: '🚚 Asset Moved', message: `${asset || 'An asset'} was moved to a new location.`, priority: 'INFO' };
 
     case 'MAINTENANCE':

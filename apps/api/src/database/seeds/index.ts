@@ -53,6 +53,10 @@ const PERMISSIONS = [
   { code: 'analytics.read', name: 'Read Analytics' },
   { code: 'network_device.read', name: 'Read Network Device' },
   { code: 'network_device.manage', name: 'Manage Network Device' },
+  { code: 'cctv_device.read', name: 'Read CCTV Device' },
+  { code: 'cctv_device.manage', name: 'Manage CCTV Device' },
+  { code: 'cctv_stream.read', name: 'Read CCTV Stream' },
+  { code: 'cctv_stream.manage', name: 'Manage CCTV Stream' },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
@@ -67,6 +71,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'notification.read',
     'analytics.read',
     'network_device.read', 'network_device.manage',
+    'cctv_device.read', 'cctv_device.manage', 'cctv_stream.read', 'cctv_stream.manage',
   ],
   TECHNICIAN: [
     'asset.read', 'asset.retire',

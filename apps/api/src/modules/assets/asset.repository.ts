@@ -1,10 +1,11 @@
 import { getDb } from '@/database/client';
-import { assets, assetCategories, assetSubcategories, brands, vendors, sites, buildings, floors, rooms, departments, users } from '@/database/schema';
+import { assets, assetCategories, assetSubcategories, brands, vendors, sites, buildings, floors, rooms, departments, users, networkDevices } from '@/database/schema';
 import { alias } from 'drizzle-orm/pg-core';
 import { eq, like, and, sql, asc, desc, count, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 
 const retiredUsers = alias(users, 'retired_users');
+const picUsers = alias(users, 'pic_users');
 
 const LIST_COLUMNS = {
   id: assets.id,
@@ -17,13 +18,18 @@ const LIST_COLUMNS = {
   categoryId: assets.categoryId,
   categoryName: assetCategories.name,
   subcategoryId: assets.subcategoryId,
+  subcategoryCode: assetSubcategories.code,
+  subcategoryName: assetSubcategories.name,
+  isNetworkDevice: assetSubcategories.isNetworkDevice,
   brandId: assets.brandId,
   siteId: assets.siteId,
   buildingId: assets.buildingId,
   floorId: assets.floorId,
   roomId: assets.roomId,
+  roomName: rooms.name,
   departmentId: assets.departmentId,
   currentPicId: assets.currentPicId,
+  picName: picUsers.name,
   createdAt: assets.createdAt,
 };
 
@@ -32,6 +38,7 @@ export async function findAssets(params: {
   condition?: string; status?: string; categoryId?: string; subcategoryId?: string;
   brandId?: string; departmentId?: string; siteId?: string; buildingId?: string;
   floorId?: string; roomId?: string; picId?: string; ownUserId?: string; categoryIds?: string[];
+  networkDeviceEligible?: boolean; excludeNetworkDeviceId?: string;
 }) {
   const db = getDb();
   const page = Math.max(1, params.page ?? 1);
@@ -66,6 +73,19 @@ export async function findAssets(params: {
     conditions.push(inArray(assets.categoryId, params.categoryIds));
   }
 
+  // Network Device eligibility: the asset's subcategory must be flagged as a
+  // network device and the asset must not already be linked to another device.
+  // The current device (when editing) is excluded from the "already used" check
+  // so its own asset remains selectable.
+  if (params.networkDeviceEligible) {
+    conditions.push(sql`${assetSubcategories.isNetworkDevice} = true`);
+    conditions.push(sql`NOT EXISTS (
+      SELECT 1 FROM ${networkDevices}
+      WHERE ${networkDevices.assetId} = ${assets.id}
+      ${params.excludeNetworkDeviceId ? sql`AND ${networkDevices.id} <> ${params.excludeNetworkDeviceId}::uuid` : sql``}
+    )`);
+  }
+
   const where = and(...conditions);
   const allowedSort = ['assetCode', 'assetName', 'category', 'condition', 'status', 'createdAt'] as const;
   const sortKey = params.sort && (allowedSort as readonly string[]).includes(params.sort) ? params.sort : 'createdAt';
@@ -76,6 +96,9 @@ export async function findAssets(params: {
     .select(LIST_COLUMNS)
     .from(assets)
     .leftJoin(assetCategories, eq(assets.categoryId, assetCategories.id))
+    .leftJoin(assetSubcategories, eq(assets.subcategoryId, assetSubcategories.id))
+    .leftJoin(rooms, eq(assets.roomId, rooms.id))
+    .leftJoin(picUsers, eq(assets.currentPicId, picUsers.id))
     .where(where)
     .orderBy(orderFn(sortCol))
     .limit(limit)
@@ -84,6 +107,7 @@ export async function findAssets(params: {
     .select({ value: count() })
     .from(assets)
     .leftJoin(assetCategories, eq(assets.categoryId, assetCategories.id))
+    .leftJoin(assetSubcategories, eq(assets.subcategoryId, assetSubcategories.id))
     .where(where);
   const total = Number(totalResult[0]?.value ?? 0);
 
@@ -137,6 +161,7 @@ export async function findAssetById(id: string) {
       categoryCode: assetCategories.code,
       subcategoryName: assetSubcategories.name,
       subcategoryCode: assetSubcategories.code,
+      isNetworkDevice: assetSubcategories.isNetworkDevice,
       brandName: brands.name,
       vendorName: vendors.name,
       siteName: sites.name,
@@ -165,6 +190,37 @@ export async function findAssetById(id: string) {
     .leftJoin(users, eq(assets.currentPicId, users.id))
     .leftJoin(retiredUsers, eq(assets.retiredBy, retiredUsers.id))
     .where(and(eq(assets.id, sql`${id}::uuid`), sql`${assets.deletedAt} IS NULL`))
+    .limit(1);
+  return (rows as any[])[0] ?? null;
+}
+
+/**
+ * Lightweight asset lookup used by the Network Device service to derive the
+ * device type/hostname/room and to validate network-device eligibility.
+ */
+export async function findAssetNetworkInfo(id: string) {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: assets.id,
+      assetCode: assets.assetCode,
+      assetName: assets.assetName,
+      status: assets.status,
+      roomId: assets.roomId,
+      roomName: rooms.name,
+      currentPicId: assets.currentPicId,
+      picName: picUsers.name,
+      subcategoryId: assets.subcategoryId,
+      subcategoryCode: assetSubcategories.code,
+      subcategoryName: assetSubcategories.name,
+      isNetworkDevice: assetSubcategories.isNetworkDevice,
+      deletedAt: assets.deletedAt,
+    })
+    .from(assets)
+    .leftJoin(assetSubcategories, eq(assets.subcategoryId, assetSubcategories.id))
+    .leftJoin(rooms, eq(assets.roomId, rooms.id))
+    .leftJoin(picUsers, eq(assets.currentPicId, picUsers.id))
+    .where(eq(assets.id, sql`${id}::uuid`))
     .limit(1);
   return (rows as any[])[0] ?? null;
 }

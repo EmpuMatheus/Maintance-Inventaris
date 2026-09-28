@@ -11,6 +11,7 @@ export const AUDIT_MODULES = [
   'TICKET',
   'REPORT',
   'SYSTEM',
+  'CCTV',
 ] as const;
 
 export type AuditModule = (typeof AUDIT_MODULES)[number];

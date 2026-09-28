@@ -1,0 +1,2 @@
+ALTER TABLE "cctv_devices" ADD COLUMN "rtsp_port" integer DEFAULT 554 NOT NULL;--> statement-breakpoint
+ALTER TABLE "cctv_devices" ADD CONSTRAINT "cctv_devices_rtsp_port_range_check" CHECK ("cctv_devices"."rtsp_port" > 0 AND "cctv_devices"."rtsp_port" <= 65535);

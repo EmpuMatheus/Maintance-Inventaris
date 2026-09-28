@@ -39,8 +39,8 @@ export default function TicketForm({
   const isEdit = !!ticket;
 
   const { data: departments } = useQuery({
-    queryKey: ['master', 'departments'],
-    queryFn: () => listMaster('departments'),
+    queryKey: ['master', 'active', 'departments'],
+    queryFn: () => listMaster('departments', { isActive: 'true' }),
   });
   const departmentList = (departments?.data ?? []) as { id: string; name: string; code?: string }[];
 

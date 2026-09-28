@@ -28,6 +28,46 @@ function cleanOptional(value: unknown): string | undefined | null {
   return undefined;
 }
 
+function cleanBool(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return undefined;
+}
+
+/**
+ * Resources whose `code` must be unique within a parent record.
+ * Keyed by resource, mapping the request body parent key to the DB column used
+ * by the repository.
+ */
+const UNIQUE_PARENT: Record<string, { parentField: string; parentKey: string }> = {
+  subcategories: { parentField: 'categoryId', parentKey: 'categoryId' },
+  buildings: { parentField: 'siteId', parentKey: 'siteId' },
+  floors: { parentField: 'buildingId', parentKey: 'buildingId' },
+  rooms: { parentField: 'floorId', parentKey: 'floorId' },
+};
+
+const DUPLICATE_CODE_MESSAGE = 'Code sudah digunakan pada parent yang dipilih.';
+
+async function assertUniqueCode(
+  resource: string,
+  data: Record<string, unknown>,
+  existing: Record<string, unknown> | null,
+  id?: string,
+): Promise<void> {
+  const cfg = UNIQUE_PARENT[resource];
+  if (!cfg) return;
+
+  const parentId = (data[cfg.parentKey] ?? existing?.[cfg.parentKey]) as string | undefined;
+  const code = (data.code ?? existing?.code) as string | undefined;
+  if (!parentId || !code) return;
+
+  const dup = await repo.findByParentAndCode(resource, cfg.parentField, parentId, code, id);
+  if (dup) {
+    throw new AppError(409, 'CONFLICT', DUPLICATE_CODE_MESSAGE);
+  }
+}
+
 const SCHEMAS: Record<string, (body: Record<string, unknown>) => Record<string, unknown>> = {
   categories(body) {
     return {
@@ -43,6 +83,7 @@ const SCHEMAS: Record<string, (body: Record<string, unknown>) => Record<string, 
       code: cleanString(body.code),
       name: cleanString(body.name),
       description: cleanOptional(body.description),
+      isNetworkDevice: cleanBool(body.isNetworkDevice),
     };
   },
   brands(body) {
@@ -123,6 +164,7 @@ export async function list(
     siteId?: string;
     buildingId?: string;
     floorId?: string;
+    isActive?: boolean;
   },
 ) {
   assertResource(resource);
@@ -136,6 +178,7 @@ export async function list(
     sort: query.sort,
     order: query.order,
     parentId,
+    isActive: query.isActive,
   });
 }
 
@@ -152,10 +195,16 @@ export async function create(resource: string, body: Record<string, unknown>) {
   assertResource(resource);
   const fn = SCHEMAS[resource];
   const data = fn(body);
+
+  await assertUniqueCode(resource, data, null);
+
   try {
     return await repo.create(resource, data);
   } catch (err: unknown) {
     if (isUniqueViolation(err)) {
+      if (UNIQUE_PARENT[resource]) {
+        throw new AppError(409, 'CONFLICT', DUPLICATE_CODE_MESSAGE);
+      }
       throw new AppError(409, 'CONFLICT', `${resource} with this code/name already exists.`);
     }
     if (isForeignKeyViolation(err)) {
@@ -185,11 +234,16 @@ export async function update(resource: string, id: string, body: Record<string, 
     return existing;
   }
 
+  await assertUniqueCode(resource, data, existing, id);
+
   try {
     const updated = await repo.update(resource, id, data);
     return updated ?? existing;
   } catch (err: unknown) {
     if (isUniqueViolation(err)) {
+      if (UNIQUE_PARENT[resource]) {
+        throw new AppError(409, 'CONFLICT', DUPLICATE_CODE_MESSAGE);
+      }
       throw new AppError(409, 'CONFLICT', `${resource} with this code/name already exists.`);
     }
     if (isForeignKeyViolation(err)) {
@@ -199,33 +253,67 @@ export async function update(resource: string, id: string, body: Record<string, 
   }
 }
 
-export async function deactivate(resource: string, id: string) {
+/**
+ * Soft-activates or soft-deactivates a master data record.
+ *
+ * Every master data resource carries an `is_active` flag, including categories.
+ * Deactivation only flips the status; the row and all existing references are
+ * preserved.
+ */
+export async function setActive(resource: string, id: string, isActive: boolean) {
   assertResource(resource);
+
   const existing = await repo.getById(resource, id);
   if (!existing) {
     throw new AppError(404, 'NOT_FOUND', `${resource} not found.`);
   }
 
-  // Categories are physically removed. DEVELOPMENT ONLY: the category and
-  // asset foreign keys are ON DELETE CASCADE, so PostgreSQL removes the whole
-  // subtree (subcategories, assets and all asset child records) automatically.
-  // TODO: before production assets.category_id -> asset_categories.id MUST be
-  // changed back to ON DELETE RESTRICT and the "category is used by assets"
-  // validation restored.
-  if (resource === 'categories') {
-    try {
-      const removed = await repo.remove(resource, id);
-      return removed ?? existing;
-    } catch (err: unknown) {
-      if (isForeignKeyViolation(err)) {
-        throw new AppError(409, 'CONFLICT', 'This category is still referenced by existing records.');
-      }
-      throw err;
-    }
+  const updated = await repo.setActive(resource, id, isActive);
+  return updated ?? existing;
+}
+
+/**
+ * Soft-deactivates a master data record. Categories share the same soft-status
+ * behaviour; physical removal is handled separately by
+ * `deletePermanently`.
+ */
+export async function deactivate(resource: string, id: string) {
+  assertResource(resource);
+  return setActive(resource, id, false);
+}
+
+/**
+ * Permanently deletes a category.
+ *
+ * DEVELOPMENT ONLY: the category foreign keys use ON DELETE CASCADE, so a
+ * single physical DELETE removes the whole subtree (subcategories, assets and
+ * all asset child records). `asset_code_counters` (no FK) is cleaned up in the
+ * same transaction, so no orphan data or foreign key errors are left behind.
+ *
+ * TODO: before production assets.category_id -> asset_categories.id MUST be
+ * changed back to ON DELETE RESTRICT and the "category is used by assets"
+ * validation restored.
+ */
+export async function deletePermanently(resource: string, id: string) {
+  assertResource(resource);
+  if (resource !== 'categories') {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Permanent delete is only supported for categories.');
   }
 
-  const updated = await repo.deactivate(resource, id);
-  return updated ?? existing;
+  const existing = await repo.getById(resource, id);
+  if (!existing) {
+    throw new AppError(404, 'NOT_FOUND', `${resource} not found.`);
+  }
+
+  try {
+    const removed = await repo.removeCategory(id);
+    return removed ?? existing;
+  } catch (err: unknown) {
+    if (isForeignKeyViolation(err)) {
+      throw new AppError(409, 'CONFLICT', 'This category is still referenced by existing records.');
+    }
+    throw err;
+  }
 }
 
 /**

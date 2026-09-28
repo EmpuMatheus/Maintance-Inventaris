@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, text, timestamp, date, numeric, integer, boolean, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, date, numeric, integer, boolean, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { assetCategories, assetSubcategories, brands, vendors, sites, buildings, floors, rooms, departments } from './master-data';
 import { users } from './auth';
 
@@ -99,11 +100,30 @@ export const assetTransfers = pgTable('asset_transfers', {
   proofDocumentFileName: varchar('proof_document_file_name', { length: 255 }),
   requestedBy: uuid('requested_by').references(() => users.id),
   approvedBy: uuid('approved_by').references(() => users.id),
+  rejectedBy: uuid('rejected_by').references(() => users.id),
+  rejectionReason: text('rejection_reason'),
+  rejectedAt: timestamp('rejected_at', { withTimezone: true }),
   requestedAt: timestamp('requested_at', { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const transferConfirmations = pgTable('transfer_confirmations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  transferId: uuid('transfer_id').notNull().references(() => assetTransfers.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  roles: text('roles').array().notNull().default(sql`ARRAY[]::text[]`),
+  status: varchar('status', { length: 20 }).notNull().default('PENDING'),
+  reason: text('reason'),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  rejectedAt: timestamp('rejected_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  transferUserUnique: uniqueIndex('transfer_confirmations_transfer_id_user_id_unique').on(table.transferId, table.userId),
+  transferIdx: index('transfer_confirmations_transfer_id_idx').on(table.transferId),
+}));
 
 export const assetMovements = pgTable('asset_movements', {
   id: uuid('id').defaultRandom().primaryKey(),

@@ -14,6 +14,7 @@ async function createForUser(params: {
   priority?: string;
   entityType?: string;
   entityId?: string | null;
+  data?: Record<string, unknown>;
 }) {
   const settings = await repo.getSettings(params.userId);
   const settingKey = params.type.toLowerCase();
@@ -26,6 +27,7 @@ async function createForUser(params: {
     message: params.message || undefined,
     entityType: params.entityType,
     entityId: params.entityId ? sql`${params.entityId}::uuid` : undefined,
+    data: params.data ?? undefined,
   });
 }
 
@@ -45,6 +47,7 @@ async function consumeEvent(event: BusEvent) {
     priority: formatted.priority,
     entityType: event.entityType,
     entityId: event.entityId,
+    data: event.data,
   });
 }
 

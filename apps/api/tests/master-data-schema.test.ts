@@ -53,6 +53,27 @@ describe('Master Data Schema Validation', () => {
       });
       expect(result.success).toBe(false);
     });
+
+    it('accepts an optional isNetworkDevice boolean', () => {
+      const result = createSubcategorySchema.safeParse({
+        categoryId: '00000000-0000-0000-0000-000000000001',
+        code: 'SW',
+        name: 'Switch',
+        isNetworkDevice: true,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.isNetworkDevice).toBe(true);
+    });
+
+    it('rejects a non-boolean isNetworkDevice', () => {
+      const result = createSubcategorySchema.safeParse({
+        categoryId: '00000000-0000-0000-0000-000000000001',
+        code: 'SW',
+        name: 'Switch',
+        isNetworkDevice: 'yes',
+      });
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('Location hierarchy validation', () => {

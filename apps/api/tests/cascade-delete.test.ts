@@ -80,7 +80,7 @@ describe('Database-driven cascade delete', () => {
   it('deleting a category removes the whole subtree (no orphans, no 23503)', async () => {
     const t = await createFullTree('QA_CAT');
 
-    await mdSvc.deactivate('categories', t.catId);
+    await mdSvc.deletePermanently('categories', t.catId);
 
     expect(await countById('asset_categories', 'id', t.catId)).toBe(0);
     expect(await countById('asset_subcategories', 'id', t.subId)).toBe(0);
@@ -98,8 +98,9 @@ describe('Database-driven cascade delete', () => {
     expect(await countById('tickets', 'asset_id', t.assetId)).toBe(0);
     expect(await countById('ticket_comments', 'ticket_id', t.ticketId)).toBe(0);
 
-    // The asset_code_counter for the deleted category has no FK and remains; clean it up.
-    await sql`DELETE FROM asset_code_counters WHERE category_id = ${t.catId}`;
+    // The asset_code_counter has no FK and must be cleaned up by the delete itself.
+    const counters = await sql`SELECT count(*)::int AS n FROM asset_code_counters WHERE category_id = ${t.catId} OR subcategory_id = ${t.subId}`;
+    expect(counters[0].n).toBe(0);
   });
 
   it('deleting an asset removes its whole subtree (no orphans, no 23503)', async () => {
