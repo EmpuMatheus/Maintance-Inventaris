@@ -17,6 +17,28 @@ function getAuthHeaders(isJson: boolean): Record<string, string> {
   return h;
 }
 
+/**
+ * Error carrying the backend error code and HTTP status so callers can react to
+ * specific conditions (e.g. TOO_MANY_SESSIONS) rather than parsing messages.
+ */
+export class ApiError extends Error {
+  code?: string;
+  status: number;
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export function isAbortError(error: unknown): boolean {
+  return (
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error as { name?: string })?.name === 'AbortError'
+  );
+}
+
 async function handleResponse<T>(res: Response, skipGlobal401?: boolean): Promise<T> {
   if (res.status === 401 && !skipGlobal401) {
     onSessionExpired?.();
@@ -24,7 +46,11 @@ async function handleResponse<T>(res: Response, skipGlobal401?: boolean): Promis
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error?.message || `Request failed (${res.status})`);
+    throw new ApiError(
+      body.error?.message || `Request failed (${res.status})`,
+      res.status,
+      body.error?.code,
+    );
   }
   return res.json();
 }
@@ -37,11 +63,12 @@ export function apiGet<T>(endpoint: string, params?: Record<string, string | num
     .then((r) => handleResponse<T>(r));
 }
 
-export function apiPost<T>(endpoint: string, body?: unknown, skipGlobal401?: boolean): Promise<T> {
+export function apiPost<T>(endpoint: string, body?: unknown, skipGlobal401?: boolean, signal?: AbortSignal): Promise<T> {
   return fetch(`${config.apiUrl}${endpoint}`, {
     method: 'POST',
     headers: getAuthHeaders(body !== undefined),
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal,
   }).then((r) => handleResponse<T>(r, skipGlobal401));
 }
 
@@ -61,11 +88,12 @@ export function apiPut<T>(endpoint: string, body: unknown): Promise<T> {
   }).then((r) => handleResponse<T>(r));
 }
 
-export function apiDelete<T>(endpoint: string, body?: unknown): Promise<T> {
+export function apiDelete<T>(endpoint: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   return fetch(`${config.apiUrl}${endpoint}`, {
     method: 'DELETE',
     headers: getAuthHeaders(body !== undefined),
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal,
   }).then((r) => handleResponse<T>(r));
 }
 

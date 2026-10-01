@@ -11,6 +11,7 @@ export type RtspErrorCode =
   | 'AUTHENTICATION_FAILED'
   | 'RTSP_UNAVAILABLE'
   | 'STREAM_UNAVAILABLE'
+  | 'STREAM_NO_MEDIA'
   | 'CONNECTION_TIMEOUT'
   | 'UNKNOWN_ERROR';
 
@@ -19,6 +20,7 @@ export const RTSP_ERROR_CODES: readonly RtspErrorCode[] = [
   'AUTHENTICATION_FAILED',
   'RTSP_UNAVAILABLE',
   'STREAM_UNAVAILABLE',
+  'STREAM_NO_MEDIA',
   'CONNECTION_TIMEOUT',
   'UNKNOWN_ERROR',
 ] as const;
@@ -29,6 +31,7 @@ const CODE_MESSAGES: Record<RtspErrorCode, string> = {
   AUTHENTICATION_FAILED: 'Authentication failed',
   RTSP_UNAVAILABLE: 'RTSP unavailable',
   STREAM_UNAVAILABLE: 'Stream unavailable',
+  STREAM_NO_MEDIA: 'Stream reachable but no decodable media',
   CONNECTION_TIMEOUT: 'Connection timeout',
   UNKNOWN_ERROR: 'Unknown connection error',
 };

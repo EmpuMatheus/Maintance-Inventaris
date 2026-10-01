@@ -2,6 +2,7 @@ import { AppError } from '@/middleware/error-handler';
 import { encryptSecret, decryptSecret } from '@/lib/crypto/secret-box';
 import { RtspProbeClient, RtspError } from '@/lib/rtsp';
 import type { RtspCredentials, RtspProbeResult } from '@/lib/rtsp';
+import { FfmpegRtspProbe, isFfmpegRtspProbeAvailable } from './cctv.rtsp-probe';
 import { toIntegrationError } from '@/lib/integration/errors';
 import { env } from '@/config/env';
 import * as repo from './cctv.repository';
@@ -45,6 +46,7 @@ export interface ListParams {
 export interface CreateInput {
   name: string;
   deviceType?: string;
+  subcategoryId?: string | null;
   brand?: string | null;
   model?: string | null;
   ipAddress: string;
@@ -60,6 +62,7 @@ export interface CreateInput {
 export interface UpdateInput {
   name?: string;
   deviceType?: string;
+  subcategoryId?: string | null;
   brand?: string | null;
   model?: string | null;
   ipAddress?: string;
@@ -102,6 +105,8 @@ export interface TestConnectionResult {
     serialNumber: string | null;
     hardwareId: string | null;
   } | null;
+  /** Advisory note, e.g. ONVIF down but RTSP may still be usable. */
+  hint: string | null;
   steps: TestConnectionStep[];
   checkedAt: string;
 }
@@ -161,9 +166,24 @@ function defaultBuildRtspClient(device: Record<string, unknown>): CctvRtspClient
     username: (device.username as string | null) ?? '',
     password,
   };
+  const host = device.ipAddress as string;
+  const port = (device.rtspPort as number | null) ?? 554;
+
+  // Prefer the FFmpeg decode probe: it matches how Live View actually reads the
+  // stream, and it verifies that media really decodes (not just DESCRIBE 200).
+  // Fall back to the transport-only DESCRIBE probe when FFmpeg is unavailable.
+  if (isFfmpegRtspProbeAvailable()) {
+    return new FfmpegRtspProbe({
+      host,
+      port,
+      credentials,
+      timeoutMs: env.CCTV_RTSP_TIMEOUT_MS,
+      probeDurationMs: env.CCTV_RTSP_PROBE_DURATION_MS,
+    });
+  }
   return new RtspProbeClient({
-    host: device.ipAddress as string,
-    port: (device.rtspPort as number | null) ?? 554,
+    host,
+    port,
     credentials,
     timeoutMs: env.CCTV_RTSP_TIMEOUT_MS,
   });
@@ -199,6 +219,10 @@ export interface RtspStreamTestResult {
   success: boolean;
   latencyMs: number | null;
   authenticated: boolean;
+  /** Video frames actually decoded by the probe (null for transport-only probes). */
+  decodedFrames: number | null;
+  /** Probe read duration in milliseconds (null for transport-only probes). */
+  durationMs: number | null;
   errorCode: string | null;
   errorMessage: string | null;
 }
@@ -236,6 +260,10 @@ export interface TestRtspResult {
   errorMessage: string | null;
   streams: RtspStreamTestResult[];
   steps: RtspTestStep[];
+  /** Frames decoded for the primary probed stream (null when not measured). */
+  decodedFrames: number | null;
+  /** Which probe strategy was used. */
+  probe: 'ffmpeg' | 'describe';
   checkedAt: string;
 }
 
@@ -288,13 +316,27 @@ export async function create(body: CreateInput) {
   const model = body.model?.trim() || null;
   const deviceType = body.deviceType ?? 'DVR';
 
+  // The subcategory (Master Data) is the source of truth for CCTV behaviour.
+  const subcategoryId = body.subcategoryId?.trim() || null;
+  const subcategory = subcategoryId ? await repo.findSubcategory(subcategoryId) : null;
+  if (subcategoryId && !subcategory) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Subcategory not found.');
+  }
+  const subcategoryName = (subcategory?.name as string | null) ?? null;
+
   try {
     const row = await repo.create({
       name: body.name.trim(),
       deviceType,
+      subcategoryId,
       brand,
       model,
-      integrationProtocol: resolveIntegrationProtocol({ brand, model, deviceType }),
+      integrationProtocol: resolveIntegrationProtocol({
+        subcategoryName,
+        brand,
+        model,
+        deviceType,
+      }),
       ipAddress: body.ipAddress,
       port: body.port ?? 80,
       rtspPort: body.rtspPort ?? 554,
@@ -331,6 +373,23 @@ export async function update(id: string, body: UpdateInput) {
   // treated as "clear password"; undefined leaves it unchanged.
   if (body.password !== undefined) data.passwordEncrypted = encryptSecret(body.password);
 
+  // Subcategory is the source of truth. Resolve its name so the derived
+  // protocol reflects the new subcategory.
+  let subcategoryName: string | null = (existing.subcategoryName as string | null) ?? null;
+  if (body.subcategoryId !== undefined) {
+    const subcategoryId = body.subcategoryId?.trim() || null;
+    if (subcategoryId) {
+      const subcategory = await repo.findSubcategory(subcategoryId);
+      if (!subcategory) {
+        throw new AppError(400, 'VALIDATION_ERROR', 'Subcategory not found.');
+      }
+      subcategoryName = (subcategory.name as string | null) ?? null;
+    } else {
+      subcategoryName = null;
+    }
+    data.subcategoryId = subcategoryId;
+  }
+
   const endpointChanged =
     body.ipAddress !== undefined && body.ipAddress !== (existing.ipAddress as string);
   const portChanged = body.port !== undefined && body.port !== (existing.port as number);
@@ -354,13 +413,16 @@ export async function update(id: string, body: UpdateInput) {
   delete data.isActive;
   delete data.lastCheckedAt;
 
-  // Re-derive the integration protocol whenever the vendor/type inputs change.
+  // Re-derive the integration protocol whenever the subcategory/vendor/type
+  // inputs change.
   if (
+    body.subcategoryId !== undefined ||
     body.brand !== undefined ||
     body.model !== undefined ||
     body.deviceType !== undefined
   ) {
     data.integrationProtocol = resolveIntegrationProtocol({
+      subcategoryName,
       brand: body.brand !== undefined ? data.brand : existing.brand,
       model: body.model !== undefined ? data.model : existing.model,
       deviceType: body.deviceType !== undefined ? data.deviceType : existing.deviceType,
@@ -431,6 +493,7 @@ export async function testConnection(id: string): Promise<TestConnectionResult> 
     errorCode: null,
     errorMessage: null,
     deviceInformation: null,
+    hint: null,
     steps: [],
     checkedAt: checkedAt.toISOString(),
   };
@@ -518,6 +581,18 @@ export async function testConnection(id: string): Promise<TestConnectionResult> 
         break;
     }
 
+    // For ONVIF devices, a failed management protocol does NOT necessarily mean
+    // the device cannot stream: RTSP may still be reachable. Surface that hint
+    // without ever reporting a fake success.
+    if (
+      protocol === 'ONVIF' &&
+      (integrationError.code === 'ONVIF_UNAVAILABLE' ||
+        integrationError.code === 'PROTOCOL_SERVICE_ERROR' ||
+        integrationError.code === 'INVALID_RESPONSE')
+    ) {
+      result.hint = 'ONVIF unavailable. The device may still stream over RTSP - run Test RTSP Connection.';
+    }
+
     // Any failure means the device is not usable right now.
     result.status = 'OFFLINE';
     await repo.recordConnectionResult(id, {
@@ -560,8 +635,9 @@ export async function testRtspConnection(
   const client = buildRtspClient(device);
   const provider = buildIntegrationProvider(device);
 
-  // Stored profiles let the ONVIF provider reuse an already-resolved StreamUri.
-  const storedProfiles = await loadStoredProfiles(device);
+  // Stored profiles let the ONVIF provider reuse an already-resolved StreamUri
+  // (scoped to the requested channel so multi-channel devices map correctly).
+  const storedProfiles = await loadStoredProfiles(device, channel);
 
   let targets: Awaited<ReturnType<typeof provider.resolveRtspTargets>> = [];
   let resolutionError: RtspTestStreamFailure | null = null;
@@ -592,6 +668,8 @@ export async function testRtspConnection(
         success: false,
         latencyMs: null,
         authenticated: false,
+        decodedFrames: null,
+        durationMs: null,
         errorCode: resolutionError?.errorCode ?? 'STREAM_UNAVAILABLE',
         errorMessage: resolutionError?.errorMessage ?? 'Stream unavailable',
       });
@@ -610,6 +688,8 @@ export async function testRtspConnection(
         success: true,
         latencyMs: probe.latencyMs,
         authenticated: probe.authenticated,
+        decodedFrames: probe.decodedFrames ?? null,
+        durationMs: probe.durationMs ?? null,
         errorCode: null,
         errorMessage: null,
       });
@@ -622,6 +702,8 @@ export async function testRtspConnection(
         success: false,
         latencyMs: null,
         authenticated: false,
+        decodedFrames: null,
+        durationMs: null,
         errorCode: rtspError.code,
         errorMessage: rtspError.label,
       });
@@ -636,10 +718,13 @@ export async function testRtspConnection(
     success: false,
     latencyMs: null,
     authenticated: false,
+    decodedFrames: null,
+    durationMs: null,
     errorCode: 'STREAM_UNAVAILABLE',
     errorMessage: 'Stream unavailable',
   };
   const success = streams.length > 0 && streams.every((s) => s.success);
+  const probeKind: 'ffmpeg' | 'describe' = client instanceof FfmpegRtspProbe ? 'ffmpeg' : 'describe';
 
   const steps: RtspTestStep[] = [
     { key: 'reachable', label: 'Device reachable', ok: streams.some((s) => s.success) },
@@ -650,15 +735,18 @@ export async function testRtspConnection(
       detail: s.success ? null : s.errorMessage,
     })),
   ];
-
-  let message: string;
-  if (success) {
-    message = `RTSP ${primary.stream} stream channel ${primary.channel} is accessible.`;
-  } else if (primary.errorCode === 'DEVICE_UNREACHABLE') {
-    message = 'RTSP test failed: device unreachable.';
-  } else {
-    message = `RTSP test failed: ${primary.errorMessage}.`;
+  // When a decode-capable probe measured frames, surface that explicitly:
+  // DESCRIBE 200 alone is not proof the stream can be played.
+  if (primary.decodedFrames !== null) {
+    steps.push({
+      key: 'decoded',
+      label: `Decoded ${primary.decodedFrames} frame(s)`,
+      ok: primary.decodedFrames > 0,
+      detail: primary.decodedFrames > 0 ? null : 'No decodable frames in the probe window',
+    });
   }
+
+  const message = buildRtspMessage({ success, primary, probeKind });
 
   return {
     protocol,
@@ -678,16 +766,56 @@ export async function testRtspConnection(
     errorMessage: primary.errorMessage,
     streams,
     steps,
+    decodedFrames: primary.decodedFrames,
+    probe: probeKind,
     checkedAt: checkedAt.toISOString(),
   };
+}
+
+/** Builds a precise, credential-free human message for a Test RTSP result. */
+function buildRtspMessage(input: {
+  success: boolean;
+  primary: RtspStreamTestResult;
+  probeKind: 'ffmpeg' | 'describe';
+}): string {
+  const { success, primary, probeKind } = input;
+  if (success) {
+    const frames =
+      primary.decodedFrames !== null ? `, ${primary.decodedFrames} frame(s) decoded` : '';
+    return `RTSP ${primary.stream} stream channel ${primary.channel} is accessible (${probeKind}${frames}).`;
+  }
+  switch (primary.errorCode) {
+    case 'AUTHENTICATION_FAILED':
+      return 'RTSP authentication failed.';
+    case 'DEVICE_UNREACHABLE':
+      return 'RTSP connection failed: device unreachable.';
+    case 'RTSP_UNAVAILABLE':
+      return 'RTSP connection failed: RTSP service unavailable on the device.';
+    case 'STREAM_NO_MEDIA':
+      return 'RTSP reachable, but the media stream could not be decoded.';
+    case 'STREAM_UNAVAILABLE':
+      return `RTSP stream unavailable (${primary.path}).`;
+    case 'CONNECTION_TIMEOUT':
+      return 'RTSP connection timed out.';
+    default:
+      return `RTSP test failed: ${primary.errorMessage ?? 'unknown error'}.`;
+  }
 }
 
 /** Loads the device's stored stream profiles as provider input. */
 async function loadStoredProfiles(
   device: Record<string, unknown>,
+  channelNumber?: number,
 ): Promise<StoredStreamProfile[]> {
   try {
-    const channels = await repo.findChannelsByDevice(device.id as string);
+    const allChannels = await repo.findChannelsByDevice(device.id as string);
+    // Scope to the requested channel so a multi-channel ONVIF device maps the
+    // right StreamUri (otherwise CH02 could reuse CH01's URI).
+    const scoped =
+      channelNumber !== undefined
+        ? allChannels.filter((c) => (c.channelNumber as number) === channelNumber)
+        : allChannels;
+    const channels = scoped.length > 0 ? scoped : allChannels;
     const channelIds = channels.map((c) => c.id as string);
     const profiles = await repo.findStreamProfilesByChannelIds(channelIds);
     return profiles.map((p) => ({
@@ -970,6 +1098,10 @@ export async function updateChannel(
     description?: string | null;
     displayOrder?: number;
     isActive?: boolean;
+    /** Optional stream profile whose StreamUri should be corrected. */
+    streamProfileId?: string;
+    /** New credential-free StreamUri for the selected profile. */
+    streamUri?: string | null;
   },
 ) {
   const channel = await repo.findChannelById(id);
@@ -980,7 +1112,77 @@ export async function updateChannel(
   if (data.description !== undefined) patch.description = data.description?.trim() || null;
   if (data.displayOrder !== undefined) patch.displayOrder = data.displayOrder;
   if (data.isActive !== undefined) patch.isActive = data.isActive;
-  if (Object.keys(patch).length === 0) return getChannelById(id);
-  await repo.updateChannelOperational(id, patch as any);
+
+  if (Object.keys(patch).length > 0) {
+    await repo.updateChannelOperational(id, patch as any);
+  }
+
+  // Stream URI correction: only when a target profile and a URI are provided.
+  // Credentials are stripped so the stored URI can never leak a password.
+  if (data.streamProfileId && data.streamUri !== undefined) {
+    const profile = await repo.findStreamProfileById(data.streamProfileId);
+    if (!profile || profile.channelId !== id) {
+      throw new AppError(404, 'NOT_FOUND', 'Stream profile not found for this channel.');
+    }
+    await repo.updateStreamProfile(data.streamProfileId, {
+      streamUri: stripUriCredentials(data.streamUri),
+    });
+  }
+
   return getChannelById(id);
+}
+
+/**
+ * Lists every active channel across all devices for the Monitor grid. Each
+ * entry carries a flattened device summary so a single query can render the
+ * whole grid without pre-selecting a device.
+ */
+export async function listMonitorChannels() {
+  const rows = await repo.findActiveChannelsForMonitor();
+  const channelIds = rows.map((r) => r.id as string);
+  const profiles = await repo.findStreamProfilesByChannelIds(channelIds);
+  const profilesByChannel = new Map<string, Record<string, unknown>[]>();
+  for (const p of profiles) {
+    const key = p.channelId as string;
+    if (!profilesByChannel.has(key)) profilesByChannel.set(key, []);
+    profilesByChannel.get(key)!.push({
+      id: p.id,
+      profileToken: p.profileToken,
+      profileName: p.profileName,
+      streamType: p.streamType,
+      streamUri: p.streamUri,
+      videoCodec: p.videoCodec,
+      resolution: p.resolution,
+      fps: p.fps,
+      isMainStream: p.isMainStream,
+    });
+  }
+
+  const data = rows.map((r) => ({
+    id: r.id as string,
+    deviceId: r.deviceId as string,
+    channelNumber: r.channelNumber as number,
+    deviceChannelId: (r.deviceChannelId as string | null) ?? null,
+    technicalName: (r.technicalName as string | null) ?? null,
+    name: r.name as string,
+    location: (r.location as string | null) ?? null,
+    description: (r.description as string | null) ?? null,
+    displayOrder: r.displayOrder as number,
+    cameraIp: (r.cameraIp as string | null) ?? null,
+    status: r.status as string,
+    isActive: r.isActive as boolean,
+    lastSyncAt: (r.lastSyncAt as Date | null) ?? null,
+    device: {
+      id: r.deviceId as string,
+      name: r.deviceName as string,
+      deviceType: r.deviceType as string,
+      subcategoryId: (r.subcategoryId as string | null) ?? null,
+      subcategoryName: (r.subcategoryName as string | null) ?? null,
+      status: r.deviceStatus as string,
+      isActive: r.deviceActive as boolean,
+    },
+    streamProfiles: profilesByChannel.get(r.id as string) ?? [],
+  }));
+
+  return { data };
 }

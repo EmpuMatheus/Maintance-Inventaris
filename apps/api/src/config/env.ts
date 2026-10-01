@@ -77,6 +77,34 @@ const envSchema = z.object({
   CCTV_ONVIF_TIMEOUT_MS: z.coerce.number().default(8000),
   CCTV_ISAPI_TIMEOUT_MS: z.coerce.number().default(8000),
   CCTV_RTSP_TIMEOUT_MS: z.coerce.number().default(8000),
+  // How long the FFmpeg-based Test RTSP probe reads/decodes media for.
+  CCTV_RTSP_PROBE_DURATION_MS: z.coerce.number().int().min(500).default(2500),
+  // Streaming gateway (MediaMTX). The gateway is an internal process; browsers
+  // never reach it directly, the API proxies WebRTC (WHEP) and HLS requests.
+  CCTV_GATEWAY_ENABLED: z.string().optional(),
+  CCTV_GATEWAY_MANAGED: z.string().optional(),
+  CCTV_GATEWAY_BINARY: z.string().default(''),
+  CCTV_GATEWAY_API_URL: z.string().default('http://127.0.0.1:9997'),
+  CCTV_GATEWAY_WEBRTC_URL: z.string().default('http://127.0.0.1:8889'),
+  CCTV_GATEWAY_HLS_URL: z.string().default('http://127.0.0.1:8888'),
+  CCTV_GATEWAY_RTSP_URL: z.string().default('rtsp://127.0.0.1:8554'),
+  CCTV_GATEWAY_MEDIA_UDP_PORT: z.coerce.number().int().min(1).max(65535).default(8189),
+  // Ingest mode:
+  //  - passthrough: MediaMTX pulls RTSP directly (its built-in client).
+  //  - normalize:   the API runs a managed FFmpeg that pulls RTSP and republishes
+  //                 a browser-safe H.264 (baseline, no B-frames) to MediaMTX.
+  //                 Required for devices whose streams MediaMTX cannot repackage
+  //                 (Hikvision H.264 High with B-frames / H.265 main streams).
+  CCTV_GATEWAY_INGEST_MODE: z.enum(['passthrough', 'normalize']).default('normalize'),
+  CCTV_FFMPEG_BINARY: z.string().default(''),
+  CCTV_INGEST_GOP: z.coerce.number().int().min(1).default(30),
+  CCTV_INGEST_VIDEO_BITRATE: z.string().default(''),
+  // Live-session TTL is a SAFETY net only: an active viewer renews it via the
+  // heartbeat endpoint. Kept comfortably above the heartbeat interval so a
+  // throttled/backgrounded tab never loses its stream mid-view.
+  CCTV_LIVE_SESSION_TTL_SECONDS: z.coerce.number().int().min(15).default(300),
+  CCTV_LIVE_SESSION_MAX: z.coerce.number().int().min(1).default(16),
+  CCTV_LIVE_READY_TIMEOUT_MS: z.coerce.number().int().min(1000).default(10000),
   ANALYTICS_RECALC_INTERVAL_MINUTES: z.coerce.number().default(1440),
   ANALYTICS_WEIGHT_AGE: z.coerce.number().default(20),
   ANALYTICS_WEIGHT_MAINTENANCE: z.coerce.number().default(20),
@@ -132,6 +160,14 @@ const corsOrigins = data.CORS_ORIGIN.split(',')
 const httpsEnabled = boolFromEnv(raw.HTTPS_ENABLED);
 const cookieSecure = httpsEnabled || boolFromEnv(raw.COOKIE_SECURE);
 
+/**
+ * Streaming gateway switches. The gateway is enabled by default (it is the only
+ * supported Live View path). `CCTV_GATEWAY_MANAGED` controls whether the API
+ * spawns and supervises the process, or expects one to already be running.
+ */
+const gatewayEnabled = boolFromEnv(raw.CCTV_GATEWAY_ENABLED, true);
+const gatewayManaged = boolFromEnv(raw.CCTV_GATEWAY_MANAGED, true);
+
 export const analyticsConfig = {
   recalcIntervalMinutes: data.ANALYTICS_RECALC_INTERVAL_MINUTES,
   weights: {
@@ -151,6 +187,24 @@ export const analyticsConfig = {
   replaceSoonHealth: data.ANALYTICS_REPLACE_SOON_HEALTH,
   repairHealth: data.ANALYTICS_REPAIR_HEALTH,
   replaceCostRatio: data.ANALYTICS_REPLACE_COST_RATIO,
+} as const;
+
+export const streamingGatewayConfig = {
+  enabled: gatewayEnabled,
+  managed: gatewayManaged,
+  binary: data.CCTV_GATEWAY_BINARY,
+  apiUrl: data.CCTV_GATEWAY_API_URL,
+  webrtcUrl: data.CCTV_GATEWAY_WEBRTC_URL,
+  hlsUrl: data.CCTV_GATEWAY_HLS_URL,
+  rtspUrl: data.CCTV_GATEWAY_RTSP_URL,
+  mediaUdpPort: data.CCTV_GATEWAY_MEDIA_UDP_PORT,
+  ingestMode: data.CCTV_GATEWAY_INGEST_MODE,
+  ffmpegBinary: data.CCTV_FFMPEG_BINARY,
+  ingestGop: data.CCTV_INGEST_GOP,
+  ingestVideoBitrate: data.CCTV_INGEST_VIDEO_BITRATE,
+  sessionTtlSeconds: data.CCTV_LIVE_SESSION_TTL_SECONDS,
+  maxSessions: data.CCTV_LIVE_SESSION_MAX,
+  readyTimeoutMs: data.CCTV_LIVE_READY_TIMEOUT_MS,
 } as const;
 
 export const env = {

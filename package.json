@@ -20,6 +20,7 @@
     "package:release": "node scripts/package-release.mjs",
     "build:installer": "node scripts/build-installer.mjs",
     "generate:icon": "node scripts/generate-icon.mjs",
+    "fetch:gateway": "node scripts/fetch-streaming-gateway.mjs",
     "lint": "eslint . --ext .ts,.tsx --ignore-pattern dist --ignore-pattern node_modules",
     "typecheck": "npm run typecheck -w packages/shared && npm run typecheck -w apps/web && npm run typecheck -w apps/api",
     "test": "npm run test -w apps/web -- --passWithNoTests && npm run test -w apps/api",

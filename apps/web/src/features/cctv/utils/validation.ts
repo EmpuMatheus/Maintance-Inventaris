@@ -9,11 +9,18 @@ export const DEVICE_TYPE_OPTIONS = [
 /**
  * Mirrors the backend protocol resolution so the form can show the user which
  * integration protocol will be used. The backend remains the source of truth.
+ * The device subcategory wins; brand/model are only a fallback for legacy rows.
  */
 export function deriveIntegrationProtocol(
+  subcategoryName: string | null | undefined,
   brand: string | null | undefined,
   model: string | null | undefined,
 ): 'ISAPI' | 'ONVIF' {
+  const sub = (subcategoryName ?? '').toLowerCase().trim();
+  if (sub.includes('dvr')) return 'ISAPI';
+  if (sub.includes('cctv') || sub.includes('camera') || sub.includes('ipcam')) return 'ONVIF';
+  if (sub.includes('nvr') || sub.includes('recorder')) return 'ONVIF';
+
   const b = (brand ?? '').toLowerCase().trim();
   if (['hikvision', 'hik'].some((h) => b.includes(h))) return 'ISAPI';
   if (/^ds-/i.test((model ?? '').trim())) return 'ISAPI';
@@ -30,6 +37,7 @@ export function deriveIntegrationProtocol(
 export const cctvDeviceFormSchema = z.object({
   name: z.string().trim().min(1, 'Device name is required.').max(150),
   deviceType: z.enum(['DVR', 'NVR', 'RECORDER']),
+  subcategoryId: z.string().trim().optional().or(z.literal('')),
   brand: z.string().trim().max(150).optional().or(z.literal('')),
   model: z.string().trim().max(150).optional().or(z.literal('')),
   ipAddress: z
@@ -77,6 +85,7 @@ export function buildCctvDevicePayload(
   const payload: Record<string, unknown> = {
     name: values.name.trim(),
     deviceType: values.deviceType,
+    subcategoryId: values.subcategoryId?.trim() ? values.subcategoryId.trim() : null,
     brand: values.brand?.trim() ? values.brand.trim() : null,
     model: values.model?.trim() ? values.model.trim() : null,
     ipAddress: values.ipAddress.trim(),

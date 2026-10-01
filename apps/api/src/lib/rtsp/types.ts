@@ -21,10 +21,18 @@ export interface RtspClientConfig {
   timeoutMs?: number;
 }
 
-/** Successful RTSP DESCRIBE probe outcome. */
+/** Successful RTSP probe outcome. */
 export interface RtspProbeResult {
   statusCode: number;
   latencyMs: number;
   /** True when a digest challenge was answered successfully. */
   authenticated: boolean;
+  /**
+   * Number of video frames actually decoded during the probe, when the probe
+   * decodes media (FFmpeg-based probe). Undefined for transport-only probes
+   * that only perform RTSP DESCRIBE.
+   */
+  decodedFrames?: number;
+  /** How long the probe read media for, in milliseconds (FFmpeg probe only). */
+  durationMs?: number;
 }

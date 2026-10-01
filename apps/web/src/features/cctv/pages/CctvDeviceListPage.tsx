@@ -132,7 +132,7 @@ export default function CctvDeviceListPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">CCTV Devices</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Kelola DVR/NVR/Recorder melalui ONVIF. Uji koneksi dan sinkronkan channel.
+            Kelola device CCTV. Subcategory (CCTV / DVR / NVR) menentukan protokol integrasi.
           </p>
         </div>
         {canManage && (

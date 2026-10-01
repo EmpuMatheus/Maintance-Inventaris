@@ -142,4 +142,18 @@ describe('XmeyeOnvifProvider', () => {
     // Never a Hikvision path.
     expect(targets.every((t) => !t.path)).toBe(true);
   });
+
+  it('resolves a single credential-free stream source for Live View', async () => {
+    const provider = new XmeyeOnvifProvider(new FakeOnvif());
+    const source = await provider.resolveStreamSource({
+      channel: 1,
+      kind: 'main',
+      storedProfiles: [
+        { profileToken: 'P1', streamUri: 'rtsp://admin:pass@10.0.0.9:554/onvif/profile/P1', streamType: 'MAIN', isMainStream: true },
+      ],
+    });
+    expect(source.uri).toBe('rtsp://10.0.0.9:554/onvif/profile/P1');
+    expect(source.uri).not.toContain('admin');
+    expect(source.path).toBeUndefined();
+  });
 });

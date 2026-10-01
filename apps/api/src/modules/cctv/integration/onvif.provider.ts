@@ -8,6 +8,7 @@ import type {
   IntegrationStreamProfile,
   RtspProbeTarget,
   StoredStreamProfile,
+  StreamSource,
 } from './types';
 import type { CctvOnvifClient } from './onvif-client';
 import type { RtspStreamKind } from '../cctv.helpers';
@@ -100,38 +101,10 @@ export class XmeyeOnvifProvider implements CctvIntegrationProvider {
     kinds: RtspStreamKind[];
     storedProfiles: StoredStreamProfile[];
   }): Promise<RtspProbeTarget[]> {
-    // Prefer stored profiles (already-resolved URIs). When none have been
-    // synced yet, discover them live from the device so Test RTSP works before
-    // the first sync.
-    let profiles = options.storedProfiles;
-    if (profiles.length === 0) {
-      const channels = await this.discoverChannels();
-      const channel =
-        channels.find((c) => c.channelNumber === options.channel) ??
-        channels[options.channel - 1] ??
-        channels[0];
-      profiles =
-        channel?.profiles.map((p) => ({
-          profileToken: p.profileToken,
-          streamUri: p.streamUri,
-          streamType: p.streamType,
-          isMainStream: p.isMainStream,
-        })) ?? [];
-    }
-
+    const profiles = await this.effectiveProfiles(options);
     const targets: RtspProbeTarget[] = [];
     for (const kind of options.kinds) {
-      const profile = pickProfileForKind(profiles, kind);
-      if (!profile) continue;
-      let uri = profile.streamUri ? stripUriCredentials(profile.streamUri) : null;
-      if (!uri) {
-        try {
-          const resolved = await this.client.getStreamUri(profile.profileToken);
-          uri = stripUriCredentials(resolved.uri);
-        } catch {
-          uri = null;
-        }
-      }
+      const uri = await this.resolveUriForKind(profiles, kind);
       if (!uri) {
         targets.push({
           channel: options.channel,
@@ -148,6 +121,62 @@ export class XmeyeOnvifProvider implements CctvIntegrationProvider {
       });
     }
     return targets;
+  }
+
+  async resolveStreamSource(options: {
+    channel: number;
+    kind: RtspStreamKind;
+    storedProfiles: StoredStreamProfile[];
+  }): Promise<StreamSource> {
+    const profiles = await this.effectiveProfiles(options);
+    const uri = await this.resolveUriForKind(profiles, options.kind);
+    return {
+      channel: options.channel,
+      kind: options.kind,
+      uri: uri ?? undefined,
+      display: uri ?? `${options.kind === 'main' ? 'main' : 'sub'} stream`,
+    };
+  }
+
+  /**
+   * Prefers stored profiles (already-resolved URIs). When none have been
+   * synced yet, discovers them live from the device so Live View works before
+   * the first sync.
+   */
+  private async effectiveProfiles(options: {
+    channel: number;
+    storedProfiles: StoredStreamProfile[];
+  }): Promise<StoredStreamProfile[]> {
+    if (options.storedProfiles.length > 0) return options.storedProfiles;
+    const channels = await this.discoverChannels();
+    const channel =
+      channels.find((c) => c.channelNumber === options.channel) ??
+      channels[options.channel - 1] ??
+      channels[0];
+    return (
+      channel?.profiles.map((p) => ({
+        profileToken: p.profileToken,
+        streamUri: p.streamUri,
+        streamType: p.streamType,
+        isMainStream: p.isMainStream,
+      })) ?? []
+    );
+  }
+
+  /** Resolves a credential-free StreamUri for the requested stream kind. */
+  private async resolveUriForKind(
+    profiles: StoredStreamProfile[],
+    kind: RtspStreamKind,
+  ): Promise<string | null> {
+    const profile = pickProfileForKind(profiles, kind);
+    if (!profile) return null;
+    if (profile.streamUri) return stripUriCredentials(profile.streamUri);
+    try {
+      const resolved = await this.client.getStreamUri(profile.profileToken);
+      return stripUriCredentials(resolved.uri);
+    } catch {
+      return null;
+    }
   }
 }
 

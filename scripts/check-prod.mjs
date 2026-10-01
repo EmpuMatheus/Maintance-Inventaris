@@ -13,11 +13,18 @@ const checks = [
   ['API migrations', 'apps/api/src/database/migrations'],
 ];
 
+const warnings = [['Streaming gateway binary (Live View)', 'apps/api/gateway']];
+
 let ok = true;
 for (const [label, rel] of checks) {
   const exists = existsSync(path.join(root, rel));
   console.log(`${exists ? '[OK]' : '[MISSING]'} ${label}: ${rel}`);
   if (!exists) ok = false;
+}
+
+for (const [label, rel] of warnings) {
+  const exists = existsSync(path.join(root, rel));
+  console.log(`${exists ? '[OK]' : '[WARN]'} ${label}: ${rel}`);
 }
 
 if (!ok) {

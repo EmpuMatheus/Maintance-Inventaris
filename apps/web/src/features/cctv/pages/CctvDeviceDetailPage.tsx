@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, Pencil, Plug, Power, PowerOff, RefreshCw, ExternalLink, Video } from 'lucide-react';
+import { ArrowLeft, Loader2, Pencil, Plug, Power, PowerOff, RefreshCw, Video } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import CctvStatusBadge from '../components/CctvStatusBadge';
@@ -11,18 +11,27 @@ import ActiveStatusBadge from '../components/ActiveStatusBadge';
 import DeactivateDeviceDialog from '../components/DeactivateDeviceDialog';
 import TestConnectionPanel from '../components/TestConnectionPanel';
 import TestRtspPanel from '../components/TestRtspPanel';
+import ChannelEditDialog from '../components/ChannelEditDialog';
 import {
   getCctvDevice,
+  listCctvChannels,
   setCctvDeviceStatus,
   syncCctvChannels,
   testCctvConnection,
   testCctvRtsp,
+  updateCctvChannel,
   cctvDeviceKeys,
   cctvChannelKeys,
 } from '../api/cctv';
-import { canManageCctvDevices, canReadCctvStreams } from '../utils/permissions';
+import { canManageCctvDevices, canManageCctvStreams } from '../utils/permissions';
 import { formatDateTime } from '../utils/format';
-import type { TestConnectionResult, TestRtspResult, SyncResult } from '../types';
+import type {
+  CctvChannel,
+  CctvChannelInput,
+  TestConnectionResult,
+  TestRtspResult,
+  SyncResult,
+} from '../types';
 
 function InfoRow({ label, value }: { label: string; value?: ReactNode }) {
   return (
@@ -42,10 +51,18 @@ export default function CctvDeviceDetailPage() {
   const [testResult, setTestResult] = useState<TestConnectionResult | null>(null);
   const [testRtspResult, setTestRtspResult] = useState<TestRtspResult | null>(null);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+  const [editingChannel, setEditingChannel] = useState<CctvChannel | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: cctvDeviceKeys.detail(id ?? ''),
     queryFn: () => getCctvDevice(id!),
+    enabled: !!id,
+  });
+
+  // Channels are part of the device detail page now (the Stream menu is gone).
+  const channelsQuery = useQuery({
+    queryKey: cctvChannelKeys.list({ deviceId: id, limit: 200 }),
+    queryFn: () => listCctvChannels({ deviceId: id, limit: 200 }),
     enabled: !!id,
   });
 
@@ -95,6 +112,17 @@ export default function CctvDeviceDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const updateChannel = useMutation({
+    mutationFn: ({ channelId, payload }: { channelId: string; payload: CctvChannelInput }) =>
+      updateCctvChannel(channelId, payload),
+    onSuccess: () => {
+      toast.success('Channel updated.');
+      qc.invalidateQueries({ queryKey: cctvChannelKeys.all });
+      setEditingChannel(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -119,7 +147,7 @@ export default function CctvDeviceDetailPage() {
 
   const d = data.data;
   const canManage = canManageCctvDevices(can);
-  const canViewStreams = canReadCctvStreams(can);
+  const canManageStreams = canManageCctvStreams(can);
 
   return (
     <div className="mx-auto max-w-4xl p-4 md:p-6">
@@ -240,22 +268,28 @@ export default function CctvDeviceDetailPage() {
           <p className="mt-3 text-xs text-slate-400">
             {syncResult.profiles} media profile tersinkron · {formatDateTime(syncResult.syncedAt)}
           </p>
-          {canViewStreams && (
-            <button
-              onClick={() => navigate(`/cctv/streams?deviceId=${d.id}`)}
-              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700"
-            >
-              <ExternalLink className="h-3.5 w-3.5" /> Lihat Channel / Stream
-            </button>
-          )}
         </div>
       )}
+
+      <ChannelsSection
+        channels={channelsQuery.data?.data ?? []}
+        isLoading={channelsQuery.isLoading}
+        canManage={canManageStreams}
+        canSync={canManage}
+        syncing={sync.isPending}
+        onSync={() => {
+          setSyncResult(null);
+          sync.mutate();
+        }}
+        onEdit={setEditingChannel}
+      />
 
       <div className="grid gap-6 md:grid-cols-2">
         <div className="rounded-lg border border-slate-200 bg-white p-5">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">Device</h2>
           <InfoRow label="Name" value={d.name} />
           <InfoRow label="Vendor" value={d.brand} />
+          <InfoRow label="Subcategory" value={d.subcategoryName} />
           <InfoRow label="Type" value={<CctvDeviceTypeBadge deviceType={d.deviceType} />} />
           <InfoRow
             label="Integration Protocol"
@@ -329,6 +363,151 @@ export default function CctvDeviceDetailPage() {
         onClose={() => setShowDeactivate(false)}
         onConfirm={() => toggleStatus.mutate(false)}
       />
+
+      <ChannelEditDialog
+        channel={editingChannel}
+        isSubmitting={updateChannel.isPending}
+        onClose={() => setEditingChannel(null)}
+        onSubmit={(payload) =>
+          editingChannel && updateChannel.mutate({ channelId: editingChannel.id, payload })
+        }
+      />
+    </div>
+  );
+}
+
+const STATUS_BADGE: Record<string, string> = {
+  ONLINE: 'bg-green-50 text-green-700 ring-1 ring-green-600/20',
+  OFFLINE: 'bg-red-50 text-red-700 ring-1 ring-red-600/20',
+  UNKNOWN: 'bg-slate-100 text-slate-500 ring-1 ring-slate-400/20',
+  MISSING: 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/20',
+};
+
+function ChannelStatus({ status }: { status: string }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+        STATUS_BADGE[status] ?? STATUS_BADGE.UNKNOWN
+      }`}
+    >
+      {status}
+    </span>
+  );
+}
+
+/**
+ * Device Detail → Channels. A table is shown only once the device has synced
+ * at least one channel; otherwise an empty state offers the Sync Channel action.
+ */
+function ChannelsSection({
+  channels,
+  isLoading,
+  canManage,
+  canSync,
+  syncing,
+  onSync,
+  onEdit,
+}: {
+  channels: CctvChannel[];
+  isLoading: boolean;
+  canManage: boolean;
+  canSync: boolean;
+  syncing: boolean;
+  onSync: () => void;
+  onEdit: (channel: CctvChannel) => void;
+}) {
+  const syncButton = canSync ? (
+    <button
+      onClick={onSync}
+      disabled={syncing}
+      className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+    >
+      {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+      Sync Channel
+    </button>
+  ) : null;
+
+  return (
+    <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Channels</h2>
+        {syncButton}
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+        </div>
+      ) : channels.length === 0 ? (
+        <div className="py-8 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+            <Video className="h-6 w-6" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">No channels synced yet</p>
+          <p className="mt-1 text-xs text-slate-400">
+            Jalankan Sync Channel untuk mengambil channel dari device.
+          </p>
+          {canSync && (
+            <button
+              onClick={onSync}
+              disabled={syncing}
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Sync Channel
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50">
+              <tr>
+                <th className="px-3 py-2.5 font-medium text-slate-600">Channel</th>
+                <th className="px-3 py-2.5 font-medium text-slate-600">Name</th>
+                <th className="px-3 py-2.5 font-medium text-slate-600">Stream</th>
+                <th className="px-3 py-2.5 font-medium text-slate-600">Stream URI</th>
+                <th className="px-3 py-2.5 font-medium text-slate-600">Status</th>
+                <th className="px-3 py-2.5 font-medium text-slate-600">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {channels.map((ch) => {
+                const profile =
+                  ch.streamProfiles.find((p) => !p.isMainStream) ??
+                  ch.streamProfiles.find((p) => p.isMainStream) ??
+                  ch.streamProfiles[0] ??
+                  null;
+                return (
+                  <tr key={ch.id}>
+                    <td className="px-3 py-2.5 font-mono text-xs text-slate-600">
+                      CH{String(ch.channelNumber).padStart(2, '0')}
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-700">{ch.name || 'Belum diatur'}</td>
+                    <td className="px-3 py-2.5 text-xs text-slate-600">{profile?.streamType ?? '-'}</td>
+                    <td className="max-w-[280px] truncate px-3 py-2.5 font-mono text-xs text-slate-500">
+                      {profile?.streamUri ?? (profile ? '(path-based)' : '-')}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <ChannelStatus status={ch.status} />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {canManage && (
+                        <button
+                          onClick={() => onEdit(ch)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        >
+                          <Pencil className="h-3.5 w-3.5" /> Edit
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
