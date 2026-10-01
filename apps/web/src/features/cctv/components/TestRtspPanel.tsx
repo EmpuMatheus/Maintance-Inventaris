@@ -34,6 +34,11 @@ export default function TestRtspPanel({ result }: { result: TestRtspResult }) {
           <InfoRow label="Channel" value={String(result.channel)} />
           <InfoRow label="Stream" value={streamLabel} />
           <InfoRow label="RTSP Target" value={<span className="font-mono text-xs">{result.path}</span>} />
+          <InfoRow label="Probe" value={result.probe === 'ffmpeg' ? 'FFmpeg decode' : 'RTSP DESCRIBE'} />
+          <InfoRow
+            label="Decoded Frames"
+            value={result.decodedFrames !== null ? String(result.decodedFrames) : '-'}
+          />
           <InfoRow
             label="Latency"
             value={result.latencyMs !== null ? `${result.latencyMs} ms` : '-'}

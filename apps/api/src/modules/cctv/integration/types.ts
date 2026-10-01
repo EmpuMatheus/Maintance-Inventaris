@@ -61,6 +61,22 @@ export interface RtspProbeTarget {
 }
 
 /**
+ * A resolved stream source for Live View. Carries the credential-free target
+ * (Hikvision path or ONVIF StreamUri); the live-session service attaches the
+ * device credential server-side before handing it to the gateway.
+ */
+export interface StreamSource {
+  channel: number;
+  kind: RtspStreamKind;
+  /** Path-based source (Hikvision). */
+  path?: string;
+  /** URI-based source (ONVIF StreamUri), credential-free. */
+  uri?: string;
+  /** Credential-free label for diagnostics. */
+  display: string;
+}
+
+/**
  * A device integration provider. Implementations encapsulate the protocol
  * specifics; the CCTV service never branches on vendor.
  */
@@ -81,6 +97,17 @@ export interface CctvIntegrationProvider {
     kinds: RtspStreamKind[];
     storedProfiles: StoredStreamProfile[];
   }): Promise<RtspProbeTarget[]>;
+
+  /**
+   * Resolves a single credential-free stream source for Live View. Uses the
+   * same vendor rules as `resolveRtspTargets`, but for one channel/kind and
+   * returning only the source target (no probe).
+   */
+  resolveStreamSource(options: {
+    channel: number;
+    kind: RtspStreamKind;
+    storedProfiles: StoredStreamProfile[];
+  }): Promise<StreamSource>;
 }
 
 /** The stored stream profile subset the provider needs to resolve RTSP. */

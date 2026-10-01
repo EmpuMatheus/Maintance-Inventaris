@@ -7,6 +7,9 @@ import { logger } from '@/lib/logger';
 import { startMaintenanceScheduler } from '@/lib/scheduler';
 import { startBackupScheduler } from '@/lib/backup/scheduler';
 import { startNetworkMonitoringRunner, stopNetworkMonitoringRunner } from '@/lib/network-monitoring/runner';
+import { startStreamingGateway, stopStreamingGateway } from '@/lib/streaming/process-manager';
+import { stopAllIngests } from '@/lib/streaming/ingest';
+import { startLiveSessionReaper, stopLiveSessionReaper } from '@/lib/streaming/reaper';
 import { initSocketServer, closeSocketServer } from '@/lib/socket';
 import { setupNetworkMonitoringSocketBridge } from '@/lib/network-monitoring/socket-bridge';
 import { setupNotificationConsumer } from '@/modules/notifications/notification.service';
@@ -28,6 +31,8 @@ server.listen(env.PORT, () => {
   startMaintenanceScheduler();
   startBackupScheduler();
   startNetworkMonitoringRunner();
+  startStreamingGateway();
+  startLiveSessionReaper();
   startParentWatchdog();
 });
 
@@ -46,6 +51,9 @@ function startParentWatchdog(): void {
       clearInterval(timer);
       logger.info('Launcher process stopped; shutting down backend.');
       stopNetworkMonitoringRunner();
+      stopLiveSessionReaper();
+      stopAllIngests();
+      stopStreamingGateway();
       server.close(() => process.exit(0));
     }
   }, 5000);
@@ -55,6 +63,9 @@ function startParentWatchdog(): void {
 const shutdown = (signal: string): void => {
   logger.info({ signal }, 'Received shutdown signal, closing server');
   stopNetworkMonitoringRunner();
+  stopLiveSessionReaper();
+  stopAllIngests();
+  stopStreamingGateway();
   void closeSocketServer();
   server.close(() => {
     logger.info('Server closed');

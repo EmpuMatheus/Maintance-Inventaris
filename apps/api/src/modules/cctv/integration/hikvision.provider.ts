@@ -10,6 +10,7 @@ import type {
   IntegrationStreamProfile,
   RtspProbeTarget,
   StoredStreamProfile,
+  StreamSource,
 } from './types';
 
 /**
@@ -96,6 +97,21 @@ export class HikvisionIsapiProvider implements CctvIntegrationProvider {
       path: buildHikvisionRtspPath(options.channel, kind),
       display: buildHikvisionRtspPath(options.channel, kind),
     }));
+  }
+
+  async resolveStreamSource(options: {
+    channel: number;
+    kind: RtspStreamKind;
+    storedProfiles: StoredStreamProfile[];
+  }): Promise<StreamSource> {
+    void options.storedProfiles;
+    const rtspPath = buildHikvisionRtspPath(options.channel, options.kind);
+    return {
+      channel: options.channel,
+      kind: options.kind,
+      path: rtspPath,
+      display: rtspPath,
+    };
   }
 }
 

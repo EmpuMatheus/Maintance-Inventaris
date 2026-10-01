@@ -1,0 +1,3 @@
+ALTER TABLE "cctv_devices" ADD COLUMN "subcategory_id" uuid;--> statement-breakpoint
+ALTER TABLE "cctv_devices" ADD CONSTRAINT "cctv_devices_subcategory_id_asset_subcategories_id_fk" FOREIGN KEY ("subcategory_id") REFERENCES "public"."asset_subcategories"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "cctv_devices_subcategory_id_idx" ON "cctv_devices" USING btree ("subcategory_id");

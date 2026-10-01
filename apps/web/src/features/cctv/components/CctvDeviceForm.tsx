@@ -1,22 +1,31 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useWatch } from 'react-hook-form';
 import {
-  DEVICE_TYPE_OPTIONS,
   buildCctvDevicePayload,
   cctvDeviceFormSchema,
   deriveIntegrationProtocol,
   type CctvDeviceFormValues,
 } from '../utils/validation';
 import CctvProtocolBadge from './CctvProtocolBadge';
+import { listMaster } from '@/features/inventory/api/inventory';
 import type { CctvDevice, CctvDeviceInput } from '../types';
 
 function inputClass(hasError?: boolean) {
   return `mt-1 block w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1 ${
     hasError ? 'border-red-300' : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500'
   }`;
+}
+
+/** Maps a CCTV subcategory name to the legacy device_type column value. */
+function legacyDeviceType(subcategoryName: string): 'DVR' | 'NVR' | 'RECORDER' {
+  const n = subcategoryName.toLowerCase();
+  if (n.includes('dvr')) return 'DVR';
+  if (n.includes('nvr')) return 'NVR';
+  return 'RECORDER';
 }
 
 export default function CctvDeviceForm({
@@ -35,12 +44,14 @@ export default function CctvDeviceForm({
     register,
     handleSubmit,
     control,
+    setValue,
     formState: { errors },
   } = useForm<CctvDeviceFormValues>({
     resolver: zodResolver(cctvDeviceFormSchema),
     defaultValues: {
       name: device?.name ?? '',
       deviceType: device?.deviceType ?? 'DVR',
+      subcategoryId: device?.subcategoryId ?? '',
       brand: device?.brand ?? '',
       model: device?.model ?? '',
       ipAddress: device?.ipAddress ?? '',
@@ -53,9 +64,31 @@ export default function CctvDeviceForm({
     },
   });
 
+  // Device / Subcategory options come from Master Data → Subcategories, limited
+  // to the CCTV-relevant ones (CCTV / DVR / NVR). No bespoke device-type enum.
+  const subcategoriesQuery = useQuery({
+    queryKey: ['master', 'subcategories'],
+    queryFn: () => listMaster('subcategories'),
+  });
+  const subcategories = ((subcategoriesQuery.data?.data ?? []) as { id: string; name?: string; code?: string }[])
+    .filter((s) => /cctv|dvr|nvr|camera/i.test(`${s.name ?? ''} ${s.code ?? ''}`))
+    .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+
+  const subcategoryId = useWatch({ control, name: 'subcategoryId' });
   const brandValue = useWatch({ control, name: 'brand' });
   const modelValue = useWatch({ control, name: 'model' });
-  const derivedProtocol = deriveIntegrationProtocol(brandValue, modelValue);
+  const selectedSubcategory = subcategories.find((s) => s.id === subcategoryId) ?? null;
+  const selectedSubcategoryName = selectedSubcategory?.name ?? device?.subcategoryName ?? null;
+  const derivedProtocol = deriveIntegrationProtocol(selectedSubcategoryName, brandValue, modelValue);
+
+  const onSubcategoryChange = (value: string) => {
+    setValue('subcategoryId', value);
+    if (value) {
+      const name = subcategories.find((s) => s.id === value)?.name ?? '';
+      // Keep the legacy device_type column in sync (not used for behaviour now).
+      setValue('deviceType', legacyDeviceType(name));
+    }
+  };
 
   const submit = (values: CctvDeviceFormValues) => {
     onSubmit(buildCctvDevicePayload(values, { isEdit }) as unknown as CctvDeviceInput);
@@ -75,12 +108,12 @@ export default function CctvDeviceForm({
       <p className="mt-1 text-sm text-slate-500">
         {isEdit
           ? 'Perbarui informasi device. Status koneksi diperbarui melalui Test Connection / Sync.'
-          : 'Daftarkan DVR/NVR/Recorder. Protokol integrasi ditentukan otomatis dari vendor/tipe.'}
+          : 'Daftarkan device CCTV. Subcategory (CCTV / DVR / NVR) menentukan perilaku integrasi.'}
       </p>
       <p className="mt-2 flex items-center gap-2 text-sm text-slate-500">
         Integration Protocol: <CctvProtocolBadge protocol={derivedProtocol} />
         <span className="text-xs text-slate-400">
-          (Hikvision → ISAPI, XMEye/ONVIF → ONVIF)
+          (DVR → ISAPI, CCTV/NVR → ONVIF)
         </span>
       </p>
 
@@ -94,14 +127,23 @@ export default function CctvDeviceForm({
               {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Device Type *</label>
-              <select {...register('deviceType')} className={inputClass(!!errors.deviceType)}>
-                {DEVICE_TYPE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
+              <label className="block text-sm font-medium text-slate-700">Device / Subcategory *</label>
+              <select
+                value={subcategoryId ?? ''}
+                onChange={(e) => onSubcategoryChange(e.target.value)}
+                className={inputClass(!!errors.subcategoryId)}
+                disabled={subcategoriesQuery.isLoading}
+              >
+                <option value="">Pilih subcategory…</option>
+                {subcategories.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
                   </option>
                 ))}
               </select>
+              <p className="mt-1 text-xs text-slate-400">
+                Diambil dari Master Data → Subcategories (CCTV / DVR / NVR).
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700">Brand</label>
@@ -133,7 +175,7 @@ export default function CctvDeviceForm({
               {errors.ipAddress && <p className="mt-1 text-xs text-red-500">{errors.ipAddress.message}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Port (ONVIF) *</label>
+              <label className="block text-sm font-medium text-slate-700">Port (ONVIF/ISAPI) *</label>
               <input type="number" placeholder="80" {...register('port')} className={inputClass(!!errors.port)} />
               {errors.port && <p className="mt-1 text-xs text-red-500">{errors.port.message}</p>}
             </div>

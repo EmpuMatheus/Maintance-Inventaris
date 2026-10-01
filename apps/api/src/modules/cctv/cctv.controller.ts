@@ -191,6 +191,21 @@ export async function getChannelController(req: Request, res: Response, next: Ne
   }
 }
 
+/**
+ * All active channels across every device, flattened for the Monitor grid.
+ * Lives under `/devices/monitor/channels` so it does not collide with
+ * `/devices/:id` (Express matches in registration order; the specific route is
+ * registered first).
+ */
+export async function listMonitorChannelsController(_req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await svc.listMonitorChannels();
+    res.json({ success: true, ...result });
+  } catch (e) {
+    next(e);
+  }
+}
+
 export async function updateChannelController(req: Request, res: Response, next: NextFunction) {
   try {
     const row = await svc.updateChannel(req.params.id as string, req.body);

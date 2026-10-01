@@ -3,6 +3,7 @@ import { authenticate } from '@/middleware/authenticate';
 import { authorize, authorizeAny } from '@/middleware/authorize';
 import { validate } from '@/middleware/validate';
 import * as ctrl from './cctv.controller';
+import * as liveCtrl from './cctv.live.controller';
 import * as s from './cctv.schema';
 
 const router = Router();
@@ -24,7 +25,22 @@ router.post('/devices/:id/sync', ...deviceWrite, ctrl.syncController);
 
 /* Channels / streams */
 router.get('/channels', ...streamRead, ctrl.listChannelsController);
+// Must be registered before `/channels/:id` so "monitor" is not treated as an id.
+router.get('/channels/monitor', ...streamRead, ctrl.listMonitorChannelsController);
 router.get('/channels/:id', ...streamRead, ctrl.getChannelController);
 router.patch('/channels/:id', ...streamWrite, validate(s.updateChannelSchema), ctrl.updateChannelController);
+
+/* Live View sessions (same-origin playback; gateway credentials stay server-side) */
+router.post('/live-sessions', ...streamRead, validate(s.createLiveSessionSchema), liveCtrl.createLiveSessionController);
+// Must be registered before `/live-sessions/:id` so it is not captured as an id.
+router.get('/live-sessions/limits', ...streamRead, liveCtrl.liveLimitsController);
+router.get('/live-sessions/:id', ...streamRead, liveCtrl.getLiveSessionController);
+router.post('/live-sessions/:id/heartbeat', ...streamRead, liveCtrl.heartbeatLiveSessionController);
+router.delete('/live-sessions/:id', ...streamRead, liveCtrl.stopLiveSessionController);
+// WHEP signalling + HLS are proxied to the internal gateway. These bodies are
+// SDP (not JSON), so no body validation is applied. Prefix mounting (`use`)
+// keeps the remaining sub-path in `req.url` for the proxy.
+router.use('/live-sessions/:id/whep', ...streamRead, liveCtrl.whepProxyController);
+router.use('/live-sessions/:id/hls', ...streamRead, liveCtrl.hlsProxyController);
 
 export default router;

@@ -32,6 +32,7 @@ export default defineConfig(({ mode }) => {
             if (id.includes('@tanstack/react-query') || id.includes('react-table')) return 'data';
             if (id.includes('react-hook-form') || id.includes('@hookform') || id.includes('zod')) return 'forms';
             if (id.includes('html5-qrcode')) return 'scanner';
+            if (id.includes('hls.js')) return 'hls';
             if (id.includes('sonner')) return 'notify';
             return 'vendor';
           },

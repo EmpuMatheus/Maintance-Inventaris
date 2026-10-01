@@ -7,6 +7,12 @@ release/
 dist-installer/
 build-info.json
 
+# Streaming gateway binary (downloaded via: npm run fetch:gateway)
+apps/api/gateway/
+# Stray key material some gateway builds generate at the working directory
+apps/api/auto.key
+apps/api/auto.crt
+
 .env
 .env.local
 .env.*.local
@@ -50,3 +56,11 @@ REPORT_MASTER_DATA_ACTIVATE_DEACTIVATE.md
 REPORT_NETWORK_DEVICE_ASSET_FIRST.md
 REPORT_TRANSFER_LOCATION_MULTIPARTY_CONFIRMATION.md
 REPORT_UNIQUE_CODE_AND_IS_NETWORK_DEVICE.md
+
+REPORT_CCTV_LIVEVIEW_FIX.md
+REPORT_CCTV_MONITOR_CONTINUOUS_PLAYBACK.md
+REPORT_CCTV_NO_AUTOPLAY_PLAYALL.md
+REPORT_CCTV_PHASE3_LIVE_VIEW.md
+REPORT_CCTV_RTSP_MONITOR.md
+REPORT_CCTV_SUBCATEGORY_MONITOR.md
+CCTV_FLOW.md

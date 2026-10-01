@@ -24,6 +24,8 @@ export interface CctvDevice {
   id: string;
   name: string;
   deviceType: CctvDeviceType;
+  subcategoryId: string | null;
+  subcategoryName: string | null;
   brand: string | null;
   model: string | null;
   integrationProtocol: CctvIntegrationProtocol;
@@ -61,6 +63,7 @@ export interface CctvDeviceFilters {
 export interface CctvDeviceInput {
   name: string;
   deviceType: CctvDeviceType;
+  subcategoryId?: string | null;
   brand?: string | null;
   model?: string | null;
   ipAddress: string;
@@ -77,6 +80,8 @@ export interface CctvDeviceSummary {
   id: string;
   name: string;
   deviceType: CctvDeviceType;
+  subcategoryId?: string | null;
+  subcategoryName?: string | null;
   brand: string | null;
   model: string | null;
   integrationProtocol?: CctvIntegrationProtocol;
@@ -131,6 +136,21 @@ export interface CctvChannelInput {
   description?: string | null;
   displayOrder?: number;
   isActive?: boolean;
+  /** Optional Stream URI correction for a specific profile. */
+  streamProfileId?: string;
+  streamUri?: string | null;
+}
+
+/**
+ * A monitor row: a channel plus a flattened device summary. Returned by
+ * `GET /cctv/channels/monitor`, which lists every active channel across all
+ * devices so the Monitor grid needs no device pre-selection.
+ */
+export interface CctvMonitorChannel extends Omit<CctvChannel, 'device'> {
+  device: Pick<
+    CctvDeviceSummary,
+    'id' | 'name' | 'deviceType' | 'subcategoryId' | 'subcategoryName' | 'status' | 'isActive'
+  >;
 }
 
 export interface TestConnectionStep {
@@ -159,6 +179,8 @@ export interface TestConnectionResult {
     serialNumber: string | null;
     hardwareId: string | null;
   } | null;
+  /** Advisory note, e.g. ONVIF down but RTSP may still be usable. */
+  hint?: string | null;
   steps: TestConnectionStep[];
   checkedAt: string;
 }
@@ -187,6 +209,10 @@ export interface RtspStreamTestResult {
   success: boolean;
   latencyMs: number | null;
   authenticated: boolean;
+  /** Frames decoded by the probe (null when the probe was transport-only). */
+  decodedFrames: number | null;
+  /** Probe read duration in milliseconds (null when not measured). */
+  durationMs: number | null;
   errorCode: string | null;
   errorMessage: string | null;
 }
@@ -210,6 +236,10 @@ export interface TestRtspResult {
   errorMessage: string | null;
   streams: RtspStreamTestResult[];
   steps: RtspTestStep[];
+  /** Frames decoded for the primary probed stream (null when not measured). */
+  decodedFrames: number | null;
+  /** Which probe strategy was used. */
+  probe: 'ffmpeg' | 'describe';
   checkedAt: string;
 }
 
@@ -220,4 +250,41 @@ export interface PaginationMeta {
   totalPages: number;
   hasNextPage: boolean;
   hasPreviousPage: boolean;
+}
+
+export type CctvLiveStreamKind = 'MAIN' | 'SUB';
+
+/** How the browser receives the live video. WebRTC is preferred, HLS a fallback. */
+export type CctvPlaybackTransport = 'webrtc' | 'hls';
+
+/**
+ * A Live View session. Endpoints are relative to the API base and same-origin;
+ * they never contain CCTV credentials.
+ */
+export interface CctvLiveSession {
+  id: string;
+  deviceId: string;
+  channelId: string;
+  channelNumber: number;
+  streamKind: CctvLiveStreamKind;
+  protocol: CctvIntegrationProtocol;
+  sourceLabel: string;
+  webrtc: { endpoint: string } | null;
+  hls: { manifestUrl: string };
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface CreateCctvLiveSessionInput {
+  deviceId: string;
+  channelId: string;
+  streamKind: CctvLiveStreamKind;
+}
+
+/** Live-session limits exposed by the backend so the Monitor grid can size itself. */
+export interface CctvLiveLimits {
+  maxSessions: number;
+  sessionTtlSeconds: number;
+  ingestMode: 'passthrough' | 'normalize';
+  streamingEnabled: boolean;
 }

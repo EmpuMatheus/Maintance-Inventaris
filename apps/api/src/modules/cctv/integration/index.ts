@@ -21,4 +21,5 @@ export type {
   IntegrationStreamProfile,
   RtspProbeTarget,
   StoredStreamProfile,
+  StreamSource,
 } from './types';

@@ -64,6 +64,14 @@ const LOG_DIR = path.join(DATA_DIR, 'logs');
 const STORAGE_DIR = path.join(DATA_DIR, 'storage');
 const BACKEND_ENTRY = path.join(APP_DIR, 'apps', 'api', 'dist', 'server.cjs');
 const SPA_DIR = path.join(APP_DIR, 'apps', 'web', 'dist');
+const GATEWAY_BINARY =
+  process.platform === 'win32'
+    ? path.join(APP_DIR, 'apps', 'api', 'gateway', 'mediamtx.exe')
+    : path.join(APP_DIR, 'apps', 'api', 'gateway', 'mediamtx');
+const FFMPEG_BINARY =
+  process.platform === 'win32'
+    ? path.join(APP_DIR, 'apps', 'api', 'gateway', 'ffmpeg.exe')
+    : path.join(APP_DIR, 'apps', 'api', 'gateway', 'ffmpeg');
 const URL_ROOT = (port: number) => `http://localhost:${port}`;
 
 interface BackupConfig {
@@ -368,6 +376,11 @@ function backendEnv(config: LauncherConfig): NodeJS.ProcessEnv {
     SAP_URL: config.sap.url,
     SAP_USERNAME: config.sap.username,
     SAP_PASSWORD: config.sap.password,
+    // Streaming gateway (MediaMTX) is managed by the backend; point it at the
+    // bundled binary when present so Live View works out of the box.
+    CCTV_GATEWAY_BINARY: existsSync(GATEWAY_BINARY) ? GATEWAY_BINARY : '',
+    // FFmpeg normalizer for devices MediaMTX cannot repackage.
+    CCTV_FFMPEG_BINARY: existsSync(FFMPEG_BINARY) ? FFMPEG_BINARY : '',
   };
 }
 

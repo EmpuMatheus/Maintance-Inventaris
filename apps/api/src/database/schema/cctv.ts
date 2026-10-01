@@ -12,6 +12,8 @@ import {
   check,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import { users } from './auth';
+import { assetSubcategories } from './master-data';
 
 /**
  * CCTV device types. Deliberately generic so a Hikvision DVR, an XMEye
@@ -52,7 +54,16 @@ export const cctvDevices = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
     name: varchar('name', { length: 150 }).notNull(),
+    // LEGACY: historical recorder/camera discriminator. Kept for backward
+    // compatibility, but the CCTV behaviour (protocol/discovery) is now driven
+    // by `subcategoryId`, never by this column.
     deviceType: varchar('device_type', { length: 50 }).notNull().default('DVR'),
+    // Source of truth for CCTV behaviour. Points at a Master Data subcategory
+    // whose name is CCTV, DVR or NVR. Nullable for legacy rows created before
+    // this column existed; protocol then falls back to brand/model derivation.
+    subcategoryId: uuid('subcategory_id').references(() => assetSubcategories.id, {
+      onDelete: 'set null',
+    }),
     brand: varchar('brand', { length: 150 }),
     model: varchar('model', { length: 150 }),
     // Derived protocol, persisted for display/filtering. Null for legacy rows
@@ -110,6 +121,7 @@ export const cctvDevices = pgTable(
       .where(sql`${table.isActive} = true`),
     index('cctv_devices_status_idx').on(table.status),
     index('cctv_devices_is_active_idx').on(table.isActive),
+    index('cctv_devices_subcategory_id_idx').on(table.subcategoryId),
   ],
 );
 
@@ -149,6 +161,56 @@ export const cctvChannels = pgTable(
     uniqueIndex('cctv_channels_device_channel_unique').on(table.deviceId, table.channelNumber),
     index('cctv_channels_device_id_idx').on(table.deviceId),
     index('cctv_channels_status_idx').on(table.status),
+  ],
+);
+
+/**
+ * Live View session. The streaming gateway (MediaMTX) is stateless per session:
+ * a session maps a CCTV channel + stream kind to a gateway path. Only the
+ * backend holds the credential-bearing RTSP source; the browser receives a
+ * credential-free, same-origin playback endpoint.
+ */
+export const CCTV_LIVE_STREAM_KINDS = ['MAIN', 'SUB'] as const;
+export type CctvLiveStreamKind = (typeof CCTV_LIVE_STREAM_KINDS)[number];
+
+export const CCTV_LIVE_SESSION_STATUSES = ['ACTIVE', 'STOPPED'] as const;
+export type CctvLiveSessionStatus = (typeof CCTV_LIVE_SESSION_STATUSES)[number];
+
+export const cctvLiveSessions = pgTable(
+  'cctv_live_sessions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    deviceId: uuid('device_id')
+      .notNull()
+      .references(() => cctvDevices.id, { onDelete: 'cascade' }),
+    channelId: uuid('channel_id')
+      .notNull()
+      .references(() => cctvChannels.id, { onDelete: 'cascade' }),
+    // Gateway path name (opaque, random). Never derived from a credential.
+    gatewayPath: varchar('gateway_path', { length: 120 }).notNull(),
+    streamKind: varchar('stream_kind', { length: 10 }).notNull().default('MAIN'),
+    status: varchar('status', { length: 20 }).notNull().default('ACTIVE'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    // Refreshed while a viewer keeps the session alive; the reaper closes
+    // sessions whose TTL has elapsed.
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    stoppedAt: timestamp('stopped_at', { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      'cctv_live_sessions_stream_kind_check',
+      sql`${table.streamKind} in ('MAIN', 'SUB')`,
+    ),
+    check(
+      'cctv_live_sessions_status_check',
+      sql`${table.status} in ('ACTIVE', 'STOPPED')`,
+    ),
+    uniqueIndex('cctv_live_sessions_gateway_path_unique').on(table.gatewayPath),
+    index('cctv_live_sessions_device_id_idx').on(table.deviceId),
+    index('cctv_live_sessions_status_idx').on(table.status),
+    index('cctv_live_sessions_expires_at_idx').on(table.expiresAt),
   ],
 );
 

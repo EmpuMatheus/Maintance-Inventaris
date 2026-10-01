@@ -1,6 +1,6 @@
 import { getDb } from '@/database/client';
-import { cctvDevices, cctvChannels, cctvStreamProfiles } from '@/database/schema';
-import { eq, and, sql, desc, asc, count, inArray } from 'drizzle-orm';
+import { cctvDevices, cctvChannels, cctvStreamProfiles, cctvLiveSessions, assetSubcategories } from '@/database/schema';
+import { eq, and, sql, desc, asc, count, inArray, lt, getTableColumns } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { resolveIntegrationProtocol } from './integration/protocol';
 
@@ -14,6 +14,8 @@ const DEVICE_SELECT = {
   id: cctvDevices.id,
   name: cctvDevices.name,
   deviceType: cctvDevices.deviceType,
+  subcategoryId: cctvDevices.subcategoryId,
+  subcategoryName: assetSubcategories.name,
   brand: cctvDevices.brand,
   model: cctvDevices.model,
   integrationProtocol: cctvDevices.integrationProtocol,
@@ -52,6 +54,8 @@ function mapDevice(row: Row) {
     id: row.id as string,
     name: row.name as string,
     deviceType: row.deviceType as string,
+    subcategoryId: (row.subcategoryId as string | null) ?? null,
+    subcategoryName: (row.subcategoryName as string | null) ?? null,
     brand: (row.brand as string | null) ?? null,
     model: (row.model as string | null) ?? null,
     // Prefer the persisted protocol; derive it for legacy rows that predate
@@ -59,6 +63,7 @@ function mapDevice(row: Row) {
     integrationProtocol:
       (row.integrationProtocol as string | null) ??
       resolveIntegrationProtocol({
+        subcategoryName: row.subcategoryName,
         brand: row.brand,
         model: row.model,
         deviceType: row.deviceType,
@@ -107,6 +112,7 @@ export async function findMany(filters: DeviceFilters) {
   const rows = await db
     .select(DEVICE_SELECT)
     .from(cctvDevices)
+    .leftJoin(assetSubcategories, eq(cctvDevices.subcategoryId, assetSubcategories.id))
     .where(where)
     .orderBy(desc(cctvDevices.createdAt))
     .limit(limit)
@@ -130,15 +136,42 @@ export async function findMany(filters: DeviceFilters) {
 
 export async function findById(id: string) {
   const db = getDb();
-  const rows = await db.select(DEVICE_SELECT).from(cctvDevices).where(eq(cctvDevices.id, sql`${id}::uuid`)).limit(1);
+  const rows = await db
+    .select(DEVICE_SELECT)
+    .from(cctvDevices)
+    .leftJoin(assetSubcategories, eq(cctvDevices.subcategoryId, assetSubcategories.id))
+    .where(eq(cctvDevices.id, sql`${id}::uuid`))
+    .limit(1);
   return rows[0] ? mapDevice(rows[0] as Row) : null;
 }
 
 /** Full raw row including the encrypted credential. Internal use only. */
 export async function findRawById(id: string) {
   const db = getDb();
-  const rows = await db.select().from(cctvDevices).where(eq(cctvDevices.id, sql`${id}::uuid`)).limit(1);
+  const rows = await db
+    .select({
+      ...getTableColumns(cctvDevices),
+      subcategoryName: assetSubcategories.name,
+    })
+    .from(cctvDevices)
+    .leftJoin(assetSubcategories, eq(cctvDevices.subcategoryId, assetSubcategories.id))
+    .where(eq(cctvDevices.id, sql`${id}::uuid`))
+    .limit(1);
   return (rows as Row[])[0] ?? null;
+}
+
+/**
+ * Looks up a Master Data subcategory by id and returns its name. Used to map a
+ * device's subcategory (CCTV / DVR / NVR) to its integration behaviour.
+ */
+export async function findSubcategory(id: string) {
+  const db = getDb();
+  const rows = await db
+    .select({ id: assetSubcategories.id, name: assetSubcategories.name, code: assetSubcategories.code })
+    .from(assetSubcategories)
+    .where(eq(assetSubcategories.id, sql`${id}::uuid`))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function findActiveByEndpoint(ipAddress: string, port: number, excludeId?: string) {
@@ -296,6 +329,8 @@ export async function findDeviceSummaries(ids: string[]) {
       id: cctvDevices.id,
       name: cctvDevices.name,
       deviceType: cctvDevices.deviceType,
+      subcategoryId: cctvDevices.subcategoryId,
+      subcategoryName: assetSubcategories.name,
       brand: cctvDevices.brand,
       model: cctvDevices.model,
       integrationProtocol: cctvDevices.integrationProtocol,
@@ -303,6 +338,7 @@ export async function findDeviceSummaries(ids: string[]) {
       isActive: cctvDevices.isActive,
     })
     .from(cctvDevices)
+    .leftJoin(assetSubcategories, eq(cctvDevices.subcategoryId, assetSubcategories.id))
     .where(inArray(cctvDevices.id, ids));
   return rows as unknown as Row[];
 }
@@ -538,5 +574,187 @@ export async function findStreamProfilesByChannelIds(channelIds: string[]) {
     .from(cctvStreamProfiles)
     .where(inArray(cctvStreamProfiles.channelId, channelIds))
     .orderBy(desc(cctvStreamProfiles.isMainStream), asc(cctvStreamProfiles.profileName));
+  return rows as unknown as Row[];
+}
+
+export async function findStreamProfileById(id: string) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(cctvStreamProfiles)
+    .where(eq(cctvStreamProfiles.id, sql`${id}::uuid`))
+    .limit(1);
+  return (rows as Row[])[0] ?? null;
+}
+
+/**
+ * Updates only the operator-editable fields of a stream profile. Used by the
+ * channel Edit action so a discovered StreamUri can be corrected without
+ * re-syncing the device.
+ */
+export async function updateStreamProfile(
+  id: string,
+  data: { streamUri?: string | null },
+) {
+  const db = getDb();
+  const rows = await db
+    .update(cctvStreamProfiles)
+    .set({ ...data, updatedAt: sql`now()` })
+    .where(eq(cctvStreamProfiles.id, sql`${id}::uuid`))
+    .returning();
+  return (rows as Row[])[0] ?? null;
+}
+
+/**
+ * Returns every active, non-missing channel across all devices, ordered by
+ * device then channel number. Used by the Monitor grid, which now shows all
+ * channels at once (no device pre-selection).
+ */
+export async function findActiveChannelsForMonitor() {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: cctvChannels.id,
+      deviceId: cctvChannels.deviceId,
+      channelNumber: cctvChannels.channelNumber,
+      deviceChannelId: cctvChannels.deviceChannelId,
+      technicalName: cctvChannels.technicalName,
+      name: cctvChannels.name,
+      location: cctvChannels.location,
+      description: cctvChannels.description,
+      displayOrder: cctvChannels.displayOrder,
+      cameraIp: cctvChannels.cameraIp,
+      status: cctvChannels.status,
+      isActive: cctvChannels.isActive,
+      lastSyncAt: cctvChannels.lastSyncAt,
+      createdAt: cctvChannels.createdAt,
+      updatedAt: cctvChannels.updatedAt,
+      deviceName: cctvDevices.name,
+      deviceType: cctvDevices.deviceType,
+      subcategoryId: cctvDevices.subcategoryId,
+      subcategoryName: assetSubcategories.name,
+      deviceStatus: cctvDevices.status,
+      deviceActive: cctvDevices.isActive,
+    })
+    .from(cctvChannels)
+    .innerJoin(cctvDevices, eq(cctvChannels.deviceId, cctvDevices.id))
+    .leftJoin(assetSubcategories, eq(cctvDevices.subcategoryId, assetSubcategories.id))
+    .where(
+      and(
+        eq(cctvChannels.isActive, true),
+        eq(cctvDevices.isActive, true),
+        sql`${cctvChannels.status} <> 'MISSING'`,
+      ),
+    )
+    .orderBy(asc(cctvDevices.name), asc(cctvChannels.channelNumber));
+  return rows as unknown as Row[];
+}
+
+
+/* ---------------------------- Live sessions ---------------------------- */
+
+export interface LiveSessionInput {
+  deviceId: string;
+  channelId: string;
+  gatewayPath: string;
+  streamKind: 'MAIN' | 'SUB';
+  createdBy: string | null;
+  expiresAt: Date;
+}
+
+export async function createLiveSession(input: LiveSessionInput) {
+  const db = getDb();
+  const rows = await db
+    .insert(cctvLiveSessions)
+    .values({
+      deviceId: sql`${input.deviceId}::uuid`,
+      channelId: sql`${input.channelId}::uuid`,
+      gatewayPath: input.gatewayPath,
+      streamKind: input.streamKind,
+      status: 'ACTIVE',
+      createdBy: input.createdBy ? sql`${input.createdBy}::uuid` : null,
+      expiresAt: input.expiresAt,
+      lastSeenAt: sql`now()`,
+    } as any)
+    .returning();
+  return (rows as Row[])[0] ?? null;
+}
+
+export async function findLiveSessionById(id: string) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(cctvLiveSessions)
+    .where(eq(cctvLiveSessions.id, sql`${id}::uuid`))
+    .limit(1);
+  return (rows as Row[])[0] ?? null;
+}
+
+/** Reuses an existing active session for the same channel/kind when present. */
+export async function findActiveLiveSession(deviceId: string, channelId: string, streamKind: string) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(cctvLiveSessions)
+    .where(
+      and(
+        eq(cctvLiveSessions.deviceId, sql`${deviceId}::uuid`),
+        eq(cctvLiveSessions.channelId, sql`${channelId}::uuid`),
+        eq(cctvLiveSessions.streamKind, streamKind),
+        eq(cctvLiveSessions.status, 'ACTIVE'),
+      ),
+    )
+    .orderBy(desc(cctvLiveSessions.createdAt))
+    .limit(1);
+  return (rows as Row[])[0] ?? null;
+}
+
+export async function countActiveLiveSessions() {
+  const db = getDb();
+  const rows = await db
+    .select({ value: count() })
+    .from(cctvLiveSessions)
+    .where(eq(cctvLiveSessions.status, 'ACTIVE'));
+  return Number(rows[0]?.value ?? 0);
+}
+
+/** Extends a session's TTL — called while a viewer keeps it alive. */
+export async function touchLiveSession(id: string, expiresAt: Date) {
+  const db = getDb();
+  await db
+    .update(cctvLiveSessions)
+    .set({ lastSeenAt: sql`now()`, expiresAt } as any)
+    .where(eq(cctvLiveSessions.id, sql`${id}::uuid`));
+}
+
+export async function stopLiveSession(id: string) {
+  const db = getDb();
+  await db
+    .update(cctvLiveSessions)
+    .set({ status: 'STOPPED', stoppedAt: sql`now()` } as any)
+    .where(eq(cctvLiveSessions.id, sql`${id}::uuid`));
+}
+
+/** Stops all active sessions for a device (e.g. when it is deactivated). */
+export async function stopLiveSessionsByDevice(deviceId: string) {
+  const db = getDb();
+  await db
+    .update(cctvLiveSessions)
+    .set({ status: 'STOPPED', stoppedAt: sql`now()` } as any)
+    .where(
+      and(
+        eq(cctvLiveSessions.deviceId, sql`${deviceId}::uuid`),
+        eq(cctvLiveSessions.status, 'ACTIVE'),
+      ),
+    );
+}
+
+/** Returns active sessions whose TTL has elapsed, for the reaper to close. */
+export async function findExpiredLiveSessions(now: Date) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(cctvLiveSessions)
+    .where(and(eq(cctvLiveSessions.status, 'ACTIVE'), lt(cctvLiveSessions.expiresAt, now)));
   return rows as unknown as Row[];
 }

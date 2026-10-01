@@ -26,6 +26,13 @@ export default function TestConnectionPanel({ result }: { result: TestConnection
         )}
       </div>
 
+      {result.hint && (
+        <p className="flex items-start gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{result.hint}</span>
+        </p>
+      )}
+
       <ul className="space-y-1.5">
         {result.steps.map((step) => (
           <li key={step.key} className="flex items-center gap-2 text-sm">

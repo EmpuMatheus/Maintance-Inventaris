@@ -3,7 +3,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Package, LayoutDashboard, ClipboardList, Database, Wrench, Scan, LogOut, Menu, User,
   ChevronDown, ChevronRight, CalendarClock, CalendarDays, TicketCheck, BarChart3, Settings2, TrendingUp, Bell, Activity,
-  Network, Server, Video,
+  Network, Server, Video, LayoutGrid,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
@@ -211,7 +211,7 @@ export default function AppLayout() {
         {canAccessCctv(can) && (
           <div>
             <button
-              onClick={() => { setCctvOpen(!cctvOpen); if (!cctvOpen) go(canReadCctvDevices(can) ? '/cctv/devices' : '/cctv/streams'); }}
+              onClick={() => { setCctvOpen(!cctvOpen); if (!cctvOpen) go(canReadCctvDevices(can) ? '/cctv/devices' : '/cctv/monitor'); }}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive('/cctv') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
@@ -234,12 +234,12 @@ export default function AppLayout() {
                 )}
                 {canReadCctvStreams(can) && (
                   <button
-                    onClick={() => go('/cctv/streams')}
+                    onClick={() => go('/cctv/monitor')}
                     className={`flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                      isActive('/cctv/streams') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                      isActive('/cctv/monitor') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                     }`}
                   >
-                    <Video className="h-3.5 w-3.5 shrink-0" /> Stream
+                    <LayoutGrid className="h-3.5 w-3.5 shrink-0" /> Monitor
                   </button>
                 )}
               </div>

@@ -190,6 +190,20 @@
       "when": 1790325999243,
       "tag": "0027_stormy_living_lightning",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1790650419911,
+      "tag": "0028_create_cctv_live_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790836592837,
+      "tag": "0029_demonic_lady_mastermind",
+      "breakpoints": true
     }
   ]
 }
