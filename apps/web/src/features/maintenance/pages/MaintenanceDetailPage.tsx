@@ -11,6 +11,7 @@ import {
   deleteMaintenancePart,
   listMaintenanceDocuments,
   uploadMaintenanceDocument,
+  updateMaintenanceTask,
   assignMaintenance,
   startMaintenance,
   waitingPartMaintenance,
@@ -24,6 +25,7 @@ import ConditionBadge from '@/components/ui/ConditionBadge';
 import StatusBadge from '../components/StatusBadge';
 import PriorityBadge from '../components/PriorityBadge';
 import MaintenanceTimeline from '../components/MaintenanceTimeline';
+import MaintenanceTaskList from '../components/MaintenanceTaskList';
 import {
   AssignDialog,
   CancelDialog,
@@ -208,6 +210,15 @@ export default function MaintenanceDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const mutToggleTask = useMutation({
+    mutationFn: ({ taskId, isCompleted }: { taskId: string; isCompleted: boolean }) =>
+      updateMaintenanceTask(id!, taskId, isCompleted),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: maintenanceKeys.detail(id ?? '') });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -228,6 +239,9 @@ export default function MaintenanceDetailPage() {
   const userOptions = (users?.data ?? []) as UserOption[];
   const partsList = (parts?.data ?? []) as MaintenancePart[];
   const docList = (documents?.data ?? []) as MaintenanceDocument[];
+  const taskList = m.tasks ?? [];
+  const canToggleTasks =
+    can('maintenance.update') && ['IN_PROGRESS', 'WAITING_PART', 'TESTING'].includes(status);
 
   const InfoRow = ({ label, value }: { label: string; value?: string | number | null }) => (
     <div className="flex justify-between gap-4 border-b border-slate-100 py-2 text-sm last:border-0">
@@ -329,6 +343,20 @@ export default function MaintenanceDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Task list (snapshot from the Maintenance Type) */}
+          {taskList.length > 0 && (
+            <MaintenanceTaskList
+              tasks={taskList}
+              progress={m.taskProgress ?? {
+                completed: taskList.filter((t) => t.isCompleted).length,
+                total: taskList.length,
+              }}
+              canToggle={canToggleTasks}
+              isPending={mutToggleTask.isPending}
+              onToggle={(taskId, isCompleted) => mutToggleTask.mutate({ taskId, isCompleted })}
+            />
+          )}
 
           {/* Parts */}
           <div className="rounded-lg border border-slate-200 bg-white p-5">

@@ -1,5 +1,5 @@
 import { getDb } from '@/database/client';
-import { assets, assetCategories, assetSubcategories, brands, vendors, sites, buildings, floors, rooms, departments, users, networkDevices } from '@/database/schema';
+import { assets, assetCategories, assetSubcategories, brands, vendors, sites, buildings, floors, rooms, departments, users, networkDevices, cctvDevices } from '@/database/schema';
 import { alias } from 'drizzle-orm/pg-core';
 import { eq, like, and, sql, asc, desc, count, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
@@ -39,6 +39,7 @@ export async function findAssets(params: {
   brandId?: string; departmentId?: string; siteId?: string; buildingId?: string;
   floorId?: string; roomId?: string; picId?: string; ownUserId?: string; categoryIds?: string[];
   networkDeviceEligible?: boolean; excludeNetworkDeviceId?: string;
+  cctvEligible?: boolean; excludeCctvDeviceId?: string;
 }) {
   const db = getDb();
   const page = Math.max(1, params.page ?? 1);
@@ -83,6 +84,21 @@ export async function findAssets(params: {
       SELECT 1 FROM ${networkDevices}
       WHERE ${networkDevices.assetId} = ${assets.id}
       ${params.excludeNetworkDeviceId ? sql`AND ${networkDevices.id} <> ${params.excludeNetworkDeviceId}::uuid` : sql``}
+    )`);
+  }
+
+  // CCTV eligibility: the asset's subcategory must be a CCTV-relevant one
+  // (CCTV / DVR / NVR, plus the camera/recorder synonyms the protocol resolver
+  // recognises) and the asset must not already be linked to another CCTV device.
+  // The current device (on edit) is excluded from the "already used" check.
+  if (params.cctvEligible) {
+    conditions.push(
+      sql`(lower(${assetSubcategories.name}) ~ '(cctv|dvr|nvr|camera|ipcam|recorder)' OR lower(${assetSubcategories.code}) ~ '(cctv|dvr|nvr|camera|ipcam|recorder)')`,
+    );
+    conditions.push(sql`NOT EXISTS (
+      SELECT 1 FROM ${cctvDevices}
+      WHERE ${cctvDevices.assetId} = ${assets.id}
+      ${params.excludeCctvDeviceId ? sql`AND ${cctvDevices.id} <> ${params.excludeCctvDeviceId}::uuid` : sql``}
     )`);
   }
 
@@ -220,6 +236,39 @@ export async function findAssetNetworkInfo(id: string) {
     .leftJoin(assetSubcategories, eq(assets.subcategoryId, assetSubcategories.id))
     .leftJoin(rooms, eq(assets.roomId, rooms.id))
     .leftJoin(picUsers, eq(assets.currentPicId, picUsers.id))
+    .where(eq(assets.id, sql`${id}::uuid`))
+    .limit(1);
+  return (rows as any[])[0] ?? null;
+}
+
+/**
+ * Lightweight asset lookup used by the CCTV service to derive the device
+ * name/brand/model/subcategory and to validate CCTV eligibility. Brand is read
+ * from the linked brand row (the Asset is the source of truth).
+ */
+export async function findAssetCctvInfo(id: string) {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: assets.id,
+      assetCode: assets.assetCode,
+      assetName: assets.assetName,
+      status: assets.status,
+      brandId: assets.brandId,
+      brandName: brands.name,
+      model: assets.model,
+      manufacturer: assets.manufacturer,
+      roomId: assets.roomId,
+      roomName: rooms.name,
+      subcategoryId: assets.subcategoryId,
+      subcategoryCode: assetSubcategories.code,
+      subcategoryName: assetSubcategories.name,
+      deletedAt: assets.deletedAt,
+    })
+    .from(assets)
+    .leftJoin(assetSubcategories, eq(assets.subcategoryId, assetSubcategories.id))
+    .leftJoin(brands, eq(assets.brandId, brands.id))
+    .leftJoin(rooms, eq(assets.roomId, rooms.id))
     .where(eq(assets.id, sql`${id}::uuid`))
     .limit(1);
   return (rows as any[])[0] ?? null;

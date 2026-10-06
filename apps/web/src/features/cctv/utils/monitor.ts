@@ -44,6 +44,39 @@ export function monitorGridClass(_tileCount?: number): string {
   return MONITOR_GRID_CLASS;
 }
 
+/* ---------------------------- Full Screen wall ---------------------------- */
+
+/** The tile counts a user may pick for the Full Screen video wall. */
+export type FullScreenTileCount = 8 | 16 | 32;
+
+export const FULLSCREEN_TILE_OPTIONS: FullScreenTileCount[] = [8, 16, 32];
+
+/**
+ * Uniform video-wall grid for Full Screen. Every tile is the same size and the
+ * grid fills the available viewport height (the caller supplies `flex-1
+ * min-h-0`). Layouts:
+ *   8  -> 4 columns x 2 rows
+ *   16 -> 4 columns x 4 rows
+ *   32 -> 8 columns x 4 rows
+ */
+const FULLSCREEN_GRID_CLASS: Record<FullScreenTileCount, string> = {
+  8: 'grid-cols-4 grid-rows-2',
+  16: 'grid-cols-4 grid-rows-4',
+  32: 'grid-cols-8 grid-rows-4',
+};
+
+export function fullscreenGridClass(count: FullScreenTileCount): string {
+  return `grid gap-1 ${FULLSCREEN_GRID_CLASS[count]}`;
+}
+
+/**
+ * Number of empty slots to append so the wall always has exactly `count` cells
+ * (e.g. 10 channels in a 16-tile wall -> 6 empty slots). Never negative.
+ */
+export function fullscreenFillerCount(count: FullScreenTileCount, channelCount: number): number {
+  return Math.max(0, count - channelCount);
+}
+
 /** Minimal shape needed to build the flat monitor wall. */
 export interface MonitorLikeChannel {
   status: string;

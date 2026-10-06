@@ -22,6 +22,11 @@ export const listAssetsQuery = z.object({
     .optional()
     .transform((v) => (v === undefined ? undefined : v === 'true')),
   excludeNetworkDeviceId: z.string().uuid().optional(),
+  cctvEligible: z
+    .string()
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true')),
+  excludeCctvDeviceId: z.string().uuid().optional(),
 });
 
 export const createAssetComponentSchema = z.object({

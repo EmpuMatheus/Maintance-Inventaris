@@ -91,7 +91,7 @@ export default function MaintenanceForm() {
             name="assetId"
             control={control}
             render={({ field }) => (
-              <SearchableAssetSelect value={field.value} onChange={field.onChange} hasError={!!errors.assetId} />
+              <SearchableAssetSelect value={field.value} onChange={field.onChange} hasError={!!errors.assetId} enableScan />
             )}
           />
           {errors.assetId && <p className="mt-1 text-xs text-red-500">{errors.assetId.message}</p>}

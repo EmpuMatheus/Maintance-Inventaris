@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, Plus, ChevronLeft, ChevronRight, Loader2, Eye, Pencil, Trash2, XCircle, Package } from 'lucide-react';
+import { Search, Plus, ChevronLeft, ChevronRight, Loader2, Eye, Pencil, Trash2, XCircle, Package, Scan } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { listAssets, retireAsset, deleteAssetPermanently } from '../api/inventory';
+import { lookupByAssetCode } from '@/features/qr/api/qr';
+import QrScannerModal, { type QrScanOutcome } from '@/features/qr/components/QrScannerModal';
 import RetireDialog from '../components/RetireDialog';
 import DeleteDialog from '../components/DeleteDialog';
 
@@ -40,7 +42,21 @@ export default function InventoryListPage() {
   const [order, setOrder] = useState<'asc' | 'desc'>('desc');
   const [retireTarget, setRetireTarget] = useState<{ id: string; assetCode: string; assetName: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; assetCode: string; assetName: string } | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const qc = useQueryClient();
+
+  const handleScan = async (code: string): Promise<QrScanOutcome> => {
+    try {
+      const response = await lookupByAssetCode(code);
+      const assetId = response.data?.id;
+      if (!assetId) return { ok: false, message: 'Asset tidak ditemukan' };
+      setScannerOpen(false);
+      navigate(`/assets/${assetId}`);
+      return { ok: true };
+    } catch {
+      return { ok: false, message: 'Asset tidak ditemukan' };
+    }
+  };
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['assets', { page, search, condition, status, sort, order }],
@@ -85,6 +101,11 @@ export default function InventoryListPage() {
           {can('asset.create') && (
             <button onClick={() => navigate('/assets/new')} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700">
               <Plus className="h-4 w-4" /> Add Asset
+            </button>
+          )}
+          {can('asset.read') && (
+            <button onClick={() => setScannerOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+              <Scan className="h-4 w-4" /> Scan
             </button>
           )}
           <button onClick={() => navigate('/components')} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
@@ -214,6 +235,8 @@ export default function InventoryListPage() {
           </div>
         </div>
       )}
+
+      <QrScannerModal open={scannerOpen} onClose={() => setScannerOpen(false)} onScan={handleScan} />
 
       <RetireDialog
         open={!!retireTarget}

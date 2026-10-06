@@ -14,6 +14,7 @@ import {
 import { sql } from 'drizzle-orm';
 import { users } from './auth';
 import { assetSubcategories } from './master-data';
+import { assets } from './assets';
 
 /**
  * CCTV device types. Deliberately generic so a Hikvision DVR, an XMEye
@@ -53,6 +54,10 @@ export const cctvDevices = pgTable(
   'cctv_devices',
   {
     id: uuid('id').defaultRandom().primaryKey(),
+    // Asset Inventory link. The Asset is the source of truth for the device
+    // name, brand, model and subcategory; these columns are derived from it.
+    // Nullable for legacy rows created before this column existed.
+    assetId: uuid('asset_id').references(() => assets.id, { onDelete: 'set null' }),
     name: varchar('name', { length: 150 }).notNull(),
     // LEGACY: historical recorder/camera discriminator. Kept for backward
     // compatibility, but the CCTV behaviour (protocol/discovery) is now driven
@@ -122,6 +127,7 @@ export const cctvDevices = pgTable(
     index('cctv_devices_status_idx').on(table.status),
     index('cctv_devices_is_active_idx').on(table.isActive),
     index('cctv_devices_subcategory_id_idx').on(table.subcategoryId),
+    index('cctv_devices_asset_id_idx').on(table.assetId),
   ],
 );
 

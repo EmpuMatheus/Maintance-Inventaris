@@ -29,7 +29,10 @@ export default function MasterDataPage() {
       }
       if (activeKey === 'rooms') {
         const res = await listResource('floors', { limit: 100, isActive: 'true' });
-        cache['floorId'] = (res.data as MasterDataRecord[]).map((r) => ({ value: r.id, label: `${r.code} - ${r.name}` }));
+        cache['floorId'] = (res.data as MasterDataRecord[]).map((r) => {
+          const buildingName = typeof r.building === 'string' ? r.building : r.building?.name;
+          return { value: r.id, label: `${buildingName || '-'} — ${r.code} - ${r.name}` };
+        });
       }
       setOptionsCache(cache);
     }

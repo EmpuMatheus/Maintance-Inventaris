@@ -20,10 +20,33 @@ export interface CctvOnvifService {
  * CCTV device. The backend never returns the stored password; `username` is
  * shown read-only and `password` is only ever sent on create/update.
  */
+/** Minimal Asset Inventory summary linked to a CCTV device. */
+export interface CctvDeviceAsset {
+  id: string;
+  assetCode: string;
+  assetName: string | null;
+}
+
+/** Derived, read-only values returned by the asset eligibility preview. */
+export interface CctvDeviceAssetPreview {
+  assetId: string;
+  assetCode: string;
+  assetName: string;
+  subcategoryId: string | null;
+  subcategoryName: string | null;
+  brand: string | null;
+  model: string | null;
+  deviceName: string;
+  deviceType: CctvDeviceType;
+  integrationProtocol: CctvIntegrationProtocol;
+}
+
 export interface CctvDevice {
   id: string;
   name: string;
   deviceType: CctvDeviceType;
+  assetId: string | null;
+  asset: CctvDeviceAsset | null;
   subcategoryId: string | null;
   subcategoryName: string | null;
   brand: string | null;
@@ -59,20 +82,19 @@ export interface CctvDeviceFilters {
   isActive?: boolean;
 }
 
-/** Create/update payload. `password` is optional (unchanged when omitted). */
+/**
+ * Create/update payload. The Asset is the source of truth for name/brand/model/
+ * subcategory/protocol, so those are never sent. `password` is optional
+ * (unchanged when omitted). `location` is user-entered.
+ */
 export interface CctvDeviceInput {
-  name: string;
-  deviceType: CctvDeviceType;
-  subcategoryId?: string | null;
-  brand?: string | null;
-  model?: string | null;
+  assetId: string | null;
   ipAddress: string;
   port: number;
   rtspPort?: number;
   username?: string | null;
   password?: string | null;
   location?: string | null;
-  description?: string | null;
   isActive?: boolean;
 }
 

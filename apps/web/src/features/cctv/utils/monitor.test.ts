@@ -4,6 +4,9 @@ import {
   paginateChannels,
   monitorGridClass,
   flattenMonitorChannels,
+  fullscreenGridClass,
+  fullscreenFillerCount,
+  FULLSCREEN_TILE_OPTIONS,
   MONITOR_GRID_CLASS,
 } from './monitor';
 import type { CctvChannel } from '../types';
@@ -76,6 +79,28 @@ describe('monitorGridClass (uniform video-wall tiles)', () => {
     expect(MONITOR_GRID_CLASS).toContain('sm:grid-cols-2');
     expect(MONITOR_GRID_CLASS).toContain('lg:grid-cols-3');
     expect(MONITOR_GRID_CLASS).toContain('xl:grid-cols-4');
+  });
+});
+
+describe('full screen video wall', () => {
+  it('exposes 8, 16 and 32 tile choices', () => {
+    expect(FULLSCREEN_TILE_OPTIONS).toEqual([8, 16, 32]);
+  });
+
+  it('uses the correct grid for 8, 16 and 32 tiles', () => {
+    expect(fullscreenGridClass(8)).toContain('grid-cols-4');
+    expect(fullscreenGridClass(8)).toContain('grid-rows-2');
+    expect(fullscreenGridClass(16)).toContain('grid-cols-4');
+    expect(fullscreenGridClass(16)).toContain('grid-rows-4');
+    expect(fullscreenGridClass(32)).toContain('grid-cols-8');
+    expect(fullscreenGridClass(32)).toContain('grid-rows-4');
+  });
+
+  it('always yields the same number of cells as the chosen tile count', () => {
+    expect(fullscreenFillerCount(16, 10)).toBe(6);
+    expect(fullscreenFillerCount(8, 10)).toBe(0);
+    expect(fullscreenFillerCount(32, 0)).toBe(32);
+    expect(fullscreenFillerCount(8, 8)).toBe(0);
   });
 });
 

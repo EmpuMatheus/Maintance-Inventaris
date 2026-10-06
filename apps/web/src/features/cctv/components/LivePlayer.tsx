@@ -18,6 +18,8 @@ export interface LivePlayerProps {
   session: CctvLiveSession;
   /** Preferred transport; WebRTC is attempted first, HLS is the fallback. */
   preferredTransport: CctvPlaybackTransport;
+  /** Fill the parent element instead of using the default 16:9 box. */
+  fill?: boolean;
   onStatusChange?: (status: PlayerStatus, transport: CctvPlaybackTransport | null) => void;
 }
 
@@ -31,7 +33,7 @@ export interface LivePlayerProps {
  * - WebRTC failure is not treated as a fatal error: HLS fallback success still
  *   reports `playing`.
  */
-export default function LivePlayer({ session, preferredTransport, onStatusChange }: LivePlayerProps) {
+export default function LivePlayer({ session, preferredTransport, fill = false, onStatusChange }: LivePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<PlayerStatus>('connecting');
   const [transport, setTransport] = useState<CctvPlaybackTransport | null>(null);
@@ -173,7 +175,11 @@ export default function LivePlayer({ session, preferredTransport, onStatusChange
   }, [session, preferredTransport]);
 
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+    <div
+      className={`relative overflow-hidden rounded-lg bg-black ${
+        fill ? 'h-full w-full' : 'aspect-video w-full'
+      }`}
+    >
       <video
         ref={videoRef}
         className="h-full w-full object-contain"

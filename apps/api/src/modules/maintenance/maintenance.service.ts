@@ -1,8 +1,15 @@
 import { AppError } from '@/middleware/error-handler';
 import * as repo from './maintenance.repository';
 import { getDb } from '@/database/client';
-import { maintenanceRecords, assets as assetsTable, assetConditionHistory, users } from '@/database/schema';
-import { sql, eq } from 'drizzle-orm';
+import {
+  maintenanceRecords,
+  maintenanceTasks,
+  maintenanceTypeTasks,
+  assets as assetsTable,
+  assetConditionHistory,
+  users,
+} from '@/database/schema';
+import { sql, eq, asc } from 'drizzle-orm';
 import { eventBus } from '@/lib/event-bus';
 import { canAccessAsset, type AssetScope } from '@/middleware/scope';
 
@@ -76,7 +83,9 @@ export async function getById(id: string, scope?: AssetScope) {
   const row = await repo.findDetails(id);
   if (!row) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
   await assertOwnMaintenance(id, scope);
-  return row;
+  const tasks = await repo.getTasks(id);
+  const completed = tasks.filter((t) => (t as { isCompleted?: boolean }).isCompleted).length;
+  return { ...(row as Record<string, unknown>), tasks, taskProgress: { completed, total: tasks.length } };
 }
 
 export async function getByCode(code: string, scope?: AssetScope) {
@@ -96,6 +105,27 @@ export async function getDocuments(maintenanceId: string, scope?: AssetScope) {
   return repo.getDocuments(maintenanceId);
 }
 
+export async function getTasks(maintenanceId: string, scope?: AssetScope) {
+  const mt = await repo.findById(maintenanceId);
+  if (!mt) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
+  await assertOwnMaintenance(maintenanceId, scope);
+  return repo.getTasks(maintenanceId);
+}
+
+/**
+ * Updates the completion status of a single checklist task. The task must
+ * belong to the given maintenance record.
+ */
+export async function setTaskCompleted(maintenanceId: string, taskId: string, isCompleted: boolean) {
+  const mt = await repo.findById(maintenanceId);
+  if (!mt) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
+
+  const task = await repo.getTask(maintenanceId, taskId);
+  if (!task) throw new AppError(404, 'NOT_FOUND', 'Maintenance task not found.');
+
+  return repo.setTaskCompleted(maintenanceId, taskId, isCompleted);
+}
+
 export async function create(body: Record<string, unknown>, userId?: string, scope?: AssetScope) {
   const db = getDb();
   const [asset] = await db
@@ -112,23 +142,48 @@ export async function create(body: Record<string, unknown>, userId?: string, sco
   }
 
   const code = await generateCode();
-  const [record] = await db.insert(maintenanceRecords).values({
-    maintenanceCode: code,
-    assetId: sql`${body.assetId as string}::uuid`,
-    maintenanceTypeId: body.maintenanceTypeId ? sql`${body.maintenanceTypeId as string}::uuid` : undefined,
-    maintenanceCategory: str(body.maintenanceCategory) || 'CORRECTIVE',
-    problem: str(body.problem) || undefined,
-    priority: str(body.priority) || 'MEDIUM',
-    technicianId: body.technicianId ? sql`${body.technicianId as string}::uuid` : undefined,
-    vendorId: body.vendorId ? sql`${body.vendorId as string}::uuid` : undefined,
-    scheduledDate: str(body.scheduledDate) ? sql`${str(body.scheduledDate)}::date` : undefined,
-    notes: str(body.notes) ?? undefined,
-    ticketId: body.ticketId ? sql`${body.ticketId as string}::uuid` : undefined,
-    createdBy: userId ? sql`${userId}::uuid` : undefined,
-    status: 'OPEN',
-  } as any).returning();
 
-  return record;
+  return db.transaction(async (tx) => {
+    const [record] = await tx.insert(maintenanceRecords).values({
+      maintenanceCode: code,
+      assetId: sql`${body.assetId as string}::uuid`,
+      maintenanceTypeId: body.maintenanceTypeId ? sql`${body.maintenanceTypeId as string}::uuid` : undefined,
+      maintenanceCategory: str(body.maintenanceCategory) || 'CORRECTIVE',
+      problem: str(body.problem) || undefined,
+      priority: str(body.priority) || 'MEDIUM',
+      technicianId: body.technicianId ? sql`${body.technicianId as string}::uuid` : undefined,
+      vendorId: body.vendorId ? sql`${body.vendorId as string}::uuid` : undefined,
+      scheduledDate: str(body.scheduledDate) ? sql`${str(body.scheduledDate)}::date` : undefined,
+      notes: str(body.notes) ?? undefined,
+      ticketId: body.ticketId ? sql`${body.ticketId as string}::uuid` : undefined,
+      createdBy: userId ? sql`${userId}::uuid` : undefined,
+      status: 'OPEN',
+    } as any).returning();
+
+    // Snapshot the Maintenance Type task list onto the maintenance record so
+    // later edits to the type never change an already-created maintenance.
+    if (body.maintenanceTypeId) {
+      const template = await tx
+        .select()
+        .from(maintenanceTypeTasks)
+        .where(eq(maintenanceTypeTasks.maintenanceTypeId, sql`${body.maintenanceTypeId as string}::uuid`))
+        .orderBy(asc(maintenanceTypeTasks.sortOrder), asc(maintenanceTypeTasks.createdAt));
+
+      if (template.length > 0) {
+        await tx.insert(maintenanceTasks).values(
+          template.map((task, index) => ({
+            maintenanceId: record.id,
+            sourceTaskId: task.id,
+            task: task.task,
+            sortOrder: index,
+            isCompleted: false,
+          })),
+        );
+      }
+    }
+
+    return record;
+  });
 }
 
 export async function assign(id: string, body: Record<string, unknown>, _userId?: string) {

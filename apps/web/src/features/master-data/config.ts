@@ -115,6 +115,7 @@ export const MODULES: ModuleConfig[] = [
     columns: [
       { key: 'code', label: 'Code', sortable: true },
       { key: 'name', label: 'Name', sortable: true },
+      { key: 'building', label: 'Building' },
       { key: 'description', label: 'Description' },
       { key: 'isActive', label: 'Status' },
     ],
@@ -160,7 +161,7 @@ export const MODULES: ModuleConfig[] = [
           { value: 'INSPECTION', label: 'Inspection' },
         ],
       },
-      { key: 'description', label: 'Description', type: 'textarea' },
+      { key: 'tasks', label: 'Task List', type: 'task-list' },
     ],
   },
 ];

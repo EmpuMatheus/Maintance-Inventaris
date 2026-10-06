@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Package, LayoutDashboard, ClipboardList, Database, Wrench, Scan, LogOut, Menu, User,
+  Package, LayoutDashboard, ClipboardList, Database, Wrench, LogOut, Menu, User,
   ChevronDown, ChevronRight, CalendarClock, CalendarDays, TicketCheck, BarChart3, Settings2, TrendingUp, Bell, Activity,
   Network, Server, Video, LayoutGrid,
 } from 'lucide-react';
@@ -84,17 +84,6 @@ export default function AppLayout() {
         >
           <ClipboardList className="h-4 w-4 shrink-0" /> Inventory
         </button>
-
-        {can('asset.read') && (
-          <button
-            onClick={() => go('/scan')}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-              isActive('/scan') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-            }`}
-          >
-            <Scan className="h-4 w-4 shrink-0" /> Scan
-          </button>
-        )}
 
         {can('maintenance.read') && (
           <button

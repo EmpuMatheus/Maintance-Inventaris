@@ -90,3 +90,16 @@ export async function getDocumentsController(req: Request, res: Response, next: 
     res.json({ success: true, data: r });
   } catch (e) { next(e); }
 }
+export async function getTasksController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const scope = resolveAssetScope(req.user);
+    const r = await svc.getTasks(req.params.id as string, scope);
+    res.json({ success: true, data: r });
+  } catch (e) { next(e); }
+}
+export async function updateTaskController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const r = await svc.setTaskCompleted(req.params.id as string, req.params.taskId as string, Boolean(req.body.isCompleted));
+    res.json({ success: true, data: r });
+  } catch (e) { next(e); }
+}

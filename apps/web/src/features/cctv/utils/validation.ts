@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { CctvDeviceInput } from '../types';
 
 export const DEVICE_TYPE_OPTIONS = [
   { value: 'DVR', label: 'DVR' },
@@ -30,16 +31,13 @@ export function deriveIntegrationProtocol(
 /**
  * Frontend mirror of the backend create/update schema.
  *
- * Device status (ONLINE/OFFLINE/UNKNOWN) is owned by the backend and is never
- * part of the form. The password is optional: on edit an empty value means
- * "leave unchanged".
+ * The Asset is selected first and is the source of truth: Device Name, Brand,
+ * Model and Subcategory are derived by the backend and are never entered or
+ * submitted. Device status (ONLINE/OFFLINE/UNKNOWN) is backend-owned. The
+ * password is optional: on edit an empty value means "leave unchanged".
  */
 export const cctvDeviceFormSchema = z.object({
-  name: z.string().trim().min(1, 'Device name is required.').max(150),
-  deviceType: z.enum(['DVR', 'NVR', 'RECORDER']),
-  subcategoryId: z.string().trim().optional().or(z.literal('')),
-  brand: z.string().trim().max(150).optional().or(z.literal('')),
-  model: z.string().trim().max(150).optional().or(z.literal('')),
+  assetId: z.string().uuid('Asset is required.'),
   ipAddress: z
     .string()
     .trim()
@@ -53,8 +51,11 @@ export const cctvDeviceFormSchema = z.object({
     .max(65535, 'RTSP port must be 1-65535.'),
   username: z.string().trim().max(150).optional().or(z.literal('')),
   password: z.string().max(512).optional().or(z.literal('')),
-  location: z.string().trim().max(255).optional().or(z.literal('')),
-  description: z.string().trim().max(2000).optional().or(z.literal('')),
+  location: z
+    .string()
+    .trim()
+    .min(1, 'Location is required.')
+    .max(255, 'Location must be at most 255 characters.'),
 });
 
 export type CctvDeviceFormValues = z.infer<typeof cctvDeviceFormSchema>;
@@ -74,26 +75,21 @@ export const BACKEND_OWNED_FIELDS = [
 ] as const;
 
 /**
- * Maps validated form values to the API payload. Empty optional fields become
- * `null` so the backend can clear them. On edit the password is omitted when
- * left blank so the stored credential is preserved.
+ * Maps validated form values to the API payload. The backend derives
+ * name/brand/model/subcategory/protocol from the Asset. On edit the password is
+ * omitted when left blank so the stored credential is preserved.
  */
 export function buildCctvDevicePayload(
   values: CctvDeviceFormValues,
   opts: { isEdit: boolean },
-): Record<string, unknown> {
-  const payload: Record<string, unknown> = {
-    name: values.name.trim(),
-    deviceType: values.deviceType,
-    subcategoryId: values.subcategoryId?.trim() ? values.subcategoryId.trim() : null,
-    brand: values.brand?.trim() ? values.brand.trim() : null,
-    model: values.model?.trim() ? values.model.trim() : null,
+): CctvDeviceInput {
+  const payload: CctvDeviceInput = {
+    assetId: values.assetId,
     ipAddress: values.ipAddress.trim(),
     port: values.port,
     rtspPort: values.rtspPort,
     username: values.username?.trim() ? values.username.trim() : null,
     location: values.location?.trim() ? values.location.trim() : null,
-    description: values.description?.trim() ? values.description.trim() : null,
   };
   if (values.password) payload.password = values.password;
   else if (!opts.isEdit) payload.password = null;

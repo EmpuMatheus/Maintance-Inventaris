@@ -5,6 +5,7 @@ import {
   createBuildingSchema,
   createFloorSchema,
   createRoomSchema,
+  createMaintenanceTypeSchema,
 } from '@/modules/master-data/master-data.schema';
 
 describe('Master Data Schema Validation', () => {
@@ -99,6 +100,37 @@ describe('Master Data Schema Validation', () => {
         name: 'Main Building',
       });
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe('createMaintenanceTypeSchema', () => {
+    it('accepts a task list and no description', () => {
+      const result = createMaintenanceTypeSchema.safeParse({
+        code: 'CLEANING',
+        name: 'PC Cleaning',
+        maintenanceCategory: 'PREVENTIVE',
+        tasks: [{ task: 'Check device' }, { task: 'Clean device', order: 1 }],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a type without tasks', () => {
+      const result = createMaintenanceTypeSchema.safeParse({
+        code: 'CLEANING',
+        name: 'PC Cleaning',
+        maintenanceCategory: 'PREVENTIVE',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects a task with a non-uuid id', () => {
+      const result = createMaintenanceTypeSchema.safeParse({
+        code: 'CLEANING',
+        name: 'PC Cleaning',
+        maintenanceCategory: 'PREVENTIVE',
+        tasks: [{ id: 'not-a-uuid', task: 'Check' }],
+      });
+      expect(result.success).toBe(false);
     });
   });
 });

@@ -1,17 +1,17 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { useWatch } from 'react-hook-form';
 import {
   buildCctvDevicePayload,
   cctvDeviceFormSchema,
-  deriveIntegrationProtocol,
   type CctvDeviceFormValues,
 } from '../utils/validation';
 import CctvProtocolBadge from './CctvProtocolBadge';
-import { listMaster } from '@/features/inventory/api/inventory';
+import CctvDeviceAssetSelect, { type CctvAssetOption } from './CctvDeviceAssetSelect';
+import { getCctvAssetPreview } from '../api/cctv';
 import type { CctvDevice, CctvDeviceInput } from '../types';
 
 function inputClass(hasError?: boolean) {
@@ -20,13 +20,8 @@ function inputClass(hasError?: boolean) {
   }`;
 }
 
-/** Maps a CCTV subcategory name to the legacy device_type column value. */
-function legacyDeviceType(subcategoryName: string): 'DVR' | 'NVR' | 'RECORDER' {
-  const n = subcategoryName.toLowerCase();
-  if (n.includes('dvr')) return 'DVR';
-  if (n.includes('nvr')) return 'NVR';
-  return 'RECORDER';
-}
+const readonlyClass =
+  'mt-1 block w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600';
 
 export default function CctvDeviceForm({
   device,
@@ -40,58 +35,77 @@ export default function CctvDeviceForm({
   const navigate = useNavigate();
   const isEdit = !!device;
 
+  const [selectedAsset, setSelectedAsset] = useState<CctvAssetOption | null>(
+    device?.asset
+      ? {
+          id: device.asset.id,
+          assetCode: device.asset.assetCode,
+          assetName: device.asset.assetName ?? '',
+          subcategoryName: device.subcategoryName,
+        }
+      : null,
+  );
+  const [assetError, setAssetError] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
-    control,
+    watch,
     setValue,
     formState: { errors },
   } = useForm<CctvDeviceFormValues>({
     resolver: zodResolver(cctvDeviceFormSchema),
     defaultValues: {
-      name: device?.name ?? '',
-      deviceType: device?.deviceType ?? 'DVR',
-      subcategoryId: device?.subcategoryId ?? '',
-      brand: device?.brand ?? '',
-      model: device?.model ?? '',
+      assetId: device?.assetId ?? '',
       ipAddress: device?.ipAddress ?? '',
       port: device?.port ?? 80,
       rtspPort: device?.rtspPort ?? 554,
       username: device?.username ?? '',
       password: '',
       location: device?.location ?? '',
-      description: device?.description ?? '',
     },
   });
 
-  // Device / Subcategory options come from Master Data → Subcategories, limited
-  // to the CCTV-relevant ones (CCTV / DVR / NVR). No bespoke device-type enum.
-  const subcategoriesQuery = useQuery({
-    queryKey: ['master', 'subcategories'],
-    queryFn: () => listMaster('subcategories'),
+  // The asset picker is a custom control, so its value is pushed into
+  // react-hook-form explicitly (otherwise validation silently fails).
+  const assetId = watch('assetId');
+
+  // Derived readonly values, previewed live from the backend once an asset is
+  // chosen, falling back to the device's stored/derived values on edit.
+  const previewQuery = useQuery({
+    queryKey: ['cctv-asset-preview', assetId, device?.id],
+    queryFn: () => getCctvAssetPreview(assetId, device?.id),
+    enabled: !!assetId,
   });
-  const subcategories = ((subcategoriesQuery.data?.data ?? []) as { id: string; name?: string; code?: string }[])
-    .filter((s) => /cctv|dvr|nvr|camera/i.test(`${s.name ?? ''} ${s.code ?? ''}`))
-    .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+  const preview = previewQuery.data?.data;
 
-  const subcategoryId = useWatch({ control, name: 'subcategoryId' });
-  const brandValue = useWatch({ control, name: 'brand' });
-  const modelValue = useWatch({ control, name: 'model' });
-  const selectedSubcategory = subcategories.find((s) => s.id === subcategoryId) ?? null;
-  const selectedSubcategoryName = selectedSubcategory?.name ?? device?.subcategoryName ?? null;
-  const derivedProtocol = deriveIntegrationProtocol(selectedSubcategoryName, brandValue, modelValue);
+  const deviceName = preview?.deviceName ?? (assetId ? device?.name ?? null : null);
+  const brand = preview?.brand ?? (assetId ? device?.brand ?? null : null);
+  const model = preview?.model ?? (assetId ? device?.model ?? null : null);
+  const subcategoryName =
+    preview?.subcategoryName ?? selectedAsset?.subcategoryName ?? (assetId ? device?.subcategoryName ?? null : null);
+  const integrationProtocol =
+    preview?.integrationProtocol ?? (assetId ? device?.integrationProtocol ?? null : null);
+  const hasAsset = !!assetId;
 
-  const onSubcategoryChange = (value: string) => {
-    setValue('subcategoryId', value);
-    if (value) {
-      const name = subcategories.find((s) => s.id === value)?.name ?? '';
-      // Keep the legacy device_type column in sync (not used for behaviour now).
-      setValue('deviceType', legacyDeviceType(name));
-    }
+  const onAssetSelect = (asset: CctvAssetOption) => {
+    setValue('assetId', asset.id, { shouldValidate: true, shouldDirty: true });
+    setSelectedAsset(asset);
+    setAssetError(null);
   };
 
   const submit = (values: CctvDeviceFormValues) => {
-    onSubmit(buildCctvDevicePayload(values, { isEdit }) as unknown as CctvDeviceInput);
+    if (!assetId) {
+      setAssetError('Asset is required.');
+      return;
+    }
+    onSubmit(buildCctvDevicePayload({ ...values, assetId }, { isEdit }));
+  };
+
+  // Surface validation failures (e.g. a missing/invalid asset) so the submit
+  // button never appears unresponsive.
+  const onInvalid = () => {
+    if (!assetId) setAssetError('Asset is required.');
   };
 
   const cancelTo = isEdit && device ? `/cctv/devices/${device.id}` : '/cctv/devices';
@@ -107,61 +121,84 @@ export default function CctvDeviceForm({
       <h1 className="text-2xl font-bold text-slate-900">{isEdit ? 'Edit CCTV Device' : 'Tambah CCTV Device'}</h1>
       <p className="mt-1 text-sm text-slate-500">
         {isEdit
-          ? 'Perbarui informasi device. Status koneksi diperbarui melalui Test Connection / Sync.'
-          : 'Daftarkan device CCTV. Subcategory (CCTV / DVR / NVR) menentukan perilaku integrasi.'}
-      </p>
-      <p className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-        Integration Protocol: <CctvProtocolBadge protocol={derivedProtocol} />
-        <span className="text-xs text-slate-400">
-          (DVR → ISAPI, CCTV/NVR → ONVIF)
-        </span>
+          ? 'Perbarui Asset atau kredensial/alamat jaringan. Nama, brand, model, dan subcategory mengikuti Asset.'
+          : 'Pilih Asset terlebih dahulu. Nama, brand, model, subcategory, dan integration diisi otomatis dari Asset.'}
       </p>
 
-      <form onSubmit={handleSubmit(submit)} className="mt-6 space-y-6">
+      <form onSubmit={handleSubmit(submit, onInvalid)} className="mt-6 space-y-6">
+        <section className="rounded-lg border border-slate-200 bg-white p-5 md:p-6">
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Asset</h2>
+          <label className="block text-sm font-medium text-slate-700">Asset *</label>
+          <CctvDeviceAssetSelect
+            value={assetId}
+            initialAsset={selectedAsset}
+            excludeCctvDeviceId={device?.id}
+            onChange={onAssetSelect}
+            hasError={!!assetError}
+          />
+          {assetError && <p className="mt-1 text-xs text-red-500">{assetError}</p>}
+          <p className="mt-2 text-xs text-slate-400">
+            Hanya Asset dengan Subcategory CCTV / DVR / NVR dan belum digunakan device lain yang dapat dipilih.
+          </p>
+        </section>
+
         <section className="rounded-lg border border-slate-200 bg-white p-5 md:p-6">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Device Information</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-slate-700">Device Name *</label>
-              <input type="text" placeholder="Hikvision DVR" {...register('name')} className={inputClass(!!errors.name)} />
-              {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
+              <label className="block text-sm font-medium text-slate-700">Device Name</label>
+              <input
+                readOnly
+                disabled
+                value={hasAsset ? deviceName ?? '' : ''}
+                placeholder="Select asset first"
+                className={readonlyClass}
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Device / Subcategory *</label>
-              <select
-                value={subcategoryId ?? ''}
-                onChange={(e) => onSubcategoryChange(e.target.value)}
-                className={inputClass(!!errors.subcategoryId)}
-                disabled={subcategoriesQuery.isLoading}
-              >
-                <option value="">Pilih subcategory…</option>
-                {subcategories.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-slate-400">
-                Diambil dari Master Data → Subcategories (CCTV / DVR / NVR).
-              </p>
+              <label className="block text-sm font-medium text-slate-700">Subcategory</label>
+              <input
+                readOnly
+                disabled
+                value={hasAsset ? subcategoryName ?? '' : ''}
+                placeholder="Select asset first"
+                className={readonlyClass}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700">Brand</label>
-              <input type="text" placeholder="Hikvision / XMEye" {...register('brand')} className={inputClass(!!errors.brand)} />
-              {errors.brand && <p className="mt-1 text-xs text-red-500">{errors.brand.message}</p>}
+              <input
+                readOnly
+                disabled
+                value={hasAsset ? brand ?? '' : ''}
+                placeholder="Select asset first"
+                className={readonlyClass}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700">Model</label>
-              <input type="text" placeholder="Model perangkat" {...register('model')} className={inputClass(!!errors.model)} />
-              {errors.model && <p className="mt-1 text-xs text-red-500">{errors.model.message}</p>}
+              <input
+                readOnly
+                disabled
+                value={hasAsset ? model ?? '' : ''}
+                placeholder="Select asset first"
+                className={readonlyClass}
+              />
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-slate-700">Location</label>
-              <input type="text" placeholder="Ruang Server" {...register('location')} className={inputClass(!!errors.location)} />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-slate-700">Description</label>
-              <textarea rows={3} {...register('description')} className={inputClass(!!errors.description)} />
+              <label className="block text-sm font-medium text-slate-700">Integration</label>
+              <div className={`${readonlyClass} flex items-center gap-2`}>
+                {previewQuery.isLoading && hasAsset ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                ) : integrationProtocol ? (
+                  <>
+                    <CctvProtocolBadge protocol={integrationProtocol} />
+                    <span className="text-xs text-slate-400">(DVR → ISAPI, CCTV/NVR → ONVIF)</span>
+                  </>
+                ) : (
+                  <span className="text-slate-400">Select asset first</span>
+                )}
+              </div>
             </div>
           </div>
         </section>
@@ -169,6 +206,11 @@ export default function CctvDeviceForm({
         <section className="rounded-lg border border-slate-200 bg-white p-5 md:p-6">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Network &amp; Credential</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-slate-700">Location *</label>
+              <input type="text" placeholder="Ruang Server" {...register('location')} className={inputClass(!!errors.location)} />
+              {errors.location && <p className="mt-1 text-xs text-red-500">{errors.location.message}</p>}
+            </div>
             <div>
               <label className="block text-sm font-medium text-slate-700">IP Address *</label>
               <input type="text" inputMode="numeric" placeholder="192.168.2.10" {...register('ipAddress')} className={inputClass(!!errors.ipAddress)} />
@@ -188,7 +230,7 @@ export default function CctvDeviceForm({
               <label className="block text-sm font-medium text-slate-700">Username</label>
               <input type="text" autoComplete="off" {...register('username')} className={inputClass(!!errors.username)} />
             </div>
-            <div>
+            <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-slate-700">
                 Password {isEdit && <span className="font-normal text-slate-400">(kosongkan bila tidak diubah)</span>}
               </label>

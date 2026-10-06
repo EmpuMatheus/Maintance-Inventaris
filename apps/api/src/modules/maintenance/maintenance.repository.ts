@@ -3,6 +3,7 @@ import {
   maintenanceRecords,
   maintenanceParts,
   maintenanceDocuments,
+  maintenanceTasks,
   assets,
   assetCategories,
   sites,
@@ -13,10 +14,11 @@ import {
   tickets,
   users,
   maintenanceTypes,
+  maintenanceTypeTasks,
   vendors,
 } from '@/database/schema';
 import { alias } from 'drizzle-orm/pg-core';
-import { eq, like, and, sql, desc, count, inArray } from 'drizzle-orm';
+import { eq, like, and, sql, desc, count, inArray, asc } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 
 const technicianUsers = alias(users, 'technician_users');
@@ -283,4 +285,54 @@ export async function deletePart(partId: string) {
 export async function getDocuments(maintenanceId: string) {
   const db = getDb();
   return db.select().from(maintenanceDocuments).where(eq(maintenanceDocuments.maintenanceId, sql`${maintenanceId}::uuid`)).orderBy(maintenanceDocuments.createdAt);
+}
+
+/** Task list snapshot owned by a maintenance record, ordered for display. */
+export async function getTasks(maintenanceId: string) {
+  const db = getDb();
+  return db
+    .select()
+    .from(maintenanceTasks)
+    .where(eq(maintenanceTasks.maintenanceId, sql`${maintenanceId}::uuid`))
+    .orderBy(asc(maintenanceTasks.sortOrder), asc(maintenanceTasks.createdAt));
+}
+
+export async function getTask(maintenanceId: string, taskId: string) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(maintenanceTasks)
+    .where(and(
+      eq(maintenanceTasks.id, sql`${taskId}::uuid`),
+      eq(maintenanceTasks.maintenanceId, sql`${maintenanceId}::uuid`),
+    ))
+    .limit(1);
+  return (rows as any[])[0] ?? null;
+}
+
+export async function setTaskCompleted(maintenanceId: string, taskId: string, isCompleted: boolean) {
+  const db = getDb();
+  const rows = await db
+    .update(maintenanceTasks)
+    .set({
+      isCompleted,
+      completedAt: isCompleted ? sql`now()` : null,
+      updatedAt: sql`now()`,
+    } as any)
+    .where(and(
+      eq(maintenanceTasks.id, sql`${taskId}::uuid`),
+      eq(maintenanceTasks.maintenanceId, sql`${maintenanceId}::uuid`),
+    ))
+    .returning();
+  return (rows as any[])[0] ?? null;
+}
+
+/** Template task list of a Maintenance Type, ordered for snapshotting. */
+export async function getTypeTasks(typeId: string) {
+  const db = getDb();
+  return db
+    .select()
+    .from(maintenanceTypeTasks)
+    .where(eq(maintenanceTypeTasks.maintenanceTypeId, sql`${typeId}::uuid`))
+    .orderBy(asc(maintenanceTypeTasks.sortOrder), asc(maintenanceTypeTasks.createdAt));
 }

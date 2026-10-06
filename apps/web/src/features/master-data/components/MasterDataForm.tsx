@@ -4,6 +4,8 @@ import { X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createResource, updateResource, listResource } from '../api/master-data';
 import type { ModuleConfig, MasterDataRecord } from '../types';
+import TaskListEditor from './TaskListEditor';
+import { makeTaskRow, type TaskRow } from './task-list';
 
 interface Props {
   config: ModuleConfig;
@@ -19,7 +21,7 @@ export default function MasterDataForm({ config, record, onClose, onSuccess }: P
   const [form, setForm] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const f of config.fields) {
-      if (f.type === 'hidden') continue;
+      if (f.type === 'hidden' || f.type === 'task-list') continue;
       const value = record ? (record as any)[f.key] : undefined;
       if (f.type === 'checkbox') {
         initial[f.key] = value === undefined || value === null ? 'false' : String(value);
@@ -29,20 +31,35 @@ export default function MasterDataForm({ config, record, onClose, onSuccess }: P
     }
     return initial;
   });
+  const [tasks, setTasks] = useState<TaskRow[]>(() => {
+    const existing = record?.tasks ?? [];
+    return existing.length > 0
+      ? existing.map((t) => makeTaskRow(t.task, t.id))
+      : [makeTaskRow()];
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [checking, setChecking] = useState(false);
+
+  const hasTaskList = config.fields.some((f) => f.type === 'task-list');
 
   const mutate = useMutation({
     mutationFn: () => {
       const payload: Record<string, unknown> = {};
       for (const f of config.fields) {
-        if (f.type === 'hidden') continue;
+        if (f.type === 'hidden' || f.type === 'task-list') continue;
         const val = form[f.key];
         if (f.type === 'checkbox') {
           payload[f.key] = val === 'true';
         } else {
           payload[f.key] = val === '' ? undefined : val;
         }
+      }
+      if (hasTaskList) {
+        // Drop empty tasks and preserve the on-screen order.
+        payload.tasks = tasks
+          .map((t) => ({ id: t.id, task: t.task.trim() }))
+          .filter((t) => t.task.length > 0)
+          .map((t, index) => ({ id: t.id, task: t.task, order: index }));
       }
       if (isEdit) return updateResource(config.path, record!.id, payload);
       return createResource(config.path, payload);
@@ -57,7 +74,7 @@ export default function MasterDataForm({ config, record, onClose, onSuccess }: P
   function validateRequired() {
     const errs: Record<string, string> = {};
     for (const f of config.fields) {
-      if (f.type === 'hidden' || f.type === 'checkbox') continue;
+      if (f.type === 'hidden' || f.type === 'checkbox' || f.type === 'task-list') continue;
       if (f.required && !form[f.key]?.trim()) {
         errs[f.key] = `${f.label} is required`;
       }
@@ -139,6 +156,13 @@ export default function MasterDataForm({ config, record, onClose, onSuccess }: P
                   />
                   <span className="text-sm font-medium text-slate-700">{field.label}</span>
                 </label>
+              ) : field.type === 'task-list' ? (
+                <>
+                  <label className="block text-sm font-medium text-slate-700">{field.label}</label>
+                  <div className="mt-1">
+                    <TaskListEditor value={tasks} onChange={setTasks} />
+                  </div>
+                </>
               ) : (
                 <>
                   <label className="block text-sm font-medium text-slate-700">

@@ -15,6 +15,8 @@ const streamWrite = [authenticate, authorize('cctv_stream.manage')];
 
 /* Devices */
 router.get('/devices', ...deviceRead, ctrl.listController);
+// Must be registered before '/devices/:id' so 'assets' is not treated as an id.
+router.get('/devices/assets/:assetId/preview', ...deviceRead, ctrl.assetPreviewController);
 router.get('/devices/:id', ...deviceRead, ctrl.getByIdController);
 router.post('/devices', ...deviceWrite, validate(s.createSchema), ctrl.createController);
 router.put('/devices/:id', ...deviceWrite, validate(s.updateSchema), ctrl.updateController);
