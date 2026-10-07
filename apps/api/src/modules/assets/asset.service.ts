@@ -106,6 +106,8 @@ export async function list(params: Record<string, any>, scope?: AssetScope) {
     categoryIds: scope?.categoryIds,
     networkDeviceEligible: params.networkDeviceEligible === true || params.networkDeviceEligible === 'true',
     excludeNetworkDeviceId: str(params.excludeNetworkDeviceId) ?? undefined,
+    cctvEligible: params.cctvEligible === true || params.cctvEligible === 'true',
+    excludeCctvDeviceId: str(params.excludeCctvDeviceId) ?? undefined,
   });
 }
 

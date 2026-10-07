@@ -42,6 +42,22 @@ export async function getByIdController(req: Request, res: Response, next: NextF
   }
 }
 
+/**
+ * Preview of the derived (read-only) values for an eligible Asset. Used by the
+ * Add/Edit form to auto-fill Device Name, Brand, Model, Subcategory and the
+ * integration protocol right after asset selection.
+ */
+export async function assetPreviewController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const exclude =
+      typeof req.query.excludeCctvDeviceId === 'string' ? req.query.excludeCctvDeviceId : undefined;
+    const data = await svc.getAssetPreview(req.params.assetId as string, exclude);
+    res.json({ success: true, data });
+  } catch (e) {
+    next(e);
+  }
+}
+
 export async function createController(req: Request, res: Response, next: NextFunction) {
   try {
     const row = await svc.create(req.body);

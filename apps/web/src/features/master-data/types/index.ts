@@ -1,3 +1,10 @@
+export interface MaintenanceTypeTask {
+  id: string;
+  maintenanceTypeId: string;
+  task: string;
+  sortOrder: number;
+}
+
 export interface MasterDataRecord {
   id: string;
   code?: string;
@@ -7,6 +14,7 @@ export interface MasterDataRecord {
   isActive?: boolean;
   siteId?: string;
   buildingId?: string;
+  building?: string | { id?: string; name?: string } | null;
   floorId?: string;
   categoryId?: string;
   category?: string;
@@ -17,6 +25,7 @@ export interface MasterDataRecord {
   notes?: string | null;
   maintenanceCategory?: string;
   isNetworkDevice?: boolean;
+  tasks?: MaintenanceTypeTask[];
   createdAt: string;
   updatedAt: string;
 }
@@ -37,7 +46,7 @@ export interface PaginatedResponse<T> {
 export interface FieldDefinition {
   key: string;
   label: string;
-  type: 'text' | 'select' | 'textarea' | 'email' | 'checkbox' | 'hidden';
+  type: 'text' | 'select' | 'textarea' | 'email' | 'checkbox' | 'hidden' | 'task-list';
   required?: boolean;
   options?: { value: string; label: string }[];
   placeholder?: string;

@@ -6,8 +6,10 @@ import { FfmpegRtspProbe, isFfmpegRtspProbeAvailable } from './cctv.rtsp-probe';
 import { toIntegrationError } from '@/lib/integration/errors';
 import { env } from '@/config/env';
 import * as repo from './cctv.repository';
+import * as assetRepo from '@/modules/assets/asset.repository';
 import { stripUriCredentials } from './cctv.helpers';
 import type { RtspStreamKind } from './cctv.helpers';
+import { resolveSubcategoryProtocol } from './integration/protocol';
 import {
   buildIntegrationProvider,
   resolveIntegrationProtocol,
@@ -44,7 +46,9 @@ export interface ListParams {
 }
 
 export interface CreateInput {
-  name: string;
+  /** Asset Inventory link. When present it is the source of truth. */
+  assetId?: string | null;
+  name?: string;
   deviceType?: string;
   subcategoryId?: string | null;
   brand?: string | null;
@@ -60,6 +64,7 @@ export interface CreateInput {
 }
 
 export interface UpdateInput {
+  assetId?: string | null;
   name?: string;
   deviceType?: string;
   subcategoryId?: string | null;
@@ -72,6 +77,89 @@ export interface UpdateInput {
   password?: string | null;
   location?: string | null;
   description?: string | null;
+}
+
+/** Raw asset data used to derive the CCTV device fields. */
+interface EligibleCctvAsset {
+  id: string;
+  assetCode: string;
+  assetName: string;
+  brandName: string | null;
+  model: string | null;
+  manufacturer: string | null;
+  roomId: string | null;
+  roomName: string | null;
+  subcategoryId: string | null;
+  subcategoryCode: string | null;
+  subcategoryName: string | null;
+  deletedAt: Date | null;
+}
+
+/** Legacy `device_type` value derived from the Asset subcategory name. */
+function legacyDeviceType(subcategoryName: string | null | undefined): 'DVR' | 'NVR' | 'RECORDER' {
+  const n = (subcategoryName ?? '').toLowerCase();
+  if (n.includes('dvr')) return 'DVR';
+  if (n.includes('nvr')) return 'NVR';
+  return 'RECORDER';
+}
+
+/**
+ * Loads an asset and validates it may back a CCTV device: it must exist, have a
+ * CCTV / DVR / NVR subcategory, and not already be linked to another CCTV device
+ * (the current device is excluded on edit).
+ */
+async function resolveEligibleCctvAsset(
+  assetId: string,
+  excludeDeviceId?: string,
+): Promise<EligibleCctvAsset> {
+  const asset = (await assetRepo.findAssetCctvInfo(assetId)) as EligibleCctvAsset | null;
+  if (!asset || asset.deletedAt) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Asset not found.');
+  }
+  if (!asset.subcategoryId) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Asset does not have a subcategory.');
+  }
+  if (resolveSubcategoryProtocol(asset.subcategoryName) === null) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Asset subcategory is not CCTV, DVR or NVR.');
+  }
+  const used = await repo.findByAssetId(assetId, excludeDeviceId);
+  if (used) {
+    throw new AppError(409, 'CONFLICT', 'Asset is already used by another CCTV device.');
+  }
+  return asset;
+}
+
+/** Derived, read-only values the form shows once an asset is selected. */
+function deriveFromCctvAsset(asset: EligibleCctvAsset) {
+  const brand = asset.brandName?.trim() || null;
+  const model = asset.model?.trim() || null;
+  const subcategoryName = asset.subcategoryName;
+  return {
+    name: asset.assetName,
+    brand,
+    model,
+    subcategoryId: asset.subcategoryId,
+    deviceType: legacyDeviceType(subcategoryName),
+    integrationProtocol: resolveIntegrationProtocol({ subcategoryName, brand, model }),
+  };
+}
+
+/** Public preview used by the form to auto-fill the readonly fields. */
+export async function getAssetPreview(assetId: string, excludeCctvDeviceId?: string) {
+  const asset = await resolveEligibleCctvAsset(assetId, excludeCctvDeviceId);
+  const derived = deriveFromCctvAsset(asset);
+  return {
+    assetId: asset.id,
+    assetCode: asset.assetCode,
+    assetName: asset.assetName,
+    subcategoryId: asset.subcategoryId,
+    subcategoryName: asset.subcategoryName,
+    brand: derived.brand,
+    model: derived.model,
+    deviceName: derived.name,
+    deviceType: derived.deviceType,
+    integrationProtocol: derived.integrationProtocol,
+  };
 }
 
 export interface TestConnectionStep {
@@ -312,31 +400,57 @@ export async function create(body: CreateInput) {
     }
   }
 
-  const brand = body.brand?.trim() || null;
-  const model = body.model?.trim() || null;
-  const deviceType = body.deviceType ?? 'DVR';
+  let name: string;
+  let brand: string | null;
+  let model: string | null;
+  let deviceType: string;
+  let subcategoryId: string | null;
+  let integrationProtocol: IntegrationProtocol;
 
-  // The subcategory (Master Data) is the source of truth for CCTV behaviour.
-  const subcategoryId = body.subcategoryId?.trim() || null;
-  const subcategory = subcategoryId ? await repo.findSubcategory(subcategoryId) : null;
-  if (subcategoryId && !subcategory) {
-    throw new AppError(400, 'VALIDATION_ERROR', 'Subcategory not found.');
+  if (body.assetId) {
+    // The Asset is the source of truth: name/brand/model/subcategory/protocol
+    // are all derived from it, never taken from the request body.
+    const asset = await resolveEligibleCctvAsset(body.assetId);
+    const derived = deriveFromCctvAsset(asset);
+    name = derived.name;
+    brand = derived.brand;
+    model = derived.model;
+    deviceType = derived.deviceType;
+    subcategoryId = derived.subcategoryId;
+    integrationProtocol = derived.integrationProtocol;
+  } else {
+    // Legacy path for devices created before Asset linking (internal callers).
+    brand = body.brand?.trim() || null;
+    model = body.model?.trim() || null;
+    deviceType = body.deviceType ?? 'DVR';
+    subcategoryId = body.subcategoryId?.trim() || null;
+    const subcategory = subcategoryId ? await repo.findSubcategory(subcategoryId) : null;
+    if (subcategoryId && !subcategory) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Subcategory not found.');
+    }
+    const subcategoryName = (subcategory?.name as string | null) ?? null;
+    name = (body.name ?? '').trim();
+    integrationProtocol = resolveIntegrationProtocol({
+      subcategoryName,
+      brand,
+      model,
+      deviceType,
+    });
   }
-  const subcategoryName = (subcategory?.name as string | null) ?? null;
+
+  if (!name) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Device name is required.');
+  }
 
   try {
     const row = await repo.create({
-      name: body.name.trim(),
+      assetId: body.assetId ?? null,
+      name,
       deviceType,
       subcategoryId,
       brand,
       model,
-      integrationProtocol: resolveIntegrationProtocol({
-        subcategoryName,
-        brand,
-        model,
-        deviceType,
-      }),
+      integrationProtocol,
       ipAddress: body.ipAddress,
       port: body.port ?? 80,
       rtspPort: body.rtspPort ?? 554,
@@ -361,11 +475,29 @@ export async function update(id: string, body: UpdateInput) {
   if (!existing) throw new AppError(404, 'NOT_FOUND', 'CCTV device not found.');
 
   const data: Record<string, unknown> = {};
+  const linkedToAsset =
+    Boolean(body.assetId) || (existing.assetId !== null && existing.assetId !== undefined);
 
-  if (body.name !== undefined) data.name = body.name.trim();
-  if (body.deviceType !== undefined) data.deviceType = body.deviceType;
-  if (body.brand !== undefined) data.brand = body.brand?.trim() || null;
-  if (body.model !== undefined) data.model = body.model?.trim() || null;
+  // Asset is the source of truth for name/brand/model/subcategory/protocol.
+  if (body.assetId) {
+    const assetChanged = body.assetId !== (existing.assetId as string | null);
+    if (assetChanged) {
+      const asset = await resolveEligibleCctvAsset(body.assetId, id);
+      const derived = deriveFromCctvAsset(asset);
+      data.assetId = asset.id;
+      data.name = derived.name;
+      data.brand = derived.brand;
+      data.model = derived.model;
+      data.deviceType = derived.deviceType;
+      data.subcategoryId = derived.subcategoryId;
+      data.integrationProtocol = derived.integrationProtocol;
+    }
+  } else if (body.assetId === null && existing.assetId) {
+    // Explicitly unlink the asset.
+    data.assetId = null;
+  }
+
+  // Editable connection / credential fields.
   if (body.username !== undefined) data.username = body.username?.trim() || null;
   if (body.location !== undefined) data.location = body.location?.trim() || null;
   if (body.description !== undefined) data.description = body.description?.trim() || null;
@@ -373,21 +505,44 @@ export async function update(id: string, body: UpdateInput) {
   // treated as "clear password"; undefined leaves it unchanged.
   if (body.password !== undefined) data.passwordEncrypted = encryptSecret(body.password);
 
-  // Subcategory is the source of truth. Resolve its name so the derived
-  // protocol reflects the new subcategory.
+  // Legacy manual fields, only for devices that are NOT asset-linked. For an
+  // asset-linked device these values always come from the Asset.
   let subcategoryName: string | null = (existing.subcategoryName as string | null) ?? null;
-  if (body.subcategoryId !== undefined) {
-    const subcategoryId = body.subcategoryId?.trim() || null;
-    if (subcategoryId) {
-      const subcategory = await repo.findSubcategory(subcategoryId);
-      if (!subcategory) {
-        throw new AppError(400, 'VALIDATION_ERROR', 'Subcategory not found.');
+  if (!linkedToAsset) {
+    if (body.name !== undefined) data.name = body.name.trim();
+    if (body.deviceType !== undefined) data.deviceType = body.deviceType;
+    if (body.brand !== undefined) data.brand = body.brand?.trim() || null;
+    if (body.model !== undefined) data.model = body.model?.trim() || null;
+
+    // Subcategory is the source of truth on the legacy path.
+    if (body.subcategoryId !== undefined) {
+      const subcategoryId = body.subcategoryId?.trim() || null;
+      if (subcategoryId) {
+        const subcategory = await repo.findSubcategory(subcategoryId);
+        if (!subcategory) {
+          throw new AppError(400, 'VALIDATION_ERROR', 'Subcategory not found.');
+        }
+        subcategoryName = (subcategory.name as string | null) ?? null;
+      } else {
+        subcategoryName = null;
       }
-      subcategoryName = (subcategory.name as string | null) ?? null;
-    } else {
-      subcategoryName = null;
+      data.subcategoryId = subcategoryId;
     }
-    data.subcategoryId = subcategoryId;
+
+    // Re-derive the integration protocol whenever the legacy inputs change.
+    if (
+      body.subcategoryId !== undefined ||
+      body.brand !== undefined ||
+      body.model !== undefined ||
+      body.deviceType !== undefined
+    ) {
+      data.integrationProtocol = resolveIntegrationProtocol({
+        subcategoryName,
+        brand: body.brand !== undefined ? data.brand : existing.brand,
+        model: body.model !== undefined ? data.model : existing.model,
+        deviceType: body.deviceType !== undefined ? data.deviceType : existing.deviceType,
+      });
+    }
   }
 
   const endpointChanged =
@@ -412,22 +567,6 @@ export async function update(id: string, body: UpdateInput) {
   delete data.lastError;
   delete data.isActive;
   delete data.lastCheckedAt;
-
-  // Re-derive the integration protocol whenever the subcategory/vendor/type
-  // inputs change.
-  if (
-    body.subcategoryId !== undefined ||
-    body.brand !== undefined ||
-    body.model !== undefined ||
-    body.deviceType !== undefined
-  ) {
-    data.integrationProtocol = resolveIntegrationProtocol({
-      subcategoryName,
-      brand: body.brand !== undefined ? data.brand : existing.brand,
-      model: body.model !== undefined ? data.model : existing.model,
-      deviceType: body.deviceType !== undefined ? data.deviceType : existing.deviceType,
-    });
-  }
 
   if (Object.keys(data).length === 0) {
     return repo.findById(id);

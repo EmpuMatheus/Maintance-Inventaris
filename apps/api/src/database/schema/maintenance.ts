@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, date, numeric, integer, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, date, numeric, integer, boolean, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { assets } from './assets';
 import { maintenanceTypes, vendors } from './master-data';
 import { users } from './auth';
@@ -56,6 +56,39 @@ export const maintenanceDocuments = pgTable('maintenance_documents', {
   uploadedBy: uuid('uploaded_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const maintenanceTypeTasks = pgTable('maintenance_type_tasks', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  maintenanceTypeId: uuid('maintenance_type_id').notNull().references(() => maintenanceTypes.id, { onDelete: 'cascade' }),
+  task: text('task').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  typeIdIdx: index('maintenance_type_tasks_type_id_idx').on(table.maintenanceTypeId),
+}));
+
+/**
+ * Task checklist snapshot owned by a maintenance record.
+ *
+ * `sourceTaskId` intentionally has no foreign key: editing or deleting a
+ * Maintenance Type task must never cascade into maintenance records that were
+ * already created from that type. The text and order are copied on creation so
+ * the maintenance keeps the task list version it was created with.
+ */
+export const maintenanceTasks = pgTable('maintenance_tasks', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  maintenanceId: uuid('maintenance_id').notNull().references(() => maintenanceRecords.id, { onDelete: 'cascade' }),
+  sourceTaskId: uuid('source_task_id'),
+  task: text('task').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isCompleted: boolean('is_completed').default(false).notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  maintenanceIdIdx: index('maintenance_tasks_maintenance_id_idx').on(table.maintenanceId),
+}));
 
 export const maintenanceSchedules = pgTable('maintenance_schedules', {
   id: uuid('id').defaultRandom().primaryKey(),

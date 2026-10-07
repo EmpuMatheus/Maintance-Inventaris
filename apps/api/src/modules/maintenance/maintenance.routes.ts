@@ -27,6 +27,8 @@ router.post('/:id/cancel', ...ca, validate(s.cancelSchema), ctrl.cancelControlle
 router.get('/:id/parts', ...r, ctrl.getPartsController);
 router.post('/:id/parts', ...u, validate(s.addPartSchema), ctrl.addPartController);
 router.delete('/:id/parts/:partId', ...u, ctrl.deletePartController);
+router.get('/:id/tasks', ...r, ctrl.getTasksController);
+router.patch('/:id/tasks/:taskId', ...u, validate(s.setTaskSchema), ctrl.updateTaskController);
 router.get('/:id/documents', ...r, ctrl.getDocumentsController);
 router.post('/:id/documents', ...u, documentUpload.single('file'), ctrl.getDocumentsController);
 

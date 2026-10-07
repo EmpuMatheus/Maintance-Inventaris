@@ -1,10 +1,11 @@
-import { apiGet, apiPost, apiDelete, apiUpload } from '@/lib/api-client';
+import { apiGet, apiPost, apiPatch, apiDelete, apiUpload } from '@/lib/api-client';
 import type {
   DetailResponse,
   MaintenanceDetail,
   MaintenanceDocument,
   MaintenanceListItem,
   MaintenancePart,
+  MaintenanceTask,
   PaginatedResponse,
 } from '../types';
 
@@ -69,6 +70,14 @@ export function deleteMaintenancePart(id: string, partId: string) {
   return apiDelete<{ success: boolean; data: null }>(`/maintenance/${id}/parts/${partId}`);
 }
 
+export function listMaintenanceTasks(id: string) {
+  return apiGet<DetailResponse<MaintenanceTask[]>>(`/maintenance/${id}/tasks`);
+}
+
+export function updateMaintenanceTask(id: string, taskId: string, isCompleted: boolean) {
+  return apiPatch<DetailResponse<MaintenanceTask>>(`/maintenance/${id}/tasks/${taskId}`, { isCompleted });
+}
+
 export function listMaintenanceDocuments(id: string) {
   return apiGet<DetailResponse<MaintenanceDocument[]>>(`/maintenance/${id}/documents`);
 }
@@ -85,5 +94,6 @@ export const maintenanceKeys = {
   list: (filters: MaintenanceFilters) => ['maintenance', 'list', filters] as const,
   detail: (id: string) => ['maintenance', 'detail', id] as const,
   parts: (id: string) => ['maintenance', 'parts', id] as const,
+  tasks: (id: string) => ['maintenance', 'tasks', id] as const,
   documents: (id: string) => ['maintenance', 'documents', id] as const,
 };

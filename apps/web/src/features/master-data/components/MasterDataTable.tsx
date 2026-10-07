@@ -146,7 +146,7 @@ export default function MasterDataTable({ config }: Props) {
                         {row.isNetworkDevice ? 'YES' : 'NO'}
                       </span>
                     ) : (
-                      String(row[col.key as keyof MasterDataRecord] ?? '')
+                      String(row[col.key as keyof MasterDataRecord] ?? (col.key === 'building' ? '-' : ''))
                     )}
                   </td>
                 ))}

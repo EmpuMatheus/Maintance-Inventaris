@@ -57,11 +57,30 @@ export interface MaintenanceAssetDetail {
   departmentName?: string | null;
 }
 
+export interface MaintenanceTask {
+  id: string;
+  maintenanceId: string;
+  sourceTaskId?: string | null;
+  task: string;
+  sortOrder: number;
+  isCompleted: boolean;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MaintenanceTaskProgress {
+  completed: number;
+  total: number;
+}
+
 export interface MaintenanceDetail extends MaintenanceListItem {
   diagnosis?: string | null;
   actionTaken?: string | null;
   result?: string | null;
   notes?: string | null;
+  tasks?: MaintenanceTask[];
+  taskProgress?: MaintenanceTaskProgress;
   laborCost?: string | number | null;
   partsCost?: string | number | null;
   otherCost?: string | number | null;

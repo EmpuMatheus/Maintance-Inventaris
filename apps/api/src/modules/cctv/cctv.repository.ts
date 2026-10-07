@@ -1,5 +1,5 @@
 import { getDb } from '@/database/client';
-import { cctvDevices, cctvChannels, cctvStreamProfiles, cctvLiveSessions, assetSubcategories } from '@/database/schema';
+import { cctvDevices, cctvChannels, cctvStreamProfiles, cctvLiveSessions, assetSubcategories, assets, brands } from '@/database/schema';
 import { eq, and, sql, desc, asc, count, inArray, lt, getTableColumns } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { resolveIntegrationProtocol } from './integration/protocol';
@@ -14,6 +14,11 @@ const DEVICE_SELECT = {
   id: cctvDevices.id,
   name: cctvDevices.name,
   deviceType: cctvDevices.deviceType,
+  assetId: cctvDevices.assetId,
+  assetCode: assets.assetCode,
+  assetName: assets.assetName,
+  assetBrandName: brands.name,
+  assetModel: assets.model,
   subcategoryId: cctvDevices.subcategoryId,
   subcategoryName: assetSubcategories.name,
   brand: cctvDevices.brand,
@@ -50,14 +55,21 @@ export interface DeviceFilters {
 }
 
 function mapDevice(row: Row) {
+  const hasAsset = Boolean(row.assetId);
+  // When linked to an Asset, name/brand/model/subcategory are read live from the
+  // Asset (source of truth) so the device never shows stale data.
+  const name = hasAsset ? ((row.assetName as string | null) ?? (row.name as string)) : (row.name as string);
+  const brand = hasAsset ? ((row.assetBrandName as string | null) ?? null) : ((row.brand as string | null) ?? null);
+  const model = hasAsset ? ((row.assetModel as string | null) ?? null) : ((row.model as string | null) ?? null);
   return {
     id: row.id as string,
-    name: row.name as string,
+    name,
     deviceType: row.deviceType as string,
+    assetId: (row.assetId as string | null) ?? null,
     subcategoryId: (row.subcategoryId as string | null) ?? null,
     subcategoryName: (row.subcategoryName as string | null) ?? null,
-    brand: (row.brand as string | null) ?? null,
-    model: (row.model as string | null) ?? null,
+    brand,
+    model,
     // Prefer the persisted protocol; derive it for legacy rows that predate
     // the column so the UI always has a value.
     integrationProtocol:
@@ -87,6 +99,13 @@ function mapDevice(row: Row) {
     isActive: row.isActive as boolean,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    asset: hasAsset
+      ? {
+          id: row.assetId as string,
+          assetCode: row.assetCode as string,
+          assetName: (row.assetName as string | null) ?? null,
+        }
+      : null,
   } as any;
 }
 
@@ -113,6 +132,8 @@ export async function findMany(filters: DeviceFilters) {
     .select(DEVICE_SELECT)
     .from(cctvDevices)
     .leftJoin(assetSubcategories, eq(cctvDevices.subcategoryId, assetSubcategories.id))
+    .leftJoin(assets, eq(cctvDevices.assetId, assets.id))
+    .leftJoin(brands, eq(assets.brandId, brands.id))
     .where(where)
     .orderBy(desc(cctvDevices.createdAt))
     .limit(limit)
@@ -140,6 +161,8 @@ export async function findById(id: string) {
     .select(DEVICE_SELECT)
     .from(cctvDevices)
     .leftJoin(assetSubcategories, eq(cctvDevices.subcategoryId, assetSubcategories.id))
+    .leftJoin(assets, eq(cctvDevices.assetId, assets.id))
+    .leftJoin(brands, eq(assets.brandId, brands.id))
     .where(eq(cctvDevices.id, sql`${id}::uuid`))
     .limit(1);
   return rows[0] ? mapDevice(rows[0] as Row) : null;
@@ -183,6 +206,19 @@ export async function findActiveByEndpoint(ipAddress: string, port: number, excl
   ];
   if (excludeId) conditions.push(sql`${cctvDevices.id} <> ${excludeId}::uuid`);
   const rows = await db.select({ id: cctvDevices.id }).from(cctvDevices).where(and(...conditions)).limit(1);
+  return rows[0] ?? null;
+}
+
+/** Finds a CCTV device already linked to `assetId` (optionally excluding one). */
+export async function findByAssetId(assetId: string, excludeId?: string) {
+  const db = getDb();
+  const conditions: SQL[] = [eq(cctvDevices.assetId, sql`${assetId}::uuid`)];
+  if (excludeId) conditions.push(sql`${cctvDevices.id} <> ${excludeId}::uuid`);
+  const rows = await db
+    .select({ id: cctvDevices.id })
+    .from(cctvDevices)
+    .where(and(...conditions))
+    .limit(1);
   return rows[0] ?? null;
 }
 

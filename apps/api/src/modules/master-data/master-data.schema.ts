@@ -108,11 +108,18 @@ export const createRoomSchema = z.object({
 
 export const updateRoomSchema = createRoomSchema.partial();
 
+export const maintenanceTypeTaskSchema = z.object({
+  id: z.string().uuid().optional(),
+  // Empty tasks are filtered out by the service; the schema only caps length.
+  task: z.string().max(500),
+  order: z.coerce.number().int().optional(),
+});
+
 export const createMaintenanceTypeSchema = z.object({
   code: z.string().min(1).max(50),
   name: z.string().min(1).max(150),
   maintenanceCategory: z.string().min(1).max(50),
-  description: z.string().optional().nullable(),
+  tasks: z.array(maintenanceTypeTaskSchema).optional(),
 });
 
 export const updateMaintenanceTypeSchema = createMaintenanceTypeSchema.partial();

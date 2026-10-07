@@ -35,6 +35,10 @@ export const cancelSchema = z.object({
   notes: z.string().optional().nullable(),
 });
 
+export const setTaskSchema = z.object({
+  isCompleted: z.boolean(),
+});
+
 export const addPartSchema = z.object({
   partName: z.string().min(1).max(150),
   partNumber: z.string().max(100).optional().nullable(),

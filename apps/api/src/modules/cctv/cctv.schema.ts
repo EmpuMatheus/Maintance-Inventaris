@@ -3,7 +3,12 @@ import { z } from 'zod';
 export const DEVICE_TYPE_VALUES = ['DVR', 'NVR', 'RECORDER'] as const;
 
 export const createSchema = z.object({
-  name: z.string().trim().min(1, 'Device name is required.').max(150),
+  // Asset is the source of truth for name/brand/model/subcategory/protocol.
+  // Required: a CCTV device can only be created from an eligible Asset.
+  assetId: z.string().uuid('Asset is required.'),
+  // Legacy/manual fields are accepted for backward compatibility but ignored
+  // by the service whenever `assetId` is present.
+  name: z.string().trim().min(1).max(150).optional(),
   deviceType: z.enum(DEVICE_TYPE_VALUES).default('DVR'),
   subcategoryId: z.string().uuid('Invalid subcategory id.').optional().nullable(),
   brand: z.string().trim().max(150).optional().nullable(),
@@ -19,6 +24,7 @@ export const createSchema = z.object({
 });
 
 export const updateSchema = z.object({
+  assetId: z.string().uuid('Invalid asset id.').optional().nullable(),
   name: z.string().trim().min(1).max(150).optional(),
   deviceType: z.enum(DEVICE_TYPE_VALUES).optional(),
   subcategoryId: z.string().uuid('Invalid subcategory id.').optional().nullable(),

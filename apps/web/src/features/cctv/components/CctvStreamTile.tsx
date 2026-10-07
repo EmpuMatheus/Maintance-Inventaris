@@ -25,6 +25,7 @@ export default function CctvStreamTile({
   channel,
   streamKind,
   autoStart = false,
+  fill = false,
   onOpen,
 }: {
   deviceId: string;
@@ -32,6 +33,8 @@ export default function CctvStreamTile({
   channel: TileChannel;
   streamKind: CctvLiveStreamKind;
   autoStart?: boolean;
+  /** Full Screen wall mode: fill the grid cell instead of using aspect-video. */
+  fill?: boolean;
   onOpen: (deviceId: string, channelId: string, streamKind: CctvLiveStreamKind) => void;
 }) {
   const { phase, session, error, notifyPlayerStatus } = useLiveSessionPlayer({
@@ -45,7 +48,11 @@ export default function CctvStreamTile({
   const label = `CH${String(channel.channelNumber).padStart(2, '0')}`;
 
   return (
-    <div className="group relative overflow-hidden rounded-lg border border-slate-200 bg-black">
+    <div
+      className={`group relative overflow-hidden rounded-lg border border-slate-200 bg-black ${
+        fill ? 'h-full w-full' : ''
+      }`}
+    >
       <button
         type="button"
         onClick={() => onOpen(deviceId, channel.id, streamKind)}
@@ -53,9 +60,14 @@ export default function CctvStreamTile({
         aria-label={`Buka Live View ${deviceName ? `${deviceName} ` : ''}${label}`}
       />
 
-      <div className="relative aspect-video w-full">
+      <div className={fill ? 'relative h-full w-full' : 'relative aspect-video w-full'}>
         {session ? (
-          <LivePlayer session={session} preferredTransport="webrtc" onStatusChange={notifyPlayerStatus} />
+          <LivePlayer
+            session={session}
+            preferredTransport="webrtc"
+            onStatusChange={notifyPlayerStatus}
+            fill={fill}
+          />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
             {phase === 'error' ? (

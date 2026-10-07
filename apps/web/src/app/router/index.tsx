@@ -13,7 +13,6 @@ const InventoryListPage = lazy(() => import('@/features/inventory/pages/Inventor
 const ViewAllComponentsPage = lazy(() => import('@/features/inventory/pages/ViewAllComponentsPage'));
 const AssetFormPage = lazy(() => import('@/features/inventory/pages/AssetFormPage'));
 const AssetDetailPage = lazy(() => import('@/features/inventory/pages/AssetDetailPage'));
-const ScanPage = lazy(() => import('@/features/qr/pages/ScanPage'));
 const MaintenanceListPage = lazy(() => import('@/features/maintenance/pages/MaintenanceListPage'));
 const MaintenanceFormPage = lazy(() => import('@/features/maintenance/pages/MaintenanceFormPage'));
 const MaintenanceDetailPage = lazy(() => import('@/features/maintenance/pages/MaintenanceDetailPage'));
@@ -75,7 +74,6 @@ const router = createBrowserRouter([
       { path: 'assets/:id', element: <AssetDetailPage /> },
       { path: 'assets/:id/edit', element: <RequirePermission permission="asset.update"><AssetFormPage /></RequirePermission> },
       { path: 'master-data', element: <RequirePermission permission="master_data.read"><MasterDataPage /></RequirePermission> },
-      { path: 'scan', element: <RequirePermission permission="asset.read"><ScanPage /></RequirePermission> },
       { path: 'maintenance', element: <RequirePermission permission="maintenance.read"><MaintenanceListPage /></RequirePermission> },
       { path: 'maintenance/new', element: <RequirePermission permission="maintenance.create"><MaintenanceFormPage /></RequirePermission> },
       { path: 'maintenance/schedules', element: <RequirePermission permission="maintenance.read"><SchedulesPage /></RequirePermission> },

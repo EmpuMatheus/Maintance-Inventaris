@@ -147,10 +147,29 @@ const SCHEMAS: Record<string, (body: Record<string, unknown>) => Record<string, 
       code: cleanString(body.code),
       name: cleanString(body.name),
       maintenanceCategory: cleanString(body.maintenanceCategory),
-      description: cleanOptional(body.description),
     };
   },
 };
+
+/**
+ * Normalizes the incoming Task List of a Maintenance Type.
+ *
+ * Empty/whitespace-only tasks are dropped, the text is trimmed, and the order
+ * is rewritten from the array position so the submitted sequence is preserved.
+ */
+function normalizeTaskList(value: unknown): repo.TaskInput[] {
+  if (!Array.isArray(value)) return [];
+
+  const tasks: repo.TaskInput[] = [];
+  for (const raw of value) {
+    const item = raw as { id?: unknown; task?: unknown };
+    const text = typeof item?.task === 'string' ? item.task.trim() : '';
+    if (!text) continue;
+    const id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : undefined;
+    tasks.push({ id, task: text, order: tasks.length });
+  }
+  return tasks;
+}
 
 export async function list(
   resource: string,
@@ -171,7 +190,7 @@ export async function list(
 
   const parentId = query.categoryId || query.siteId || query.buildingId || query.floorId;
 
-  return repo.list(resource, {
+  const result = await repo.list(resource, {
     page: query.page,
     limit: query.limit,
     search: query.search,
@@ -180,6 +199,13 @@ export async function list(
     parentId,
     isActive: query.isActive,
   });
+
+  if (resource === 'maintenance-types') {
+    const taskMap = await repo.getTasksForTypes(result.data.map((r) => r.id as string));
+    result.data = result.data.map((row) => ({ ...row, tasks: taskMap.get(row.id as string) ?? [] }));
+  }
+
+  return result;
 }
 
 export async function getById(resource: string, id: string) {
@@ -187,6 +213,10 @@ export async function getById(resource: string, id: string) {
   const row = await repo.getById(resource, id);
   if (!row) {
     throw new AppError(404, 'NOT_FOUND', `${resource} not found.`);
+  }
+  if (resource === 'maintenance-types') {
+    const tasks = await repo.getTasksForType(id);
+    return { ...row, tasks };
   }
   return row;
 }
@@ -199,7 +229,13 @@ export async function create(resource: string, body: Record<string, unknown>) {
   await assertUniqueCode(resource, data, null);
 
   try {
-    return await repo.create(resource, data);
+    const created = await repo.create(resource, data);
+    if (resource === 'maintenance-types') {
+      const tasks = normalizeTaskList(body.tasks);
+      await repo.setMaintenanceTypeTasks(created.id as string, tasks);
+      return { ...created, tasks: await repo.getTasksForType(created.id as string) };
+    }
+    return created;
   } catch (err: unknown) {
     if (isUniqueViolation(err)) {
       if (UNIQUE_PARENT[resource]) {
@@ -230,15 +266,28 @@ export async function update(resource: string, id: string, body: Record<string, 
     }
   }
 
-  if (Object.keys(data).length === 0) {
+  const hasTasks = resource === 'maintenance-types' && body.tasks !== undefined;
+  if (hasTasks && !Array.isArray(body.tasks)) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'tasks must be an array.');
+  }
+
+  if (Object.keys(data).length === 0 && !hasTasks) {
     return existing;
   }
 
   await assertUniqueCode(resource, data, existing, id);
 
   try {
-    const updated = await repo.update(resource, id, data);
-    return updated ?? existing;
+    const updated = Object.keys(data).length > 0
+      ? (await repo.update(resource, id, data)) ?? existing
+      : existing;
+
+    if (hasTasks) {
+      await repo.setMaintenanceTypeTasks(id, normalizeTaskList(body.tasks));
+      return { ...updated, tasks: await repo.getTasksForType(id) };
+    }
+
+    return updated;
   } catch (err: unknown) {
     if (isUniqueViolation(err)) {
       if (UNIQUE_PARENT[resource]) {

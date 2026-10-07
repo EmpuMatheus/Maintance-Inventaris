@@ -9,7 +9,6 @@ import {
   Loader2,
   Package,
   Plus,
-  QrCode,
   RefreshCw,
   TicketCheck,
   TrendingUp,
@@ -229,7 +228,6 @@ function CompanyDashboard() {
 
   const quickActions = [
     { label: 'Create Maintenance', icon: <Wrench className="h-4 w-4" />, to: '/maintenance/new' },
-    { label: 'Scan QR', icon: <QrCode className="h-4 w-4" />, to: '/scan' },
     { label: 'Add Asset', icon: <Plus className="h-4 w-4" />, to: '/assets/new' },
     { label: 'Open Calendar', icon: <CalendarDays className="h-4 w-4" />, to: '/maintenance/calendar' },
     { label: 'Schedules', icon: <TrendingUp className="h-4 w-4" />, to: '/maintenance/schedules' },

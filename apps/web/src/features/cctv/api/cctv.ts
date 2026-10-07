@@ -5,6 +5,7 @@ import type {
   CctvChannelFilters,
   CctvChannelInput,
   CctvDevice,
+  CctvDeviceAssetPreview,
   CctvDeviceFilters,
   CctvDeviceInput,
   CctvLiveLimits,
@@ -28,6 +29,14 @@ export function listCctvDevices(filters?: CctvDeviceFilters) {
 
 export function getCctvDevice(id: string) {
   return apiGet<{ success: boolean; data: CctvDevice }>(`/cctv/devices/${id}`);
+}
+
+/** Derived readonly values for an eligible asset (name, brand, model, subcategory, protocol). */
+export function getCctvAssetPreview(assetId: string, excludeCctvDeviceId?: string) {
+  return apiGet<{ success: boolean; data: CctvDeviceAssetPreview }>(
+    `/cctv/devices/assets/${assetId}/preview`,
+    excludeCctvDeviceId ? { excludeCctvDeviceId } : undefined,
+  );
 }
 
 export function createCctvDevice(data: CctvDeviceInput) {

@@ -117,7 +117,7 @@ export default function TicketForm({
           <Controller
             name="assetId"
             control={control}
-            render={({ field }) => <SearchableAssetSelect value={field.value ?? ''} onChange={field.onChange} />}
+            render={({ field }) => <SearchableAssetSelect value={field.value ?? ''} onChange={field.onChange} enableScan />}
           />
         </div>
 

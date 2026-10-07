@@ -10,8 +10,9 @@ import {
   floors,
   rooms,
   maintenanceTypes,
+  maintenanceTypeTasks,
 } from '@/database/schema';
-import { eq, ne, like, and, or, sql, asc, desc, count } from 'drizzle-orm';
+import { eq, ne, like, and, or, sql, asc, desc, count, inArray } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
 
@@ -87,7 +88,6 @@ export async function list(
 
   let rows: Row[];
   if (resource === 'subcategories') {
-    // Subcategory rows include the owning category name (joined).
     rows = (await db
       .select({
         id: assetSubcategories.id,
@@ -103,6 +103,25 @@ export async function list(
       })
       .from(assetSubcategories)
       .leftJoin(assetCategories, eq(assetSubcategories.categoryId, assetCategories.id))
+      .where(where)
+      .orderBy(orderFn(sortCol))
+      .limit(limit)
+      .offset(offset)) as Row[];
+  } else if (resource === 'floors') {
+    rows = (await db
+      .select({
+        id: floors.id,
+        buildingId: floors.buildingId,
+        code: floors.code,
+        name: floors.name,
+        description: floors.description,
+        isActive: floors.isActive,
+        createdAt: floors.createdAt,
+        updatedAt: floors.updatedAt,
+        building: buildings.name,
+      })
+      .from(floors)
+      .leftJoin(buildings, eq(floors.buildingId, buildings.id))
       .where(where)
       .orderBy(orderFn(sortCol))
       .limit(limit)
@@ -170,6 +189,88 @@ export async function getById(resource: string, id: string): Promise<Row | undef
   }
 
   return rows[0] as Row | undefined;
+}
+
+/** Tasks attached to a Maintenance Type, ordered for display. */
+export async function getTasksForType(typeId: string): Promise<Row[]> {
+  const db = getDb();
+  return (await db
+    .select()
+    .from(maintenanceTypeTasks)
+    .where(eq(maintenanceTypeTasks.maintenanceTypeId, sql`${typeId}::uuid`))
+    .orderBy(asc(maintenanceTypeTasks.sortOrder), asc(maintenanceTypeTasks.createdAt))) as Row[];
+}
+
+/** Tasks for several Maintenance Types at once (avoids N+1 on list pages). */
+export async function getTasksForTypes(typeIds: string[]): Promise<Map<string, Row[]>> {
+  const map = new Map<string, Row[]>();
+  if (typeIds.length === 0) return map;
+
+  const db = getDb();
+  const rows = (await db
+    .select()
+    .from(maintenanceTypeTasks)
+    .where(inArray(maintenanceTypeTasks.maintenanceTypeId, typeIds))
+    .orderBy(asc(maintenanceTypeTasks.sortOrder), asc(maintenanceTypeTasks.createdAt))) as Row[];
+
+  for (const row of rows) {
+    const key = row.maintenanceTypeId as string;
+    const list = map.get(key) ?? [];
+    list.push(row);
+    map.set(key, list);
+  }
+  return map;
+}
+
+export interface TaskInput {
+  id?: string;
+  task: string;
+  order: number;
+}
+
+/**
+ * Reconciles a Maintenance Type's task list with the submitted payload.
+ *
+ * Tasks that keep an `id` are updated in place, tasks missing from the payload
+ * are deleted, new tasks are inserted, and `sort_order` is rewritten so the
+ * submitted order is preserved. Deleting a type task never touches maintenance
+ * records because their checklists are independent snapshots.
+ */
+export async function setMaintenanceTypeTasks(typeId: string, tasks: TaskInput[]): Promise<void> {
+  const db = getDb();
+  await db.transaction(async (tx) => {
+    const existing = (await tx
+      .select()
+      .from(maintenanceTypeTasks)
+      .where(eq(maintenanceTypeTasks.maintenanceTypeId, sql`${typeId}::uuid`))) as Row[];
+    const existingIds = new Set(existing.map((r) => r.id as string));
+    const incomingIds = new Set(tasks.map((t) => t.id).filter((v): v is string => Boolean(v)));
+
+    const toDelete = existing.filter((r) => !incomingIds.has(r.id as string));
+    if (toDelete.length > 0) {
+      await tx
+        .delete(maintenanceTypeTasks)
+        .where(inArray(maintenanceTypeTasks.id, toDelete.map((r) => r.id as string)));
+    }
+
+    for (const item of tasks) {
+      if (item.id && existingIds.has(item.id)) {
+        await tx
+          .update(maintenanceTypeTasks)
+          .set({ task: item.task, sortOrder: item.order, updatedAt: sql`now()` })
+          .where(and(
+            eq(maintenanceTypeTasks.id, sql`${item.id}::uuid`),
+            eq(maintenanceTypeTasks.maintenanceTypeId, sql`${typeId}::uuid`),
+          ));
+      } else {
+        await tx.insert(maintenanceTypeTasks).values({
+          maintenanceTypeId: sql`${typeId}::uuid`,
+          task: item.task,
+          sortOrder: item.order,
+        });
+      }
+    }
+  });
 }
 
 /**
