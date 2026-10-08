@@ -8,8 +8,10 @@ import {
   assets as assetsTable,
   assetConditionHistory,
   users,
+  roles,
+  userRoles,
 } from '@/database/schema';
-import { sql, eq, asc } from 'drizzle-orm';
+import { sql, eq, asc, and } from 'drizzle-orm';
 import { eventBus } from '@/lib/event-bus';
 import { canAccessAsset, type AssetScope } from '@/middleware/scope';
 
@@ -43,6 +45,24 @@ async function generateCode(): Promise<string> {
   const num = Number((seq as any)[0]?.n ?? 1);
   const year = new Date().getFullYear();
   return `MNT-${year}-${String(num).padStart(6, '0')}`;
+}
+
+async function assertTechnician(technicianId: unknown): Promise<void> {
+  if (!technicianId) return;
+  const db = getDb();
+  const [technician] = await db
+    .select({ id: users.id })
+    .from(users)
+    .innerJoin(userRoles, eq(userRoles.userId, users.id))
+    .innerJoin(roles, eq(userRoles.roleId, roles.id))
+    .where(and(
+      eq(users.id, sql`${technicianId as string}::uuid`),
+      eq(users.isActive, true),
+      sql`${users.deletedAt} IS NULL`,
+      eq(roles.name, 'TECHNICIAN'),
+    ))
+    .limit(1);
+  if (!technician) throw new AppError(400, 'VALIDATION_ERROR', 'Technician must be an active user with TECHNICIAN role.');
 }
 
 /**
@@ -140,6 +160,7 @@ export async function create(body: Record<string, unknown>, userId?: string, sco
   if (!canAccessAsset(scope ?? {}, asset as { categoryId?: unknown; currentPicId?: unknown })) {
     throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
   }
+  await assertTechnician(body.technicianId);
 
   const code = await generateCode();
 
@@ -191,9 +212,7 @@ export async function assign(id: string, body: Record<string, unknown>, _userId?
   if (!mt) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
   assertTransition(mt.status, 'ASSIGNED');
 
-  const db = getDb();
-  const [tech] = await db.select({ id: users.id }).from(users).where(eq(users.id, sql`${body.technicianId as string}::uuid`)).limit(1);
-  if (!tech) throw new AppError(400, 'VALIDATION_ERROR', 'Technician not found.');
+  await assertTechnician(body.technicianId);
 
   return repo.update(id, {
     technicianId: sql`${body.technicianId as string}::uuid`,

@@ -337,14 +337,14 @@ describe('Transfer Location workflow', () => {
 
     const active = await sql`SELECT user_id, status FROM asset_assignments WHERE asset_id = ${assetId} AND status = 'ACTIVE'`;
     expect(active.length).toBe(1);
-    expect(active[0].user_id).toBe(receiverId);
-    const returnedOld = await sql`SELECT count(*)::int AS c FROM asset_assignments WHERE asset_id = ${assetId} AND user_id = ${holderId} AND status = 'RETURNED'`;
-    expect(Number(returnedOld[0].c)).toBeGreaterThanOrEqual(1);
-    const movements = await sql`SELECT count(*)::int AS c FROM asset_movements WHERE transfer_id = ${tid}`;
-    expect(Number(movements[0].c)).toBe(1);
+     expect(active[0].user_id).toBe(receiverId);
+     const returnedOld = await sql`SELECT count(*)::int AS c FROM asset_assignments WHERE asset_id = ${assetId} AND user_id = ${holderId} AND status = 'RETURNED'`;
+     expect(Number(returnedOld[0].c)).toBeGreaterThanOrEqual(1);
+     const movements = await sql`SELECT count(*)::int AS c FROM asset_movements WHERE transfer_id = ${tid}`;
+     expect(Number(movements[0].c)).toBe(1);
 
-    await sql`DELETE FROM asset_movements WHERE transfer_id = ${tid}`;
-    await sql`DELETE FROM transfer_confirmations WHERE transfer_id = ${tid}`;
-    await sql`DELETE FROM asset_transfers WHERE id = ${tid}`;
-  });
-});
+     await sql`DELETE FROM asset_movements WHERE transfer_id = ${tid}`;
+     await sql`DELETE FROM transfer_confirmations WHERE transfer_id = ${tid}`;
+     await sql`DELETE FROM asset_transfers WHERE id = ${tid}`;
+   });
+ });

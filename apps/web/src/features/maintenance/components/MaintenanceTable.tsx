@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Eye, Loader2, MoreVertical, Pencil } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, Loader2, MoreVertical } from 'lucide-react';
 import type { MaintenanceListItem, PaginationMeta } from '../types';
 import StatusBadge from './StatusBadge';
 import PriorityBadge from './PriorityBadge';
@@ -19,8 +19,6 @@ interface MaintenanceTableProps {
   meta?: PaginationMeta;
   onPageChange: (page: number) => void;
   onView: (id: string) => void;
-  onEdit: (id: string) => void;
-  canUpdate: boolean;
   moreActions: (record: MaintenanceListItem) => MoreMenuItem[];
 }
 
@@ -39,8 +37,6 @@ export default function MaintenanceTable({
   meta,
   onPageChange,
   onView,
-  onEdit,
-  canUpdate,
   moreActions,
 }: MaintenanceTableProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -107,9 +103,6 @@ export default function MaintenanceTable({
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
                     <button onClick={() => onView(m.id)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600" title="View"><Eye className="h-4 w-4" /></button>
-                    {canUpdate && (
-                      <button onClick={() => onEdit(m.id)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600" title="Edit"><Pencil className="h-4 w-4" /></button>
-                    )}
                     {moreActions(m).length > 0 && (
                       <div className="relative">
                         <button onClick={() => setOpenMenuId(openMenuId === m.id ? null : m.id)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" title="More actions"><MoreVertical className="h-4 w-4" /></button>

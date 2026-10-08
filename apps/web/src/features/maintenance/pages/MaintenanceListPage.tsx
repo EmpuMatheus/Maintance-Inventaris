@@ -41,8 +41,8 @@ export default function MaintenanceListPage() {
   });
 
   const { data: users } = useQuery({
-    queryKey: ['master', 'users'],
-    queryFn: () => listMaster('users', {}),
+    queryKey: ['master', 'users', 'technicians'],
+    queryFn: () => listMaster('users', { role: 'TECHNICIAN' }),
   });
 
   const resetPage = () => setPage(1);
@@ -138,8 +138,6 @@ export default function MaintenanceListPage() {
         meta={data?.meta}
         onPageChange={setPage}
         onView={(id) => navigate(`/maintenance/${id}`)}
-        onEdit={(id) => navigate(`/maintenance/${id}`)}
-        canUpdate={can('maintenance.update')}
         moreActions={moreActions}
       />
     </div>

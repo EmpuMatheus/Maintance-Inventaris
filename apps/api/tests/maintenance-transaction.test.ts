@@ -3,10 +3,12 @@ import postgres from 'postgres';
 import { env } from '@/config/env';
 import * as assetSvc from '@/modules/assets/asset.service';
 import * as maintSvc from '@/modules/maintenance/maintenance.service';
+import * as userSvc from '@/modules/users/user.service';
 
 const sql = postgres(env.DATABASE_URL, { max: 1 });
 const maintIds: string[] = [];
 let adminId: string;
+let technicianId: string;
 let assetId: string;
 let catId: string;
 let subId: string;
@@ -15,7 +17,7 @@ async function runToTesting(): Promise<string> {
   const rec = await maintSvc.create({ assetId, maintenanceCategory: 'CORRECTIVE', problem: 'tx', priority: 'MEDIUM' }, adminId);
   const id = rec.id as string;
   maintIds.push(id);
-  await maintSvc.assign(id, { technicianId: adminId }, adminId);
+  await maintSvc.assign(id, { technicianId: technicianId }, adminId);
   await maintSvc.start(id);
   await maintSvc.testing(id);
   return id;
@@ -30,6 +32,12 @@ beforeAll(async () => {
   subId = sub[0].id;
   const asset = await assetSvc.create({ assetName: 'QA Tx Asset', categoryId: catId, subcategoryId: subId, condition: 'FAIR', status: 'AVAILABLE' }, adminId);
   assetId = asset.id as string;
+
+  const roleRows = await sql`SELECT id FROM roles WHERE name = 'TECHNICIAN' LIMIT 1`;
+  const techRoleId = roleRows[0].id as string;
+  const run = Date.now().toString(36);
+  const tech = await userSvc.create({ employeeCode: `QA_TX_TECH_${run}`, name: 'QA Tx Tech', username: `qatxtech${run}`, password: 'password123', roleId: techRoleId, categoryId: catId });
+  technicianId = tech.id;
 });
 
 afterAll(async () => {
@@ -42,6 +50,11 @@ afterAll(async () => {
   }
   await sql`DELETE FROM asset_condition_history WHERE asset_id = ${assetId}`;
   await sql`DELETE FROM assets WHERE id = ${assetId}`;
+  if (technicianId) {
+    await sql`DELETE FROM user_roles WHERE user_id = ${technicianId}`;
+    await sql`DELETE FROM user_categories WHERE user_id = ${technicianId}`;
+    await sql`DELETE FROM users WHERE id = ${technicianId}`;
+  }
   await sql`DELETE FROM asset_code_counters WHERE category_id = ${catId} AND subcategory_id = ${subId}`;
   await sql`DELETE FROM asset_subcategories WHERE id = ${subId}`;
   await sql`DELETE FROM asset_categories WHERE id = ${catId}`;

@@ -314,7 +314,7 @@ export function buildBeritaAcaraHtml(
   <div class="doc">
     <div class="header">
       <h1>BERITA ACARA</h1>
-      <h2>TRANSFER ASET</h2>
+      <h2>TRANSFER ASET INVENTARIS PERUSAHAAN</h2>
       <h3>PT. BAHANA BHUMIPALA PERSADA</h3>
     </div>
 

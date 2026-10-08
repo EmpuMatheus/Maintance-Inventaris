@@ -10,9 +10,9 @@ export interface ScopeUser {
 }
 
 export interface AssetScope {
-  /** USER: only assets currently assigned to this user (via current_pic_id). */
+  /** Assets currently assigned to this user (via current_pic_id). */
   ownUserId?: string;
-  /** ADMIN/TECHNICIAN: only assets belonging to these categories. */
+  /** ADMIN/TECHNICIAN: assets belonging to these categories. */
   categoryIds?: string[];
 }
 
@@ -33,13 +33,11 @@ export function resolveAssetScope(user: ScopeUser | undefined): AssetScope {
   if (user.roles.includes('SUPER_ADMIN')) {
     return {};
   }
+  const ownScope = user.permissions.includes('asset.read.own') ? { ownUserId: user.id } : {};
   if (user.roles.includes('ADMIN') || user.roles.includes('TECHNICIAN')) {
-    return { categoryIds: user.categoryIds ?? [] };
+    return { ...ownScope, categoryIds: user.categoryIds ?? [] };
   }
-  if (user.permissions.includes('asset.read.own')) {
-    return { ownUserId: user.id };
-  }
-  return {};
+  return ownScope;
 }
 
 /**
@@ -55,11 +53,10 @@ export function canAccessAsset(
   if (!scope.ownUserId && !scope.categoryIds) {
     return true;
   }
-  if (scope.ownUserId) {
-    return !!asset && asset.currentPicId === scope.ownUserId;
-  }
+  if (!asset) return false;
+  if (scope.ownUserId && asset.currentPicId === scope.ownUserId) return true;
   if (scope.categoryIds && scope.categoryIds.length > 0) {
-    return !!asset && !!asset.categoryId && scope.categoryIds.includes(asset.categoryId as string);
+    return !!asset.categoryId && scope.categoryIds.includes(asset.categoryId as string);
   }
   return false;
 }

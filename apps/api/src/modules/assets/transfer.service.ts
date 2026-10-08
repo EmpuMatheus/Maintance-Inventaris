@@ -413,27 +413,27 @@ export async function getActiveTransfer(assetId: string, scope?: AssetScope) {
   if (!asset) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
   assertAssetAccess(asset, scope);
 
-  const rows = await db
-    .select({
-      id: assetTransfers.id,
-      assetId: assetTransfers.assetId,
-      fromSiteName: transferFromSites.name,
-      fromBuildingName: transferFromBuildings.name,
-      fromFloorName: transferFromFloors.name,
-      fromRoomName: transferFromRooms.name,
-      toSiteName: transferToSites.name,
-      toBuildingName: transferToBuildings.name,
-      toFloorName: transferToFloors.name,
-      toRoomName: transferToRooms.name,
-      status: assetTransfers.status,
-      reason: assetTransfers.reason,
-      notes: assetTransfers.notes,
-      authorizationLetterUrl: assetTransfers.authorizationLetterUrl,
-      requestedAt: assetTransfers.requestedAt,
-      completedAt: assetTransfers.completedAt,
-      createdAt: assetTransfers.createdAt,
-      updatedAt: assetTransfers.updatedAt,
-    })
+   const rows = await db
+     .select({
+       id: assetTransfers.id,
+       assetId: assetTransfers.assetId,
+       fromSiteName: transferFromSites.name,
+       fromBuildingName: transferFromBuildings.name,
+       fromFloorName: transferFromFloors.name,
+       fromRoomName: transferFromRooms.name,
+       toSiteName: transferToSites.name,
+       toBuildingName: transferToBuildings.name,
+       toFloorName: transferToFloors.name,
+       toRoomName: transferToRooms.name,
+       status: assetTransfers.status,
+       reason: assetTransfers.reason,
+       notes: assetTransfers.notes,
+       authorizationLetterUrl: assetTransfers.authorizationLetterUrl,
+       requestedAt: assetTransfers.requestedAt,
+       completedAt: assetTransfers.completedAt,
+       createdAt: assetTransfers.createdAt,
+       updatedAt: assetTransfers.updatedAt,
+     })
     .from(assetTransfers)
     .leftJoin(transferFromSites, eq(assetTransfers.fromSiteId, transferFromSites.id))
     .leftJoin(transferFromBuildings, eq(assetTransfers.fromBuildingId, transferFromBuildings.id))
@@ -468,33 +468,33 @@ export async function getLatestTransfer(assetId: string, scope?: AssetScope) {
   if (!asset) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
   assertAssetAccess(asset, scope);
 
-  const rows = await db
-    .select({
-      id: assetTransfers.id,
-      assetId: assetTransfers.assetId,
-      status: assetTransfers.status,
-      reason: assetTransfers.reason,
-      notes: assetTransfers.notes,
-      fromSiteName: transferFromSites.name,
-      fromBuildingName: transferFromBuildings.name,
-      fromFloorName: transferFromFloors.name,
-      fromRoomName: transferFromRooms.name,
-      toSiteName: transferToSites.name,
-      toBuildingName: transferToBuildings.name,
-      toFloorName: transferToFloors.name,
-      toRoomName: transferToRooms.name,
-      fromPicName: transferFromUsers.name,
-      toPicName: transferToUsers.name,
-      requestedByName: transferRequesterUsers.name,
-      requestedBy: assetTransfers.requestedBy,
-      rejectedByName: users.name,
-      rejectionReason: assetTransfers.rejectionReason,
-      rejectedAt: assetTransfers.rejectedAt,
-      requestedAt: assetTransfers.requestedAt,
-      completedAt: assetTransfers.completedAt,
-      createdAt: assetTransfers.createdAt,
-      updatedAt: assetTransfers.updatedAt,
-    })
+    const rows = await db
+      .select({
+        id: assetTransfers.id,
+        assetId: assetTransfers.assetId,
+        status: assetTransfers.status,
+        reason: assetTransfers.reason,
+        notes: assetTransfers.notes,
+        fromSiteName: transferFromSites.name,
+        fromBuildingName: transferFromBuildings.name,
+        fromFloorName: transferFromFloors.name,
+        fromRoomName: transferFromRooms.name,
+        toSiteName: transferToSites.name,
+        toBuildingName: transferToBuildings.name,
+        toFloorName: transferToFloors.name,
+        toRoomName: transferToRooms.name,
+        fromPicName: transferFromUsers.name,
+        toPicName: transferToUsers.name,
+        requestedByName: transferRequesterUsers.name,
+        requestedBy: assetTransfers.requestedBy,
+        rejectedByName: users.name,
+        rejectionReason: assetTransfers.rejectionReason,
+        rejectedAt: assetTransfers.rejectedAt,
+        requestedAt: assetTransfers.requestedAt,
+        completedAt: assetTransfers.completedAt,
+        createdAt: assetTransfers.createdAt,
+        updatedAt: assetTransfers.updatedAt,
+      })
     .from(assetTransfers)
     .leftJoin(transferFromSites, eq(assetTransfers.fromSiteId, transferFromSites.id))
     .leftJoin(transferFromBuildings, eq(assetTransfers.fromBuildingId, transferFromBuildings.id))
@@ -524,34 +524,34 @@ export async function getLatestTransfer(assetId: string, scope?: AssetScope) {
 export async function getTransferById(transferId: string, scope?: AssetScope) {
   const db = getDb();
 
-  const [transfer] = await db
-    .select({
-      id: assetTransfers.id,
-      assetId: assetTransfers.assetId,
-      status: assetTransfers.status,
-      authorizationLetterUrl: assetTransfers.authorizationLetterUrl,
-      reason: assetTransfers.reason,
-      notes: assetTransfers.notes,
-      fromSiteName: transferFromSites.name,
-      fromBuildingName: transferFromBuildings.name,
-      fromFloorName: transferFromFloors.name,
-      fromRoomName: transferFromRooms.name,
-      toSiteName: transferToSites.name,
-      toBuildingName: transferToBuildings.name,
-      toFloorName: transferToFloors.name,
-      toRoomName: transferToRooms.name,
-      fromPicName: transferFromUsers.name,
-      toPicName: transferToUsers.name,
-      requestedByName: transferRequesterUsers.name,
-      requestedBy: assetTransfers.requestedBy,
-      rejectedByName: users.name,
-      rejectionReason: assetTransfers.rejectionReason,
-      rejectedAt: assetTransfers.rejectedAt,
-      requestedAt: assetTransfers.requestedAt,
-      completedAt: assetTransfers.completedAt,
-      createdAt: assetTransfers.createdAt,
-      updatedAt: assetTransfers.updatedAt,
-    })
+    const [transfer] = await db
+      .select({
+        id: assetTransfers.id,
+        assetId: assetTransfers.assetId,
+        status: assetTransfers.status,
+        authorizationLetterUrl: assetTransfers.authorizationLetterUrl,
+        reason: assetTransfers.reason,
+        notes: assetTransfers.notes,
+        fromSiteName: transferFromSites.name,
+        fromBuildingName: transferFromBuildings.name,
+        fromFloorName: transferFromFloors.name,
+        fromRoomName: transferFromRooms.name,
+        toSiteName: transferToSites.name,
+        toBuildingName: transferToBuildings.name,
+        toFloorName: transferToFloors.name,
+        toRoomName: transferToRooms.name,
+        fromPicName: transferFromUsers.name,
+        toPicName: transferToUsers.name,
+        requestedByName: transferRequesterUsers.name,
+        requestedBy: assetTransfers.requestedBy,
+        rejectedByName: users.name,
+        rejectionReason: assetTransfers.rejectionReason,
+        rejectedAt: assetTransfers.rejectedAt,
+        requestedAt: assetTransfers.requestedAt,
+        completedAt: assetTransfers.completedAt,
+        createdAt: assetTransfers.createdAt,
+        updatedAt: assetTransfers.updatedAt,
+      })
     .from(assetTransfers)
     .leftJoin(transferFromSites, eq(assetTransfers.fromSiteId, transferFromSites.id))
     .leftJoin(transferFromBuildings, eq(assetTransfers.fromBuildingId, transferFromBuildings.id))
