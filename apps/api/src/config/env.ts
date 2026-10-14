@@ -52,7 +52,6 @@ const envSchema = z.object({
   SCHEDULE_PROCESS_INTERVAL_MINUTES: z.coerce.number().default(60),
   DATABASE_URL: z.string(),
   JWT_SECRET: z.string().default('dev-secret-change-in-production'),
-  JWT_EXPIRES_IN: z.string().default('15m'),
   BASE_URL: z.string().default(''),
   TRUST_PROXY: z.string().default('false'),
   HTTPS_ENABLED: z.string().optional(),
