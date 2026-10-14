@@ -269,27 +269,6 @@ describe('Transfer Location workflow', () => {
     expect(ctx.location?.roomId).toBe(receiver2RoomId);
   });
 
-  it('generates transfer number with correct format', () => {
-    const number = transferSvc.generateTransferNumber(1, 'LAPTOP', new Date('2026-10-14'));
-    expect(number).toBe('1/BBP/LAPTOP/10/2026');
-  });
-
-  it('handles null category code with UNCATEGORIZED fallback', () => {
-    const number = transferSvc.generateTransferNumber(2, null, new Date('2026-11-05'));
-    expect(number).toBe('2/BBP/UNCATEGORI/11/2026');
-  });
-
-  it('truncates long category codes to 10 chars', () => {
-    const number = transferSvc.generateTransferNumber(1, 'VERYLONGCATEGORYCODE', new Date('2026-10-14'));
-    expect(number).toBe('1/BBP/VERYLONGCA/10/2026');
-  });
-
-  it('increments sequence count correctly', async () => {
-    // Test asset has no transfers yet, should return 1 for first
-    const seq1 = await transferSvc.getTransferSequenceCount(asset2Id);
-    expect(seq1).toBe(1);
-  });
-
   it('ignores client supply of target location/department when receiver has an active assignment', async () => {
     await sql`UPDATE assets SET room_id = ${fromRoomId} WHERE id = ${assetId}`;
     await sql`UPDATE asset_assignments SET status = 'RETURNED' WHERE asset_id = ${assetId} AND status = 'ACTIVE'`;
@@ -367,89 +346,5 @@ describe('Transfer Location workflow', () => {
      await sql`DELETE FROM asset_movements WHERE transfer_id = ${tid}`;
      await sql`DELETE FROM transfer_confirmations WHERE transfer_id = ${tid}`;
      await sql`DELETE FROM asset_transfers WHERE id = ${tid}`;
-  });
-
-  it('sets transfer_number when transfer completes', async () => {
-    await sql`UPDATE assets SET room_id = ${fromRoomId} WHERE id = ${assetId}`;
-    await sql`UPDATE asset_assignments SET status = 'RETURNED' WHERE asset_id = ${assetId} AND status = 'ACTIVE'`;
-    await sql`INSERT INTO asset_assignments (id, asset_id, user_id, assigned_date, status, created_at, updated_at) VALUES (gen_random_uuid(), ${assetId}, ${holderId}, now()::date, 'ACTIVE', now(), now())`;
-
-    const res = await transferSvc.createTransfer(
-      assetId,
-      { siteId, buildingId, floorId, roomId: toRoomId, receiverUserId: receiverId, witnessUserIds: [], reason: 'number test' },
-      undefined,
-      creatorId,
-    );
-    const tid = res.id as string;
-    const detail = (await transferSvc.getTransferById(tid)) as any;
-    
-    // Before completion, transfer_number should be null
-    expect(detail.transferNumber).toBeNull();
-    
-    // Confirm all parties
-    for (const c of detail.confirmations) {
-      await transferSvc.confirmTransfer(tid, c.userId);
-    }
-    
-    // After completion, transfer_number should be set
-    const completed = (await transferSvc.getTransferById(tid)) as any;
-    expect(completed.transferNumber).toBeTruthy();
-    expect(completed.transferNumber).toMatch(/^\d+\/BBP\/.+\/\d{2}\/\d{4}$/);
-    expect(completed.status).toBe('COMPLETED');
-
-    await sql`DELETE FROM asset_movements WHERE transfer_id = ${tid}`;
-    await sql`DELETE FROM transfer_confirmations WHERE transfer_id = ${tid}`;
-    await sql`DELETE FROM asset_transfers WHERE id = ${tid}`;
-  });
-
-  it('generates correct transfer number format on completion (E2E)', async () => {
-    // Create fresh category with code
-    const cat = await sql`INSERT INTO asset_categories (id, code, name, is_active, created_at, updated_at) VALUES (gen_random_uuid(), 'LAPTOP', 'Laptop Asset', true, now(), now()) RETURNING id`;
-    const catId = cat[0].id;
-    
-    // Create asset with LAPTOP category
-    const asset = await sql`
-      INSERT INTO assets (id, asset_code, asset_name, category_id, site_id, building_id, floor_id, room_id, status, condition, created_by, created_at, updated_at)
-      VALUES (gen_random_uuid(), 'E2E-LAP-001', 'E2E Laptop Test', ${catId}, ${siteId}, ${buildingId}, ${floorId}, ${fromRoomId}, 'AVAILABLE', 'GOOD', ${creatorId}, now(), now())
-      RETURNING id`;
-    const e2eAssetId = asset[0].id;
-    
-    // Assign to holder
-    await sql`INSERT INTO asset_assignments (id, asset_id, user_id, assigned_date, status, created_at, updated_at) VALUES (gen_random_uuid(), ${e2eAssetId}, ${holderId}, now()::date, 'ACTIVE', now(), now())`;
-    
-    // Create transfer
-    const res = await transferSvc.createTransfer(
-      e2eAssetId,
-      { siteId, buildingId, floorId, roomId: toRoomId, receiverUserId: receiverId, witnessUserIds: [], reason: 'E2E test' },
-      undefined,
-      creatorId,
-    );
-    const tid = res.id as string;
-    
-    // Get transfer detail before completion
-    const beforeComplete = (await transferSvc.getTransferById(tid)) as any;
-    expect(beforeComplete.transferNumber).toBeNull();
-    
-    // Confirm all parties
-    const detail = (await transferSvc.getTransferById(tid)) as any;
-    for (const c of detail.confirmations) {
-      await transferSvc.confirmTransfer(tid, c.userId);
-    }
-    
-    // Verify transfer_number is set with correct format
-    const completed = (await transferSvc.getTransferById(tid)) as any;
-    expect(completed.status).toBe('COMPLETED');
-    expect(completed.transferNumber).toBeTruthy();
-    expect(completed.transferNumber).toMatch(/^\d+\/BBP\/LAPTOP\/\d{2}\/\d{4}$/);
-    expect(completed.transferNumber).toContain('LAPTOP');
-    expect(completed.transferNumber).toContain('BBP');
-    
-    // Cleanup
-    await sql`DELETE FROM asset_movements WHERE transfer_id = ${tid}`;
-    await sql`DELETE FROM transfer_confirmations WHERE transfer_id = ${tid}`;
-    await sql`DELETE FROM asset_transfers WHERE id = ${tid}`;
-    await sql`DELETE FROM asset_assignments WHERE asset_id = ${e2eAssetId}`;
-    await sql`DELETE FROM assets WHERE id = ${e2eAssetId}`;
-    await sql`DELETE FROM asset_categories WHERE id = ${catId}`;
-  });
-});
+   });
+ });

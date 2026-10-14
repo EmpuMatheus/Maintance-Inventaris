@@ -98,7 +98,6 @@ export const assetTransfers = pgTable('asset_transfers', {
   authorizationLetterUrl: text('authorization_letter_url'),
   proofDocumentUrl: text('proof_document_url'),
   proofDocumentFileName: varchar('proof_document_file_name', { length: 255 }),
-  transferNumber: varchar('transfer_number', { length: 50 }),
   requestedBy: uuid('requested_by').references(() => users.id),
   approvedBy: uuid('approved_by').references(() => users.id),
   rejectedBy: uuid('rejected_by').references(() => users.id),

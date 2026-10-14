@@ -197,7 +197,7 @@ export function buildBeritaAcaraHtml(
   const a = asset ?? {};
 
   const creationDate = at.requestedAt ?? at.createdAt ?? null;
-  const nomor = clean(at.transferNumber) || clean(at.id) || '-';
+  const nomor = clean(at.id) || '-';
   const tanggal = fmtDateId(creationDate);
   const hari = fmtDayId(creationDate);
   const tempat = 'PT. Bahana Bhumipala Persada';
