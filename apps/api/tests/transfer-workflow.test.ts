@@ -367,5 +367,38 @@ describe('Transfer Location workflow', () => {
      await sql`DELETE FROM asset_movements WHERE transfer_id = ${tid}`;
      await sql`DELETE FROM transfer_confirmations WHERE transfer_id = ${tid}`;
      await sql`DELETE FROM asset_transfers WHERE id = ${tid}`;
-   });
- });
+  });
+
+  it('sets transfer_number when transfer completes', async () => {
+    await sql`UPDATE assets SET room_id = ${fromRoomId} WHERE id = ${assetId}`;
+    await sql`UPDATE asset_assignments SET status = 'RETURNED' WHERE asset_id = ${assetId} AND status = 'ACTIVE'`;
+    await sql`INSERT INTO asset_assignments (id, asset_id, user_id, assigned_date, status, created_at, updated_at) VALUES (gen_random_uuid(), ${assetId}, ${holderId}, now()::date, 'ACTIVE', now(), now())`;
+
+    const res = await transferSvc.createTransfer(
+      assetId,
+      { siteId, buildingId, floorId, roomId: toRoomId, receiverUserId: receiverId, witnessUserIds: [], reason: 'number test' },
+      undefined,
+      creatorId,
+    );
+    const tid = res.id as string;
+    const detail = (await transferSvc.getTransferById(tid)) as any;
+    
+    // Before completion, transfer_number should be null
+    expect(detail.transferNumber).toBeNull();
+    
+    // Confirm all parties
+    for (const c of detail.confirmations) {
+      await transferSvc.confirmTransfer(tid, c.userId);
+    }
+    
+    // After completion, transfer_number should be set
+    const completed = (await transferSvc.getTransferById(tid)) as any;
+    expect(completed.transferNumber).toBeTruthy();
+    expect(completed.transferNumber).toMatch(/^\d+\/BBP\/.+\/\d{2}\/\d{4}$/);
+    expect(completed.status).toBe('COMPLETED');
+
+    await sql`DELETE FROM asset_movements WHERE transfer_id = ${tid}`;
+    await sql`DELETE FROM transfer_confirmations WHERE transfer_id = ${tid}`;
+    await sql`DELETE FROM asset_transfers WHERE id = ${tid}`;
+  });
+});

@@ -554,6 +554,7 @@ export async function getTransferById(transferId: string, scope?: AssetScope) {
         id: assetTransfers.id,
         assetId: assetTransfers.assetId,
         status: assetTransfers.status,
+        transferNumber: assetTransfers.transferNumber,
         authorizationLetterUrl: assetTransfers.authorizationLetterUrl,
         reason: assetTransfers.reason,
         notes: assetTransfers.notes,
@@ -661,17 +662,29 @@ export async function confirmTransfer(transferId: string, userId?: string, optio
         currentPicId: assetsTable.currentPicId,
         assetCode: assetsTable.assetCode,
         assetName: assetsTable.assetName,
+        categoryId: assetsTable.categoryId,
       })
       .from(assetsTable)
+      .leftJoin(assetCategories, eq(assetsTable.categoryId, assetCategories.id))
       .where(eq(assetsTable.id, transfer.assetId))
       .limit(1);
     if (!asset) throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
+
+    // Generate transfer number with sequence and category code
+    const sequence = await getTransferSequenceCount(transfer.assetId as string);
+    const [categoryRow] = await tx
+      .select({ code: assetCategories.code })
+      .from(assetCategories)
+      .where(eq(assetCategories.id, asset.categoryId))
+      .limit(1);
+    const transferNumber = generateTransferNumber(sequence, categoryRow?.code as string | null, new Date());
 
     const [updatedTransfer] = await tx
       .update(assetTransfers)
       .set({
         status: TRANSFER_STATUS.COMPLETED,
         completedAt: sql`now()`,
+        transferNumber: transferNumber,
         approvedBy: sql`${userId}::uuid`,
         updatedAt: sql`now()`,
       } as any)
