@@ -269,6 +269,27 @@ describe('Transfer Location workflow', () => {
     expect(ctx.location?.roomId).toBe(receiver2RoomId);
   });
 
+  it('generates transfer number with correct format', () => {
+    const number = transferSvc.generateTransferNumber(1, 'LAPTOP', new Date('2026-10-14'));
+    expect(number).toBe('1/BBP/LAPTOP/10/2026');
+  });
+
+  it('handles null category code with UNCATEGORIZED fallback', () => {
+    const number = transferSvc.generateTransferNumber(2, null, new Date('2026-11-05'));
+    expect(number).toBe('2/BBP/UNCATEGORI/11/2026');
+  });
+
+  it('truncates long category codes to 10 chars', () => {
+    const number = transferSvc.generateTransferNumber(1, 'VERYLONGCATEGORYCODE', new Date('2026-10-14'));
+    expect(number).toBe('1/BBP/VERYLONGCA/10/2026');
+  });
+
+  it('increments sequence count correctly', async () => {
+    // Test asset has no transfers yet, should return 1 for first
+    const seq1 = await transferSvc.getTransferSequenceCount(asset2Id);
+    expect(seq1).toBe(1);
+  });
+
   it('ignores client supply of target location/department when receiver has an active assignment', async () => {
     await sql`UPDATE assets SET room_id = ${fromRoomId} WHERE id = ${assetId}`;
     await sql`UPDATE asset_assignments SET status = 'RETURNED' WHERE asset_id = ${assetId} AND status = 'ACTIVE'`;

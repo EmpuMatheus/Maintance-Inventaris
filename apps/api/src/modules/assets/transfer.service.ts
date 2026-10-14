@@ -12,6 +12,7 @@ import {
   buildings,
   floors,
   rooms,
+  assetCategories,
 } from '@/database/schema';
 import { alias } from 'drizzle-orm/pg-core';
 import { sql, eq, and, desc as descOrder } from 'drizzle-orm';
@@ -94,6 +95,30 @@ function assertAssetAccess(asset: { categoryId?: unknown; currentPicId?: unknown
   if (!canAccessAsset(scope ?? {}, asset)) {
     throw new AppError(403, 'FORBIDDEN', 'You do not have permission to view this asset.');
   }
+}
+
+/**
+ * Generate transfer number in format: {sequence}/BBP/{categoryCode}/{month}/{year}
+ * Example: 1/BBP/LAPTOP/10/2026
+ */
+export function generateTransferNumber(sequence: number, categoryCode: string | null | undefined, completedDate: Date): string {
+  const code = (categoryCode?.toUpperCase() || 'UNCATEGORIZED').slice(0, 10);
+  const month = String(completedDate.getMonth() + 1).padStart(2, '0');
+  const year = completedDate.getFullYear();
+  return `${sequence}/BBP/${code}/${month}/${year}`;
+}
+
+/**
+ * Count existing transfers for an asset to determine sequence number for new transfer.
+ * Returns the sequence number for the next transfer (count + 1).
+ */
+export async function getTransferSequenceCount(assetId: string): Promise<number> {
+  const db = getDb();
+  const [result] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(assetTransfers)
+    .where(eq(assetTransfers.assetId, sql`${assetId}::uuid`));
+  return (result?.count ?? 0) + 1;
 }
 
 type Tx = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
