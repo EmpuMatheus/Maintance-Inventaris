@@ -22,6 +22,13 @@ export interface LivePlayerProps {
   fill?: boolean;
   /** Stretch the source image to the entire video box without cropping. */
   stretch?: boolean;
+  /**
+   * Negotiate an audio track. Defaults to false: ingest strips audio and grid
+   * tiles are muted, so requesting audio only adds negotiation/decode work.
+   */
+  audio?: boolean;
+  /** Show the native video controls. Fullscreen uses a custom overlay instead. */
+  showControls?: boolean;
   onStatusChange?: (status: PlayerStatus, transport: CctvPlaybackTransport | null) => void;
 }
 
@@ -35,7 +42,15 @@ export interface LivePlayerProps {
  * - WebRTC failure is not treated as a fatal error: HLS fallback success still
  *   reports `playing`.
  */
-export default function LivePlayer({ session, preferredTransport, fill = false, stretch = false, onStatusChange }: LivePlayerProps) {
+export default function LivePlayer({
+  session,
+  preferredTransport,
+  fill = false,
+  stretch = false,
+  audio = false,
+  showControls = true,
+  onStatusChange,
+}: LivePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<PlayerStatus>('connecting');
   const [transport, setTransport] = useState<CctvPlaybackTransport | null>(null);
@@ -152,7 +167,7 @@ export default function LivePlayer({ session, preferredTransport, fill = false, 
           }
           startHls();
         },
-      });
+      }, { includeAudio: audio });
     };
 
     if (preferredTransport === 'hls') {
@@ -174,7 +189,7 @@ export default function LivePlayer({ session, preferredTransport, fill = false, 
         video.load();
       }
     };
-  }, [session, preferredTransport]);
+  }, [session, preferredTransport, audio]);
 
   return (
     <div
@@ -185,8 +200,8 @@ export default function LivePlayer({ session, preferredTransport, fill = false, 
       <video
         ref={videoRef}
         className={`h-full w-full ${stretch ? 'object-fill' : 'object-contain'}`}
-        controls
-        muted
+        controls={showControls}
+        muted={!audio}
         autoPlay
         playsInline
       />

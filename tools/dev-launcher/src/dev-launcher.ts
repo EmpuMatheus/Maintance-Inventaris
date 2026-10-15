@@ -266,6 +266,49 @@ async function ensureDependencies(): Promise<boolean> {
   });
 }
 
+/**
+ * Stages the streaming runtime binaries (MediaMTX + FFmpeg) that Live View
+ * requires. They are not committed and must be fetched once. Best-effort: an
+ * offline machine still starts, but Live View will be unavailable until staged.
+ * A directory/placeholder is never trusted — existence of the executables is.
+ */
+async function ensureStreamingBinaries(): Promise<void> {
+  const gatewayDir = path.join(REPO, 'apps', 'api', 'gateway');
+  const needed = [IS_WINDOWS ? 'mediamtx.exe' : 'mediamtx', IS_WINDOWS ? 'ffmpeg.exe' : 'ffmpeg'];
+  const missing = needed.filter((name) => !existsSync(path.join(gatewayDir, name)));
+  if (missing.length === 0) {
+    info('gateway', 'Streaming gateway + FFmpeg binaries present.');
+    return;
+  }
+  info('gateway', `Missing streaming binaries (${missing.join(', ')}) — staging via fetch:gateway...`);
+  await new Promise<void>((resolve) => {
+    const proc = spawn(npm, ['run', 'fetch:gateway'], {
+      cwd: REPO,
+      shell: IS_WINDOWS,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    proc.stdout?.on('data', (d: Buffer) => info('gateway', String(d).trimEnd()));
+    proc.stderr?.on('data', (d: Buffer) => warn('gateway', String(d).trimEnd()));
+    proc.on('error', (e) => {
+      warn('gateway', `Could not stage streaming binaries: ${e.message}. Live View will be unavailable.`);
+      resolve();
+    });
+    proc.on('exit', (code) => {
+      if (code === 0) {
+        const stillMissing = needed.filter((name) => !existsSync(path.join(gatewayDir, name)));
+        if (stillMissing.length > 0) {
+          warn('gateway', `fetch:gateway finished but ${stillMissing.join(', ')} is still missing.`);
+        } else {
+          info('gateway', 'Streaming binaries staged.');
+        }
+      } else {
+        warn('gateway', `fetch:gateway exited with code ${code ?? 'unknown'}. Live View may be unavailable.`);
+      }
+      resolve();
+    });
+  });
+}
+
 // ---------------- child process management ----------------
 
 type ProcState = 'stopped' | 'starting' | 'running' | 'error';
@@ -723,6 +766,9 @@ async function main(): Promise<void> {
   if (!depsOk) {
     error('system', 'Dependency installation failed. Fix the errors above and restart the launcher.');
   }
+
+  // Live View needs MediaMTX + FFmpeg; stage them before the backend starts.
+  await ensureStreamingBinaries();
 
   // Backend: reuse a backend that is already serving /health (e.g. a stale dev
   // server) instead of crashing with EADDRINUSE.

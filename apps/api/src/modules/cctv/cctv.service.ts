@@ -248,7 +248,7 @@ export type CctvRtspClientFactory = (device: Record<string, unknown>) => CctvRts
  * Builds an RTSP probe client from a raw device row. The decrypted password is
  * used only for the in-memory digest handshake and never leaves this function.
  */
-function defaultBuildRtspClient(device: Record<string, unknown>): CctvRtspClient {
+export function defaultBuildRtspClient(device: Record<string, unknown>): CctvRtspClient {
   const password = decryptSecret(device.passwordEncrypted as string | null) ?? '';
   const credentials: RtspCredentials = {
     username: (device.username as string | null) ?? '',
@@ -919,6 +919,11 @@ function buildRtspMessage(input: {
 }): string {
   const { success, primary, probeKind } = input;
   if (success) {
+    // A DESCRIBE-only probe proves reachability/authentication, NOT that video
+    // decodes. Say so explicitly rather than implying a verified stream.
+    if (probeKind === 'describe') {
+      return `RTSP ${primary.stream} stream channel ${primary.channel} responded to DESCRIBE (decode not verified; FFmpeg unavailable on the server).`;
+    }
     const frames =
       primary.decodedFrames !== null ? `, ${primary.decodedFrames} frame(s) decoded` : '';
     return `RTSP ${primary.stream} stream channel ${primary.channel} is accessible (${probeKind}${frames}).`;
@@ -936,6 +941,8 @@ function buildRtspMessage(input: {
       return `RTSP stream unavailable (${primary.path}).`;
     case 'CONNECTION_TIMEOUT':
       return 'RTSP connection timed out.';
+    case 'FFMPEG_NOT_FOUND':
+      return 'RTSP decode probe unavailable: FFmpeg is not installed on the server, so the stream could not be verified.';
     default:
       return `RTSP test failed: ${primary.errorMessage ?? 'unknown error'}.`;
   }

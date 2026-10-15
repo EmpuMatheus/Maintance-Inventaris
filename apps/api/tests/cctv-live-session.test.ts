@@ -6,6 +6,12 @@ import * as svc from '@/modules/cctv/cctv.service';
 import * as live from '@/modules/cctv/cctv.live.service';
 import { buildAuthorizedRtspSource } from '@/modules/cctv/cctv.live.service';
 import { setStreamingGatewayFactory, resetStreamingGatewayFactory } from '@/lib/streaming';
+import {
+  setFfmpegBinaryOverride,
+  setIngestFactory,
+  resetIngestFactory,
+  stopAllIngests,
+} from '@/lib/streaming/ingest';
 import type { StreamingGateway, GatewayPathConfig, GatewayPathState } from '@/lib/streaming/types';
 
 const sql = postgres(env.DATABASE_URL, { max: 1 });
@@ -103,6 +109,15 @@ beforeEach(async () => {
   setStreamingGatewayFactory(() => gateway);
   // Keep the not-ready path fast under test (default is 10s).
   live.setLiveReadyTimeoutMs(300);
+  // Live View normalizes by default, so make FFmpeg "available" and inject a
+  // fake ingest spawner (no real process). Individual tests override this.
+  setFfmpegBinaryOverride(process.execPath);
+  setIngestFactory(() => ({
+    kill: () => true,
+    killed: false,
+    on: () => undefined,
+    stderr: null,
+  }) as never);
   // Each test starts from a clean session slate so reuse logic is isolated.
   await sql`DELETE FROM cctv_live_sessions WHERE device_id = ${deviceId}`;
 });
@@ -110,6 +125,9 @@ beforeEach(async () => {
 afterEach(() => {
   live.setLiveReadyTimeoutMs(null);
   resetStreamingGatewayFactory();
+  setFfmpegBinaryOverride(undefined);
+  resetIngestFactory();
+  stopAllIngests();
 });
 
 describe('cctv live session - source builder (credential handling)', () => {
@@ -182,6 +200,25 @@ describe('cctv live session - service', () => {
       expect(String(configs[0].source)).not.toContain(PASSWORD);
     } finally {
       (streamingGatewayConfig as { ingestMode: string }).ingestMode = original;
+    }
+  });
+
+  it('fails with FFMPEG_NOT_FOUND and the actual reason in normalize mode', async () => {
+    setFfmpegBinaryOverride(null);
+    (streamingGatewayConfig as { ingestMode: string }).ingestMode = 'normalize';
+    try {
+      const error = await live
+        .createLiveSession({ deviceId, channelId, streamKind: 'MAIN', userId: null })
+        .then(() => null)
+        .catch((e: { statusCode?: number; code?: string; message?: string }) => e);
+      expect(error).toMatchObject({ statusCode: 503, code: 'FFMPEG_NOT_FOUND' });
+      // The message must carry the resolution reason, not just a generic line.
+      expect(error?.message).toMatch(/FFmpeg is not available/i);
+      expect(error?.message).toMatch(/checked|override/i);
+      // Nothing must be configured on the gateway when FFmpeg is required but absent.
+      expect(gateway.paths.size).toBe(0);
+    } finally {
+      setFfmpegBinaryOverride(process.execPath);
     }
   });
 

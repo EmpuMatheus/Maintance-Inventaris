@@ -1,10 +1,16 @@
 /**
- * Small async semaphore that limits how many Live View sessions a Monitor grid
- * starts at the same time.
+ * Start gate for the CCTV Monitor wall.
  *
- * The backend enforces a hard cap on concurrent sessions (`CCTV_LIVE_SESSION_MAX`);
- * this limiter only smooths the burst when many tiles mount together, so the
- * DVR and the server are not hit with N simultaneous RTSP pulls/FFmpeg starts.
+ * Each tile start issues a create-session request AND (on the server) spawns an
+ * FFmpeg ingest plus an RTSP pull. Opening a 16-tile wall all at once fired 16
+ * of them simultaneously, which is what caused the stutter. This is a tiny async
+ * semaphore that caps how many tiles may *negotiate* at the same time.
+ *
+ * A slot is held only for the negotiation window: the caller releases it as
+ * soon as the stream is playing or has failed, so steady-state playback is not
+ * limited here (the backend enforces `CCTV_LIVE_SESSION_MAX` for lifetime).
+ *
+ * Kept framework-free for unit testing.
  */
 
 const DEFAULT_MAX = 4;

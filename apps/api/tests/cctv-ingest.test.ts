@@ -1,8 +1,15 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import os from 'node:os';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import {
   buildIngestArgs,
   isFfmpegAvailable,
   resolveFfmpegBinaryPath,
+  describeFfmpegResolution,
+  verifyFfmpegExecutable,
+  ffmpegUnavailableReason,
+  setFfmpegBinaryOverride,
   setIngestFactory,
   resetIngestFactory,
   startIngest,
@@ -42,12 +49,77 @@ describe('buildIngestArgs', () => {
 });
 
 describe('resolveFfmpegBinaryPath / isFfmpegAvailable', () => {
-  it('reports availability from env/explicit override', () => {
-    // The bundled test binary may not exist; the function must not throw and
-    // must return a string or null.
-    const resolved = resolveFfmpegBinaryPath();
-    expect(resolved === null || typeof resolved === 'string').toBe(true);
-    expect(typeof isFfmpegAvailable()).toBe('boolean');
+  afterEach(() => setFfmpegBinaryOverride(undefined));
+
+  it('does not report a bare command name as available on its own', () => {
+    // Point resolution at a tool that cannot exist, so no accidental binary is
+    // found and the false positive from a bare name is impossible.
+    setFfmpegBinaryOverride(null);
+    expect(resolveFfmpegBinaryPath()).toBeNull();
+    expect(isFfmpegAvailable()).toBe(false);
+  });
+
+  it('reports availability only for an actually executable binary', () => {
+    // process.execPath is a real, executable file on every platform.
+    setFfmpegBinaryOverride(process.execPath);
+    expect(resolveFfmpegBinaryPath()).toBe(process.execPath);
+    expect(isFfmpegAvailable()).toBe(true);
+  });
+
+  it('treats a configured but non-existent path as unavailable', () => {
+    setFfmpegBinaryOverride(path.join(os.tmpdir(), 'definitely-not-ffmpeg-' + Date.now()));
+    expect(resolveFfmpegBinaryPath()).toBeNull();
+    expect(isFfmpegAvailable()).toBe(false);
+  });
+
+  it('does not treat a directory as an installed binary', () => {
+    setFfmpegBinaryOverride(os.tmpdir());
+    expect(resolveFfmpegBinaryPath()).toBeNull();
+  });
+
+  it('reports candidates and a reason when nothing resolves', () => {
+    setFfmpegBinaryOverride(null);
+    const resolution = describeFfmpegResolution();
+    expect(resolution.path).toBeNull();
+    expect(resolution.candidates.length).toBeGreaterThan(0);
+    expect(ffmpegUnavailableReason()).toBeTruthy();
+  });
+
+  it('resolves a Windows-style path containing spaces when the file exists', () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'ffmpeg with spaces '));
+    const file = path.join(dir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+    writeFileSync(file, 'stub');
+    if (process.platform !== 'win32') chmodSync(file, 0o755);
+    try {
+      setFfmpegBinaryOverride(file);
+      expect(resolveFfmpegBinaryPath()).toBe(file);
+      expect(describeFfmpegResolution().source).toBe('override');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('verifyFfmpegExecutable (-version)', () => {
+  it('returns true when the binary executes with exit code 0', () => {
+    expect(verifyFfmpegExecutable('/anything', () => ({ status: 0 }))).toBe(true);
+  });
+
+  it('returns false when the binary exits non-zero', () => {
+    expect(verifyFfmpegExecutable('/anything', () => ({ status: 1 }))).toBe(false);
+  });
+
+  it('returns false on a spawn error (ENOENT)', () => {
+    const error = Object.assign(new Error('spawn ffmpeg ENOENT'), { code: 'ENOENT' });
+    expect(verifyFfmpegExecutable('/missing/ffmpeg', () => ({ status: null, error }))).toBe(false);
+  });
+
+  it('returns false when the runner throws', () => {
+    expect(
+      verifyFfmpegExecutable('/missing/ffmpeg', () => {
+        throw Object.assign(new Error('boom'), { code: 'EACCES' });
+      }),
+    ).toBe(false);
   });
 });
 
@@ -56,6 +128,8 @@ describe('FFmpeg ingest lifecycle (fake factory)', () => {
 
   beforeEach(() => {
     spawns.length = 0;
+    // A real, executable "binary" so startIngest resolves one without a device.
+    setFfmpegBinaryOverride(process.execPath);
     setIngestFactory((binary, args) => {
       const record = { args: [...args, `--binary=${binary}`], killed: false };
       spawns.push(record);
@@ -74,6 +148,7 @@ describe('FFmpeg ingest lifecycle (fake factory)', () => {
   afterEach(() => {
     stopAllIngests();
     resetIngestFactory();
+    setFfmpegBinaryOverride(undefined);
   });
 
   it('starts one process per path and replaces an existing one', () => {
@@ -99,5 +174,11 @@ describe('FFmpeg ingest lifecycle (fake factory)', () => {
     expect(activeIngestCount()).toBe(2);
     stopAllIngests();
     expect(activeIngestCount()).toBe(0);
+  });
+
+  it('refuses to start when no FFmpeg binary can be resolved', () => {
+    setFfmpegBinaryOverride(null);
+    expect(() => startIngest('p3', 'rtsp://u:p@host/3')).toThrow(/FFmpeg binary not found/i);
+    expect(isIngestRunning('p3')).toBe(false);
   });
 });

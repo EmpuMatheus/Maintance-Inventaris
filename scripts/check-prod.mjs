@@ -13,7 +13,10 @@ const checks = [
   ['API migrations', 'apps/api/src/database/migrations'],
 ];
 
-const warnings = [['Streaming gateway binary (Live View)', 'apps/api/gateway']];
+const warnings = [
+  ['Streaming gateway binary (Live View)', `apps/api/gateway/${process.platform === 'win32' ? 'mediamtx.exe' : 'mediamtx'}`],
+  ['FFmpeg binary (Live View normalize + Test RTSP decode)', `apps/api/gateway/${process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'}`],
+];
 
 let ok = true;
 for (const [label, rel] of checks) {

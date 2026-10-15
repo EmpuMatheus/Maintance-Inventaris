@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
   buildFfmpegProbeArgs,
   parseProgressFrameCount,
@@ -7,6 +7,7 @@ import {
   runFfmpegProbe,
   FfmpegRtspProbe,
 } from '@/modules/cctv/cctv.rtsp-probe';
+import { setFfmpegBinaryOverride } from '@/lib/streaming/ingest';
 import type { RtspProbeChild, RtspProbeSpawn } from '@/modules/cctv/cctv.rtsp-probe';
 
 /**
@@ -94,12 +95,17 @@ describe('buildAuthorizedRtspUrl', () => {
 /* Injected spawner: simulates FFmpeg close with progress + stderr.           */
 /* -------------------------------------------------------------------------- */
 
-function fakeSpawn(outcome: { stdout?: string; stderr?: string }): RtspProbeSpawn {
+function fakeSpawn(outcome: { stdout?: string; stderr?: string; error?: NodeJS.ErrnoException }): RtspProbeSpawn {
   return (): RtspProbeChild => {
     const stdoutListeners: Array<(d: Buffer) => void> = [];
     const stderrListeners: Array<(d: Buffer) => void> = [];
     let closeListener: (() => void) | null = null;
+    let errorListener: ((e: unknown) => void) | null = null;
     setTimeout(() => {
+      if (outcome.error) {
+        errorListener?.(outcome.error);
+        return;
+      }
       if (outcome.stdout) stdoutListeners.forEach((l) => l(Buffer.from(outcome.stdout!)));
       if (outcome.stderr) stderrListeners.forEach((l) => l(Buffer.from(outcome.stderr!)));
       closeListener?.();
@@ -109,7 +115,11 @@ function fakeSpawn(outcome: { stdout?: string; stderr?: string }): RtspProbeSpaw
       killed: false,
       stdout: { on: (_e: string, l: (d: Buffer) => void) => { stdoutListeners.push(l); return undefined; } },
       stderr: { on: (_e: string, l: (d: Buffer) => void) => { stderrListeners.push(l); return undefined; } },
-      on: (e: string, l: (...a: unknown[]) => void) => { if (e === 'close') closeListener = l as () => void; return undefined; },
+      on: (e: string, l: (...a: unknown[]) => void) => {
+        if (e === 'close') closeListener = l as () => void;
+        if (e === 'error') errorListener = l as (err: unknown) => void;
+        return undefined;
+      },
     } as unknown as RtspProbeChild;
   };
 }
@@ -150,10 +160,52 @@ describe('runFfmpegProbe (injected spawn)', () => {
       }),
     ).rejects.toMatchObject({ code: 'STREAM_NO_MEDIA' });
   });
+
+  it('maps an async spawn ENOENT to FFMPEG_NOT_FOUND, not RTSP_UNAVAILABLE', async () => {
+    const enoent = Object.assign(new Error('spawn ffmpeg ENOENT'), { code: 'ENOENT' });
+    await expect(
+      runFfmpegProbe('ffmpeg', 'rtsp://x', {
+        ...base,
+        spawnImpl: fakeSpawn({ error: enoent }),
+      }),
+    ).rejects.toMatchObject({ code: 'FFMPEG_NOT_FOUND' });
+  });
+
+  it('maps a synchronous spawn ENOENT to FFMPEG_NOT_FOUND', async () => {
+    const spawnImpl: RtspProbeSpawn = () => {
+      throw Object.assign(new Error('spawn ffmpeg ENOENT'), { code: 'ENOENT' });
+    };
+    await expect(
+      runFfmpegProbe('ffmpeg', 'rtsp://x', { ...base, spawnImpl }),
+    ).rejects.toMatchObject({ code: 'FFMPEG_NOT_FOUND' });
+  });
+});
+
+describe('FfmpegRtspProbe - missing binary', () => {
+  it('rejects with FFMPEG_NOT_FOUND when no executable can be resolved', async () => {
+    setFfmpegBinaryOverride(null);
+    try {
+      const probe = new FfmpegRtspProbe({
+        host: '10.0.0.9',
+        port: 554,
+        credentials: { username: 'admin', password: 'pw' },
+        timeoutMs: 2000,
+        probeDurationMs: 500,
+      });
+      await expect(probe.describeUri('rtsp://10.0.0.9:554/stream2')).rejects.toMatchObject({
+        code: 'FFMPEG_NOT_FOUND',
+      });
+    } finally {
+      setFfmpegBinaryOverride(undefined);
+    }
+  });
 });
 
 describe('FfmpegRtspProbe routing', () => {
+  afterEach(() => setFfmpegBinaryOverride(undefined));
+
   it('describe() probes host:port + path', async () => {
+    setFfmpegBinaryOverride(process.execPath);
     let seenArgs: string[] = [];
     const spawnImpl: RtspProbeSpawn = (_b, a) => {
       seenArgs = a;

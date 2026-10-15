@@ -1,5 +1,5 @@
-import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { accessSync, constants, statSync } from 'node:fs';
 import path from 'node:path';
 import { env, streamingGatewayConfig } from '@/config/env';
 import { logger } from '@/lib/logger';
@@ -30,24 +30,168 @@ export function ffmpegDir(): string {
   return path.join(env.storageRoot, 'gateway');
 }
 
-/** Resolves the FFmpeg binary: explicit env, bundled, workspace, then PATH. */
-export function resolveFfmpegBinaryPath(): string | null {
-  const explicit = streamingGatewayConfig.ffmpegBinary?.trim();
-  if (explicit) return existsSync(explicit) ? explicit : null;
-  const bundled = path.join(ffmpegDir(), BINARY_NAME);
-  if (existsSync(bundled)) return bundled;
-  const local = path.resolve(process.cwd(), 'gateway', BINARY_NAME);
-  if (existsSync(local)) return local;
-  // Fall back to PATH resolution by the OS when spawning.
-  return BINARY_NAME;
+/**
+ * True when `candidate` is a regular file that is executable by this process.
+ * `X_OK` alone is not enough on Windows, where it behaves like `F_OK` and would
+ * accept a directory; `statSync().isFile()` rejects directories and placeholders.
+ */
+function isExecutableFile(candidate: string): boolean {
+  try {
+    if (!statSync(candidate).isFile()) return false;
+    accessSync(candidate, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-/** True when an FFmpeg binary is available (explicit, bundled, or on PATH). */
+/** Resolves a bare binary name against the OS PATH. Returns null when absent. */
+function resolveOnPath(name: string): string | null {
+  const dirs = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean);
+  for (const dir of dirs) {
+    const candidate = path.join(dir, name);
+    if (isExecutableFile(candidate)) return candidate;
+  }
+  return null;
+}
+
+/** Where the resolved FFmpeg was found (for diagnostics). */
+export type FfmpegResolutionSource = 'env' | 'bundled' | 'workspace' | 'path' | 'override' | 'none';
+
+export interface FfmpegResolution {
+  path: string | null;
+  source: FfmpegResolutionSource;
+  /** Candidates checked, in order. Paths only — never credentials. */
+  candidates: string[];
+  /** Why an explicitly configured binary was rejected, when applicable. */
+  note?: string;
+}
+
+let ffmpegBinaryOverride: string | null | undefined;
+
+/** Overrides FFmpeg binary resolution. Intended for tests (undefined restores). */
+export function setFfmpegBinaryOverride(value: string | null | undefined): void {
+  ffmpegBinaryOverride = value;
+}
+
+/**
+ * Resolves the FFmpeg binary with full provenance:
+ *   1. `CCTV_FFMPEG_BINARY` (explicit)
+ *   2. bundled `<storageRoot>/gateway/ffmpeg[.exe]`
+ *   3. workspace `<cwd>/gateway/ffmpeg[.exe]` (dev copy from `fetch:gateway`)
+ *   4. the OS PATH
+ * A candidate counts only when the file exists and is executable, so a
+ * directory or placeholder is never mistaken for an installed binary.
+ */
+export function describeFfmpegResolution(): FfmpegResolution {
+  const candidates: string[] = [];
+
+  if (ffmpegBinaryOverride !== undefined) {
+    candidates.push(ffmpegBinaryOverride ?? '(test override: none)');
+    if (ffmpegBinaryOverride && isExecutableFile(ffmpegBinaryOverride)) {
+      return { path: ffmpegBinaryOverride, source: 'override', candidates };
+    }
+    return { path: null, source: 'none', candidates, note: 'test override did not resolve to an executable file' };
+  }
+
+  const explicit = streamingGatewayConfig.ffmpegBinary?.trim();
+  if (explicit) {
+    candidates.push(explicit);
+    if (isExecutableFile(explicit)) return { path: explicit, source: 'env', candidates };
+    return {
+      path: null,
+      source: 'none',
+      candidates,
+      note: 'CCTV_FFMPEG_BINARY is set but is not an executable file',
+    };
+  }
+
+  const bundled = path.join(ffmpegDir(), BINARY_NAME);
+  candidates.push(bundled);
+  if (isExecutableFile(bundled)) return { path: bundled, source: 'bundled', candidates };
+
+  // The dev/workspace copy produced by `npm run fetch:gateway`. Anchored to the
+  // process working directory, which npm workspace scripts pin to apps/api.
+  const workspace = path.resolve(process.cwd(), 'gateway', BINARY_NAME);
+  candidates.push(workspace);
+  if (isExecutableFile(workspace)) return { path: workspace, source: 'workspace', candidates };
+
+  candidates.push(`PATH (${BINARY_NAME})`);
+  const onPath = resolveOnPath(BINARY_NAME);
+  if (onPath) return { path: onPath, source: 'path', candidates };
+
+  return { path: null, source: 'none', candidates };
+}
+
+/** Resolves the FFmpeg binary path, or null when no executable is present. */
+export function resolveFfmpegBinaryPath(): string | null {
+  return describeFfmpegResolution().path;
+}
+
+/** True when an FFmpeg binary is available (explicit, bundled, workspace, PATH). */
 export function isFfmpegAvailable(): boolean {
-  const resolved = resolveFfmpegBinaryPath();
-  if (!resolved) return false;
-  // A bare command name is assumed to be on PATH; an absolute path must exist.
-  return resolved === BINARY_NAME || existsSync(resolved);
+  return resolveFfmpegBinaryPath() !== null;
+}
+
+/**
+ * Verifies a resolved binary can actually be executed by running `-version`.
+ * Spawning with an argument array (no shell) keeps Windows paths with spaces
+ * safe and surfaces spawn errors (ENOENT/EACCES) as `false` rather than a throw.
+ */
+export function verifyFfmpegExecutable(
+  binary: string,
+  run: (
+    bin: string,
+  ) => { status: number | null; error?: NodeJS.ErrnoException } = (bin) =>
+    spawnSync(bin, ['-version'], { windowsHide: true, stdio: 'ignore' }),
+): boolean {
+  try {
+    const result = run(binary);
+    return !result.error && result.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Human-readable reason FFmpeg is unavailable, for UI/diagnostic messages. */
+export function ffmpegUnavailableReason(): string {
+  const resolution = describeFfmpegResolution();
+  if (resolution.note) return resolution.note;
+  return `checked ${resolution.candidates.join(', ')}`;
+}
+
+/**
+ * Logs the resolved streaming binaries at startup. Reports the path and the
+ * reason when a check fails, and never logs credentials.
+ */
+export function logStreamingDiagnostics(): void {
+  // The gateway binary is managed separately; log its presence for context.
+  logger.info(
+    { cwd: process.cwd(), storageRoot: env.storageRoot, gatewayDir: ffmpegDir() },
+    'Streaming diagnostics',
+  );
+
+  const resolution = describeFfmpegResolution();
+  if (!resolution.path) {
+    logger.warn(
+      { candidates: resolution.candidates, note: resolution.note },
+      'FFmpeg not found: Live View normalizer and the Test RTSP decode probe are unavailable. ' +
+        'Run "npm run fetch:gateway" or set CCTV_FFMPEG_BINARY to an executable path.',
+    );
+    return;
+  }
+
+  if (verifyFfmpegExecutable(resolution.path)) {
+    logger.info(
+      { path: resolution.path, source: resolution.source },
+      'FFmpeg resolved and executable (-version OK)',
+    );
+  } else {
+    logger.warn(
+      { path: resolution.path, source: resolution.source },
+      'FFmpeg was found but could not be executed (-version failed); Live View and the decode probe will fail.',
+    );
+  }
 }
 
 interface IngestProcess {

@@ -290,6 +290,7 @@ describe('RTSP error labels', () => {
     expect(new RtspError('RTSP_UNAVAILABLE').label).toBe('RTSP unavailable');
     expect(new RtspError('STREAM_UNAVAILABLE').label).toBe('Stream unavailable');
     expect(new RtspError('CONNECTION_TIMEOUT').label).toBe('Connection timeout');
+    expect(new RtspError('FFMPEG_NOT_FOUND').label).toBe('FFmpeg not installed on the server');
     expect(new RtspError('UNKNOWN_ERROR').label).toBe('Unknown connection error');
   });
 });

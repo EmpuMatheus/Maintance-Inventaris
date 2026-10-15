@@ -22,7 +22,14 @@ export interface WhepReader {
   close: () => void;
 }
 
-const RETRY_PAUSE_MS = 2000;
+export interface WhepOptions {
+  /**
+   * Negotiate an audio transceiver. Defaults to false: the ingest normalizer
+   * strips audio (`-an`) and grid tiles are muted, so asking for audio only
+   * wastes negotiation and (where present) decode work.
+   */
+  includeAudio?: boolean;
+}
 
 function parseIceServers(header: string | null): RTCIceServer[] {
   if (!header) return [];
@@ -40,13 +47,18 @@ function parseIceServers(header: string | null): RTCIceServer[] {
   return servers;
 }
 
-export function createWhepReader(url: string, token: string | null, callbacks: WhepCallbacks): WhepReader {
+export function createWhepReader(
+  url: string,
+  token: string | null,
+  callbacks: WhepCallbacks,
+  options: WhepOptions = {},
+): WhepReader {
   let state: 'running' | 'closed' = 'running';
   let pc: RTCPeerConnection | null = null;
   let sessionUrl: string | null = null;
-  let restartTimer: number | null = null;
   let localOfferSdp = '';
   const queuedCandidates: RTCIceCandidate[] = [];
+  const includeAudio = options.includeAudio ?? false;
 
   const authHeader = (): Record<string, string> =>
     token ? { Authorization: `Bearer ${token}` } : {};
@@ -62,18 +74,16 @@ export function createWhepReader(url: string, token: string | null, callbacks: W
     }
   }
 
+  /**
+   * Reports a terminal failure to the caller and tears down the local peer
+   * connection. Reconnection is owned by the session hook (exponential backoff
+   * with a capped interval) so a struggling camera is not hammered by two
+   * independent retry loops.
+   */
   function fail(message: string): void {
     if (state === 'closed') return;
-    callbacks.onError(message);
-  }
-
-  function restartOrFail(message: string): void {
-    if (state !== 'running') return;
     cleanup();
     callbacks.onError(message);
-    restartTimer = window.setTimeout(() => {
-      if (state === 'running') void start();
-    }, RETRY_PAUSE_MS);
   }
 
   async function start(): Promise<void> {
@@ -84,7 +94,7 @@ export function createWhepReader(url: string, token: string | null, callbacks: W
 
       pc = new RTCPeerConnection({ iceServers });
       pc.addTransceiver('video', { direction: 'recvonly' });
-      pc.addTransceiver('audio', { direction: 'recvonly' });
+      if (includeAudio) pc.addTransceiver('audio', { direction: 'recvonly' });
 
       pc.onicecandidate = (evt) => {
         if (!evt.candidate) return;
@@ -101,7 +111,7 @@ export function createWhepReader(url: string, token: string | null, callbacks: W
         if (!pc) return;
         callbacks.onConnectionStateChange?.(pc.connectionState);
         if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-          restartOrFail('WebRTC connection closed.');
+          fail('WebRTC connection closed.');
         }
       };
 
@@ -134,7 +144,7 @@ export function createWhepReader(url: string, token: string | null, callbacks: W
         if (candidate) await sendCandidate(candidate);
       }
     } catch (error) {
-      restartOrFail(error instanceof Error ? error.message : 'WebRTC failed.');
+      fail(error instanceof Error ? error.message : 'WebRTC failed.');
     }
   }
 
@@ -179,10 +189,6 @@ export function createWhepReader(url: string, token: string | null, callbacks: W
   return {
     close: () => {
       state = 'closed';
-      if (restartTimer !== null) {
-        clearTimeout(restartTimer);
-        restartTimer = null;
-      }
       cleanup();
     },
   };

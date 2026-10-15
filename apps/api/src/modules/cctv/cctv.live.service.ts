@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger';
 import { streamingGatewayConfig } from '@/config/env';
 import { toIntegrationError } from '@/lib/integration/errors';import { getStreamingGateway, isStreamingEnabled } from '@/lib/streaming';
 import { generateGatewayPathName } from '@/lib/streaming/mediamtx.gateway';
-import { startIngest, stopIngest, isFfmpegAvailable } from '@/lib/streaming/ingest';
+import { startIngest, stopIngest, isFfmpegAvailable, ffmpegUnavailableReason } from '@/lib/streaming/ingest';
 import * as repo from './cctv.repository';
 import { buildIntegrationProvider, resolveDeviceProtocol } from './integration';
 import { buildHikvisionRtspPath, stripUriCredentials } from './cctv.helpers';
@@ -238,12 +238,21 @@ export async function createLiveSession(input: CreateLiveSessionInput): Promise<
 
   // Ingest mode:
   //  - normalize:   a managed FFmpeg pulls the device and republishes a
-  //                 browser-safe H.264 to the gateway. Required for Hikvision
-  //                 streams MediaMTX corrupts on ingest (H.264 High w/ B-frames,
-  //                 H.265 main streams).
+  //                 browser-safe H.264 to the gateway. Required for streams
+  //                 MediaMTX corrupts on ingest (H.264 High w/ B-frames, H.265).
   //  - passthrough: MediaMTX pulls RTSP directly (its built-in client).
-  const useNormalizer =
-    streamingGatewayConfig.ingestMode === 'normalize' && isFfmpegAvailable();
+  //
+  // When normalization is configured, FFmpeg is a hard requirement: silently
+  // downgrading to passthrough would publish a stream the browser cannot decode
+  // while still reporting success. Fail with a clear operational error instead.
+  const useNormalizer = streamingGatewayConfig.ingestMode === 'normalize';
+  if (useNormalizer && !isFfmpegAvailable()) {
+    throw new AppError(
+      503,
+      'FFMPEG_NOT_FOUND',
+      `Live View requires the FFmpeg ingest normalizer, but FFmpeg is not available on the server (${ffmpegUnavailableReason()}).`,
+    );
+  }
 
   try {
     if (useNormalizer) {

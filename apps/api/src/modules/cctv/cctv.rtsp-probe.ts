@@ -198,7 +198,14 @@ export function runFfmpegProbe(
     try {
       child = spawnImpl(binary, args);
     } catch (error) {
-      reject(new RtspError('RTSP_UNAVAILABLE', (error as Error)?.message));
+      // A synchronous spawn failure is almost always a missing/unrunnable
+      // binary: report it as an operational FFmpeg error, not a camera error.
+      const err = error as NodeJS.ErrnoException;
+      reject(
+        err?.code === 'ENOENT'
+          ? new RtspError('FFMPEG_NOT_FOUND', undefined)
+          : new RtspError('UNKNOWN_ERROR', err?.message),
+      );
       return;
     }
 
@@ -235,7 +242,9 @@ export function runFfmpegProbe(
     child.on('error', (error) => {
       const err = error as NodeJS.ErrnoException;
       finish(() => {
-        if (err.code === 'ENOENT') reject(new RtspError('RTSP_UNAVAILABLE'));
+        // ENOENT means the FFmpeg executable could not be launched: this is a
+        // server-side operational error, never a statement about the camera.
+        if (err.code === 'ENOENT') reject(new RtspError('FFMPEG_NOT_FOUND'));
         else reject(new RtspError('UNKNOWN_ERROR', err.message));
       });
     });
@@ -298,7 +307,7 @@ export class FfmpegRtspProbe {
 
   private run(url: string): Promise<RtspDecodeProbeResult> {
     const binary = resolveFfmpegBinaryPath();
-    if (!binary) throw new RtspError('RTSP_UNAVAILABLE');
+    if (!binary) throw new RtspError('FFMPEG_NOT_FOUND');
     return runFfmpegProbe(binary, url, this.config);
   }
 }

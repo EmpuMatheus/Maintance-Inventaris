@@ -8,6 +8,12 @@ import * as repo from '@/modules/cctv/cctv.repository';
 import * as live from '@/modules/cctv/cctv.live.service';
 import * as liveCtrl from '@/modules/cctv/cctv.live.controller';
 import { setStreamingGatewayFactory, resetStreamingGatewayFactory } from '@/lib/streaming';
+import {
+  setFfmpegBinaryOverride,
+  setIngestFactory,
+  resetIngestFactory,
+  stopAllIngests,
+} from '@/lib/streaming/ingest';
 import type { StreamingGateway, GatewayPathConfig } from '@/lib/streaming/types';
 
 const sql = postgres(env.DATABASE_URL, { max: 1 });
@@ -115,10 +121,21 @@ beforeEach(async () => {
   await sql`DELETE FROM cctv_live_sessions WHERE device_id = ${deviceId}`;
   fakeGateway = new FakeGateway();
   setStreamingGatewayFactory(() => fakeGateway);
+  // Live View normalizes by default: provide a fake FFmpeg binary + spawner.
+  setFfmpegBinaryOverride(process.execPath);
+  setIngestFactory(() => ({
+    kill: () => true,
+    killed: false,
+    on: () => undefined,
+    stderr: null,
+  }) as never);
 });
 
 afterEach(() => {
   resetStreamingGatewayFactory();
+  setFfmpegBinaryOverride(undefined);
+  resetIngestFactory();
+  stopAllIngests();
   vi.restoreAllMocks();
 });
 

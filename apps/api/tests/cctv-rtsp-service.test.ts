@@ -1,10 +1,41 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import net from 'node:net';
 import postgres from 'postgres';
 import { env } from '@/config/env';
 import * as svc from '@/modules/cctv/cctv.service';
 import type { CctvRtspClient } from '@/modules/cctv/cctv.service';
 import { RtspError } from '@/lib/rtsp/errors';
 import { buildHikvisionRtspPath } from '@/modules/cctv/cctv.helpers';
+import { setFfmpegBinaryOverride } from '@/lib/streaming/ingest';
+
+/** Minimal one-shot RTSP server that answers DESCRIBE with 200 OK. */
+function startRtsp200Server(): Promise<{ port: number; close: () => Promise<void> }> {
+  const server = net.createServer((socket) => {
+    let buffer = '';
+    const onData = (chunk: Buffer) => {
+      buffer += chunk.toString('utf8');
+      if (buffer.indexOf('\r\n\r\n') === -1) return;
+      socket.off('data', onData);
+      socket.end('RTSP/1.0 200 OK\r\nCSeq: 1\r\nContent-Type: application/sdp\r\n\r\nv=0\r\n');
+    };
+    socket.on('data', onData);
+  });
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address() as net.AddressInfo;
+      resolve({
+        port: address.port,
+        close: () => new Promise((r) => server.close(() => r())),
+      });
+    });
+  });
+}
+
+const openServers: Array<{ close: () => Promise<void> }> = [];
+afterEach(async () => {
+  await Promise.all(openServers.splice(0).map((s) => s.close()));
+  setFfmpegBinaryOverride(undefined);
+});
 
 const sql = postgres(env.DATABASE_URL, { max: 1 });
 const RUN = Date.now().toString(36);
@@ -21,7 +52,8 @@ class FakeRtsp implements CctvRtspClient {
       | 'AUTHENTICATION_FAILED'
       | 'DEVICE_UNREACHABLE'
       | 'CONNECTION_TIMEOUT'
-      | 'STREAM_UNAVAILABLE',
+      | 'STREAM_UNAVAILABLE'
+      | 'FFMPEG_NOT_FOUND',
   ) {}
 
   async describe(path: string) {
@@ -162,6 +194,14 @@ describe('cctv service - test RTSP (Hikvision / ISAPI path)', () => {
     expect(result.errorMessage).toBe('Stream unavailable');
   });
 
+  it('reports a missing FFmpeg clearly instead of blaming the camera', async () => {
+    svc.setCctvRtspClientFactory(() => new FakeRtsp('FFMPEG_NOT_FOUND'));
+    const result = await svc.testRtspConnection(hikDeviceId);
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('FFMPEG_NOT_FOUND');
+    expect(result.message).toMatch(/FFmpeg is not installed/i);
+  });
+
   it('throws NOT_FOUND for an unknown device', async () => {
     await expect(
       svc.testRtspConnection('00000000-0000-0000-0000-000000000000'),
@@ -243,5 +283,58 @@ describe('cctv service - test RTSP (XMEye / ONVIF stream URI)', () => {
     const result = await svc.testRtspConnection(xmDeviceId);
     expect(result.success).toBe(false);
     expect(result.protocol).toBe('ONVIF');
+  });
+});
+
+describe('cctv service - probe strategy selection', () => {
+  it('selects the DESCRIBE probe when FFmpeg is unavailable', () => {
+    setFfmpegBinaryOverride(null);
+    const client = svc.defaultBuildRtspClient({
+      ipAddress: '10.0.0.1',
+      rtspPort: 554,
+      username: 'admin',
+      passwordEncrypted: null,
+    });
+    expect(client.constructor.name).toBe('RtspProbeClient');
+    expect(client.describeUri).toBeTypeOf('function');
+  });
+
+  it('selects the FFmpeg decode probe when a binary is available', () => {
+    setFfmpegBinaryOverride(process.execPath);
+    const client = svc.defaultBuildRtspClient({
+      ipAddress: '10.0.0.1',
+      rtspPort: 554,
+      username: 'admin',
+      passwordEncrypted: null,
+    });
+    expect(client.constructor.name).toBe('FfmpegRtspProbe');
+  });
+
+  it('reports DESCRIBE success without claiming decode when FFmpeg is unavailable', async () => {
+    const server = await startRtsp200Server();
+    openServers.push(server);
+
+    const device = await svc.create({
+      name: `QA DESCRIBE fallback ${RUN}`,
+      deviceType: 'DVR',
+      brand: 'Hikvision',
+      ipAddress: '127.0.0.1',
+      port: 81,
+      rtspPort: server.port,
+      username: 'admin',
+      password: 'secret-password',
+    });
+    try {
+      setFfmpegBinaryOverride(null);
+      svc.resetCctvRtspClientFactory();
+      const result = await svc.testRtspConnection(device!.id as string, { channel: 1 });
+      expect(result.success).toBe(true);
+      expect(result.probe).toBe('describe');
+      expect(result.decodedFrames).toBeNull();
+      // DESCRIBE alone must never be presented as proof that video decodes.
+      expect(result.message).toMatch(/decode not verified/i);
+    } finally {
+      await sql`DELETE FROM cctv_devices WHERE id = ${device!.id}`;
+    }
   });
 });

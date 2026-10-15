@@ -5,6 +5,12 @@ import * as svc from '@/modules/cctv/cctv.service';
 import * as live from '@/modules/cctv/cctv.live.service';
 import * as repo from '@/modules/cctv/cctv.repository';
 import { setStreamingGatewayFactory, resetStreamingGatewayFactory } from '@/lib/streaming';
+import {
+  setFfmpegBinaryOverride,
+  setIngestFactory,
+  resetIngestFactory,
+  stopAllIngests,
+} from '@/lib/streaming/ingest';
 import type { StreamingGateway, GatewayPathConfig, GatewayPathState } from '@/lib/streaming/types';
 
 /**
@@ -77,12 +83,23 @@ beforeEach(async () => {
   gateway = new FakeGateway();
   setStreamingGatewayFactory(() => gateway);
   live.setLiveReadyTimeoutMs(300);
+  // Live View normalizes by default: provide a fake FFmpeg binary + spawner.
+  setFfmpegBinaryOverride(process.execPath);
+  setIngestFactory(() => ({
+    kill: () => true,
+    killed: false,
+    on: () => undefined,
+    stderr: null,
+  }) as never);
   await sql`DELETE FROM cctv_live_sessions WHERE device_id = ${deviceId}`;
 });
 
 afterEach(() => {
   live.setLiveReadyTimeoutMs(null);
   resetStreamingGatewayFactory();
+  setFfmpegBinaryOverride(undefined);
+  resetIngestFactory();
+  stopAllIngests();
 });
 
 describe('cctv live session - continuous playback', () => {

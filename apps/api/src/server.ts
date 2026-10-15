@@ -8,7 +8,7 @@ import { startMaintenanceScheduler } from '@/lib/scheduler';
 import { startBackupScheduler } from '@/lib/backup/scheduler';
 import { startNetworkMonitoringRunner, stopNetworkMonitoringRunner } from '@/lib/network-monitoring/runner';
 import { startStreamingGateway, stopStreamingGateway } from '@/lib/streaming/process-manager';
-import { stopAllIngests } from '@/lib/streaming/ingest';
+import { stopAllIngests, logStreamingDiagnostics } from '@/lib/streaming/ingest';
 import { startLiveSessionReaper, stopLiveSessionReaper } from '@/lib/streaming/reaper';
 import { initSocketServer, closeSocketServer } from '@/lib/socket';
 import { setupNetworkMonitoringSocketBridge } from '@/lib/network-monitoring/socket-bridge';
@@ -31,6 +31,9 @@ server.listen(env.PORT, () => {
   startMaintenanceScheduler();
   startBackupScheduler();
   startNetworkMonitoringRunner();
+  // Report the resolved FFmpeg path (and why it may be unavailable) before any
+  // Live View request, so a missing binary is a clear startup warning.
+  logStreamingDiagnostics();
   startStreamingGateway();
   startLiveSessionReaper();
   startParentWatchdog();

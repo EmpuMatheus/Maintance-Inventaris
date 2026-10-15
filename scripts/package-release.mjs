@@ -25,6 +25,18 @@ if (existsSync(path.join(gatewayGatewayDir, gatewayBinary)) && existsSync(path.j
 } else {
   run(`node scripts/fetch-streaming-gateway.mjs`);
 }
+// Live View's normalizer hard-requires FFmpeg; the gateway is required for any
+// Live View. Fail the release explicitly rather than shipping a broken feature.
+const missingBinaries = [gatewayBinary, ffmpegBinary].filter(
+  (name) => !existsSync(path.join(gatewayGatewayDir, name)),
+);
+if (missingBinaries.length > 0) {
+  console.error(
+    `ERROR: required streaming binaries missing from apps/api/gateway: ${missingBinaries.join(', ')}.`,
+  );
+  console.error('Run `npm run fetch:gateway` (network access required) before packaging.');
+  process.exit(1);
+}
 
 console.log('\n=== 3/5 Launcher (SEA) ===');
 run(`node scripts/build-launcher.mjs`);

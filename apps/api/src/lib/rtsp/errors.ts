@@ -13,6 +13,12 @@ export type RtspErrorCode =
   | 'STREAM_UNAVAILABLE'
   | 'STREAM_NO_MEDIA'
   | 'CONNECTION_TIMEOUT'
+  /**
+   * The server-side probe could not run because the FFmpeg executable is
+   * missing or not executable. This is an operational/server error, never a
+   * statement about the camera.
+   */
+  | 'FFMPEG_NOT_FOUND'
   | 'UNKNOWN_ERROR';
 
 export const RTSP_ERROR_CODES: readonly RtspErrorCode[] = [
@@ -22,6 +28,7 @@ export const RTSP_ERROR_CODES: readonly RtspErrorCode[] = [
   'STREAM_UNAVAILABLE',
   'STREAM_NO_MEDIA',
   'CONNECTION_TIMEOUT',
+  'FFMPEG_NOT_FOUND',
   'UNKNOWN_ERROR',
 ] as const;
 
@@ -33,6 +40,7 @@ const CODE_MESSAGES: Record<RtspErrorCode, string> = {
   STREAM_UNAVAILABLE: 'Stream unavailable',
   STREAM_NO_MEDIA: 'Stream reachable but no decodable media',
   CONNECTION_TIMEOUT: 'Connection timeout',
+  FFMPEG_NOT_FOUND: 'FFmpeg not installed on the server',
   UNKNOWN_ERROR: 'Unknown connection error',
 };
 
