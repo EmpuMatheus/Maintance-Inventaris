@@ -232,6 +232,13 @@
       "when": 1791970191380,
       "tag": "0033_short_wonder_man",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791980287574,
+      "tag": "0034_regular_garia",
+      "breakpoints": true
     }
   ]
 }

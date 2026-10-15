@@ -47,9 +47,9 @@ export function monitorGridClass(_tileCount?: number): string {
 /* ---------------------------- Full Screen wall ---------------------------- */
 
 /** The tile counts a user may pick for the Full Screen video wall. */
-export type FullScreenTileCount = 8 | 16 | 32;
+export type FullScreenTileCount = 8 | 16 | 25 | 32;
 
-export const FULLSCREEN_TILE_OPTIONS: FullScreenTileCount[] = [8, 16, 32];
+export const FULLSCREEN_TILE_OPTIONS: FullScreenTileCount[] = [8, 16, 25, 32];
 
 /**
  * Uniform video-wall grid for Full Screen. Every tile is the same size and the
@@ -57,16 +57,18 @@ export const FULLSCREEN_TILE_OPTIONS: FullScreenTileCount[] = [8, 16, 32];
  * min-h-0`). Layouts:
  *   8  -> 4 columns x 2 rows
  *   16 -> 4 columns x 4 rows
+ *   25 -> 5 columns x 5 rows
  *   32 -> 8 columns x 4 rows
  */
 const FULLSCREEN_GRID_CLASS: Record<FullScreenTileCount, string> = {
   8: 'grid-cols-4 grid-rows-2',
   16: 'grid-cols-4 grid-rows-4',
+  25: 'grid-cols-5 grid-rows-5',
   32: 'grid-cols-8 grid-rows-4',
 };
 
 export function fullscreenGridClass(count: FullScreenTileCount): string {
-  return `grid gap-1 ${FULLSCREEN_GRID_CLASS[count]}`;
+  return `grid ${FULLSCREEN_GRID_CLASS[count]}`;
 }
 
 /**
@@ -75,6 +77,57 @@ export function fullscreenGridClass(count: FullScreenTileCount): string {
  */
 export function fullscreenFillerCount(count: FullScreenTileCount, channelCount: number): number {
   return Math.max(0, count - channelCount);
+}
+
+/* ------------------------- Tile visibility / autoplay ------------------------- */
+
+/**
+ * How the Monitor renders its channel collection:
+ *  - `grid`   : the normal, non-fullscreen page grid.
+ *  - `multi`  : fullscreen video wall of `tileCount` tiles.
+ *  - `single` : fullscreen single tile (the one the user clicked).
+ */
+export type MonitorView = 'grid' | 'multi' | 'single';
+
+export interface MonitorTileStateInput {
+  view: MonitorView;
+  /** Position of the tile in the flat channel collection. */
+  index: number;
+  /** Position of the focused tile in `single` view, else null. */
+  focusedIndex: number | null;
+  tileCount: FullScreenTileCount;
+  playingAll: boolean;
+}
+
+export interface MonitorTileState {
+  /** Hidden tiles stay mounted (so their session is torn down cleanly) but are not shown. */
+  hidden: boolean;
+  autoStart: boolean;
+}
+
+/**
+ * Decides one tile's visibility and whether its stream should run.
+ *
+ * - `grid`   : always visible; follows the global Play All switch.
+ * - `multi`  : only the first `tileCount` tiles are visible and follow Play All.
+ * - `single` : ONLY the focused tile runs and is visible; every other tile stops.
+ *   Stopping the rest frees the session limiter so the clicked tile always plays
+ *   immediately (never "Waiting").
+ */
+export function monitorTileState(input: MonitorTileStateInput): MonitorTileState {
+  const { view, index, focusedIndex, tileCount, playingAll } = input;
+
+  if (view === 'single') {
+    const focused = index === focusedIndex;
+    return { hidden: !focused, autoStart: focused };
+  }
+
+  if (view === 'multi') {
+    const within = index < tileCount;
+    return { hidden: !within, autoStart: playingAll && within };
+  }
+
+  return { hidden: false, autoStart: playingAll };
 }
 
 /** Minimal shape needed to build the flat monitor wall. */

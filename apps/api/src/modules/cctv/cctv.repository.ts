@@ -1,6 +1,6 @@
 import { getDb } from '@/database/client';
 import { cctvDevices, cctvChannels, cctvStreamProfiles, cctvLiveSessions, assetSubcategories, assets, brands } from '@/database/schema';
-import { eq, and, sql, desc, asc, count, inArray, lt, getTableColumns } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, count, inArray, lt, isNull, getTableColumns } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { resolveIntegrationProtocol } from './integration/protocol';
 
@@ -726,8 +726,20 @@ export async function findLiveSessionById(id: string) {
   return (rows as Row[])[0] ?? null;
 }
 
-/** Reuses an existing active session for the same channel/kind when present. */
-export async function findActiveLiveSession(deviceId: string, channelId: string, streamKind: string) {
+/**
+ * Reuses an existing active session for the same channel/kind **and the same
+ * viewer** when present.
+ *
+ * Scoping by `createdBy` keeps sessions isolated per user: when one viewer
+ * leaves the Monitor and stops their session, other viewers of the same camera
+ * are unaffected. `userId === null` matches unauthenticated/legacy rows only.
+ */
+export async function findActiveLiveSession(
+  deviceId: string,
+  channelId: string,
+  streamKind: string,
+  userId: string | null = null,
+) {
   const db = getDb();
   const rows = await db
     .select()
@@ -738,6 +750,9 @@ export async function findActiveLiveSession(deviceId: string, channelId: string,
         eq(cctvLiveSessions.channelId, sql`${channelId}::uuid`),
         eq(cctvLiveSessions.streamKind, streamKind),
         eq(cctvLiveSessions.status, 'ACTIVE'),
+        userId
+          ? eq(cctvLiveSessions.createdBy, sql`${userId}::uuid`)
+          : isNull(cctvLiveSessions.createdBy),
       ),
     )
     .orderBy(desc(cctvLiveSessions.createdAt))

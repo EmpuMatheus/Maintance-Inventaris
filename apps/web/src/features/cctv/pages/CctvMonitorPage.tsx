@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { LayoutGrid, Loader2, Maximize, Minimize, Play, Square, TriangleAlert, Video } from 'lucide-react';
 import { listMonitorChannels, getCctvLiveLimits } from '../api/cctv';
@@ -10,10 +9,11 @@ import {
   flattenMonitorChannels,
   fullscreenGridClass,
   fullscreenFillerCount,
+  monitorTileState,
   FULLSCREEN_TILE_OPTIONS,
   type FullScreenTileCount,
+  type MonitorView,
 } from '../utils/monitor';
-import { buildLiveViewUrl } from '../utils/playback';
 import { configureSessionLimiter } from '../utils/session-limiter';
 
 const selectClass =
@@ -29,20 +29,22 @@ const selectClassDark =
  * - Nothing plays on open. The user starts the wall with "Play All" (and stops
  *   it with "Stop All"); the shared limiter caps concurrency and over-limit
  *   tiles show "Waiting".
- * - "Full Screen" opens a tile-count chooser (8/16/32) and then shows the SAME
- *   channel collection in a full-viewport video wall. It reuses the existing
- *   tiles (and therefore the existing live sessions) — no duplicate sessions.
- * - Clicking a tile opens Live View (which also does not autoplay).
+ * - Clicking a tile shows THAT tile full screen and plays it immediately
+ *   (all other tiles stop, so the clicked one never has to wait for a slot).
+ * - The "Full Screen" button opens a tile-count chooser (8/16/25/32) for a
+ *   multi-tile wall. While full screen, a tile-count <select> changes the wall
+ *   live without leaving full screen. "Exit Full Screen" returns to the grid.
  */
 export default function CctvMonitorPage() {
-  const navigate = useNavigate();
   const [streamKind, setStreamKind] = useState<CctvLiveStreamKind>('SUB');
   // Global wall switch. Starts false so the page never autoplays on open.
   const [playingAll, setPlayingAll] = useState(false);
-  // Full Screen wall state.
-  const [fullscreen, setFullscreen] = useState(false);
+  // Which wall is shown: the page grid, a full-screen multi-tile wall, or a
+  // single full-screen tile the user clicked.
+  const [view, setView] = useState<MonitorView>('grid');
   const [showFsDialog, setShowFsDialog] = useState(false);
   const [tileChoice, setTileChoice] = useState<FullScreenTileCount | null>(null);
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
   const limitsQuery = useQuery({
     queryKey: ['cctv-live-limits'],
@@ -69,30 +71,46 @@ export default function CctvMonitorPage() {
     [channelsQuery.data],
   );
 
-  const onOpen = (dev: string, channelId: string, kind: CctvLiveStreamKind) => {
-    // Navigating away unmounts the wall, which stops every tile session.
-    navigate(buildLiveViewUrl(dev, channelId, kind));
-  };
+  const inFullscreen = view !== 'grid';
+  const activeTiles: FullScreenTileCount = tileChoice ?? 8;
 
-  const streamingDisabled = limitsQuery.data?.streamingEnabled === false;
-  const hasChannels = channels.length > 0;
-  const canPlay = hasChannels && !streamingDisabled;
+  // A click on any tile zooms that tile to a single-tile full screen.
+  const selectTile = (index: number) => {
+    setFocusedIndex(index);
+    setView('single');
+  };
 
   // Entering Full Screen never changes the stream state: if the wall is already
   // playing, the visible tiles keep their sessions; if it is idle, it stays idle.
   const enterFullscreen = () => {
     if (!tileChoice) return;
     setShowFsDialog(false);
-    setFullscreen(true);
+    setFocusedIndex(null);
+    setView('multi');
   };
 
-  const activeTiles: FullScreenTileCount = tileChoice ?? 8;
+  const exitFullscreen = () => {
+    setView('grid');
+    setFocusedIndex(null);
+  };
+
+  // Change the multi-tile count while already full screen — no need to exit
+  // first and reopen the chooser.
+  const changeTileCount = (count: FullScreenTileCount) => {
+    setTileChoice(count);
+    setFocusedIndex(null);
+    setView('multi');
+  };
+
+  const streamingDisabled = limitsQuery.data?.streamingEnabled === false;
+  const hasChannels = channels.length > 0;
+  const canPlay = hasChannels && !streamingDisabled;
 
   const streamSelect = (
     <select
       id="monitor-stream"
       aria-label="Stream"
-      className={fullscreen ? selectClassDark : selectClass}
+      className={inFullscreen ? selectClassDark : selectClass}
       value={streamKind}
       onChange={(e) => setStreamKind(e.target.value as CctvLiveStreamKind)}
     >
@@ -121,27 +139,52 @@ export default function CctvMonitorPage() {
     </button>
   );
 
+  const tileCountSelect = (
+    <select
+      aria-label="Jumlah tile"
+      className={selectClassDark}
+      value={activeTiles}
+      onChange={(e) => changeTileCount(Number(e.target.value) as FullScreenTileCount)}
+    >
+      {FULLSCREEN_TILE_OPTIONS.map((n) => (
+        <option key={n} value={n}>
+          {n} Tiles
+        </option>
+      ))}
+    </select>
+  );
+
+  const gridClass =
+    view === 'grid'
+      ? monitorGridClass(channels.length)
+      : view === 'multi'
+        ? `${fullscreenGridClass(activeTiles)} flex-1 min-h-0`
+        : 'grid grid-cols-1 grid-rows-1 flex-1 min-h-0';
+
   return (
     <>
       <div
         className={
-          fullscreen
-            ? 'fixed inset-0 z-50 flex h-screen w-screen flex-col gap-2 bg-slate-950 p-2'
+          inFullscreen
+            ? 'fixed inset-0 z-50 flex h-screen w-screen flex-col bg-slate-950'
             : 'p-4 md:p-6'
         }
       >
-        {fullscreen ? (
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        {inFullscreen ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-2">
             <h1 className="flex items-center gap-2 text-lg font-semibold text-white">
               <LayoutGrid className="h-5 w-5 text-indigo-400" /> CCTV Monitor
-              <span className="text-sm font-normal text-slate-400">· Full Screen ({activeTiles} tiles)</span>
+              <span className="text-sm font-normal text-slate-400">
+                · Full Screen ({view === 'single' ? '1 tile' : `${activeTiles} tiles`})
+              </span>
             </h1>
             <div className="flex flex-wrap items-center gap-2">
               {streamSelect}
-              {playStopButton}
+              {tileCountSelect}
+              {view === 'multi' && playStopButton}
               <button
                 type="button"
-                onClick={() => setFullscreen(false)}
+                onClick={exitFullscreen}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800"
               >
                 <Minimize className="h-4 w-4" /> Exit Full Screen
@@ -155,7 +198,8 @@ export default function CctvMonitorPage() {
                 <LayoutGrid className="h-6 w-6 text-indigo-600" /> CCTV Monitor
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                Semua channel CCTV dari seluruh device dalam satu grid. Tekan Play All untuk menonton semua.
+                Semua channel CCTV dari seluruh device dalam satu grid. Tekan Play All untuk menonton semua, atau klik
+                satu tile untuk melihatnya layar penuh.
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -178,9 +222,9 @@ export default function CctvMonitorPage() {
           </div>
         )}
 
-        {streamingDisabled && !fullscreen && (
+        {streamingDisabled && !inFullscreen && (
           <p className="mb-4 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            <TriangleAlert className="h-3.5 w-3.5" /> Live View streaming sedang dinonaktifkan di server.
+            <TriangleAlert className="h-3.5 w-3.5" /> Streaming CCTV sedang dinonaktifkan di server.
           </p>
         )}
 
@@ -193,33 +237,35 @@ export default function CctvMonitorPage() {
         ) : channels.length === 0 ? (
           <EmptyState text="Belum ada channel tersinkron. Buka Device lalu jalankan Sync Channel." />
         ) : (
-          <div
-            className={
-              fullscreen ? `${fullscreenGridClass(activeTiles)} flex-1 min-h-0` : monitorGridClass(channels.length)
-            }
-          >
+          <div className={gridClass}>
             {channels.map((ch, idx) => {
-              // Tiles beyond the chosen tile count stay MOUNTED (their live
-              // session is preserved) but are hidden and never auto-started.
-              const hidden = fullscreen && idx >= activeTiles;
+              // Tiles outside the current view stay MOUNTED (so any session is
+              // torn down cleanly) but are hidden and never auto-started.
+              const { hidden, autoStart } = monitorTileState({
+                view,
+                index: idx,
+                focusedIndex,
+                tileCount: activeTiles,
+                playingAll,
+              });
               return (
                 <div
                   key={`${ch.id}:${streamKind}`}
-                  className={hidden ? 'hidden' : fullscreen ? 'min-h-0 min-w-0' : undefined}
+                  className={hidden ? 'hidden' : inFullscreen ? 'min-h-0 min-w-0' : undefined}
                 >
                   <CctvStreamTile
                     channel={ch}
                     deviceId={ch.deviceId}
                     deviceName={ch.device?.name ?? ''}
                     streamKind={streamKind}
-                    autoStart={playingAll && !hidden}
-                    fill={fullscreen}
-                    onOpen={onOpen}
+                    autoStart={autoStart}
+                    fill={inFullscreen}
+                    onSelect={() => selectTile(idx)}
                   />
                 </div>
               );
             })}
-            {fullscreen &&
+            {view === 'multi' &&
               Array.from({ length: fullscreenFillerCount(activeTiles, channels.length) }).map((_, i) => (
                 <div key={`empty-slot-${i}`} className="rounded-lg border border-slate-800 bg-slate-900/40" />
               ))}

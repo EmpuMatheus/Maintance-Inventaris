@@ -47,7 +47,6 @@ const NetworkDeviceDetailPage = lazy(() => import('@/features/network-devices/pa
 const CctvDeviceListPage = lazy(() => import('@/features/cctv/pages/CctvDeviceListPage'));
 const CctvDeviceFormPage = lazy(() => import('@/features/cctv/pages/CctvDeviceFormPage'));
 const CctvDeviceDetailPage = lazy(() => import('@/features/cctv/pages/CctvDeviceDetailPage'));
-const CctvLiveViewPage = lazy(() => import('@/features/cctv/pages/CctvLiveViewPage'));
 const CctvMonitorPage = lazy(() => import('@/features/cctv/pages/CctvMonitorPage'));
 const NotFoundPage = lazy(() => import('@/features/misc/NotFoundPage'));
 
@@ -95,7 +94,6 @@ const router = createBrowserRouter([
       { path: 'cctv/devices/new', element: <RequirePermission permission="cctv_device.manage"><CctvDeviceFormPage /></RequirePermission> },
       { path: 'cctv/devices/:id', element: <RequirePermission anyOf={['cctv_device.read', 'cctv_device.manage']}><CctvDeviceDetailPage /></RequirePermission> },
       { path: 'cctv/devices/:id/edit', element: <RequirePermission permission="cctv_device.manage"><CctvDeviceFormPage /></RequirePermission> },
-      { path: 'cctv/live', element: <RequirePermission anyOf={['cctv_stream.read', 'cctv_stream.manage', 'cctv_device.manage']}><CctvLiveViewPage /></RequirePermission> },
       { path: 'cctv/monitor', element: <RequirePermission anyOf={['cctv_stream.read', 'cctv_stream.manage', 'cctv_device.manage']}><CctvMonitorPage /></RequirePermission> },
       { path: 'reports/inventory', element: <RequirePermission permission="report.read"><InventoryReportPage /></RequirePermission> },
       { path: 'reports/maintenance', element: <RequirePermission permission="report.read"><MaintenanceReportPage /></RequirePermission> },

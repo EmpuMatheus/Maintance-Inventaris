@@ -12,12 +12,14 @@ import {
   buildings,
   floors,
   rooms,
+  assetCategories,
 } from '@/database/schema';
 import { alias } from 'drizzle-orm/pg-core';
 import { sql, eq, and, desc as descOrder } from 'drizzle-orm';
 import { eventBus } from '@/lib/event-bus';
 import { canAccessAsset, type AssetScope } from '@/middleware/scope';
 import * as notificationRepo from '@/modules/notifications/notification.repository';
+import { formatTransferNumber } from './transfer-number';
 
 const transferFromRooms = alias(rooms, 'transfer_from_rooms');
 const transferToRooms = alias(rooms, 'transfer_to_rooms');
@@ -343,7 +345,31 @@ export async function createTransfer(
   const notes = str(body.notes);
 
   const result = await db.transaction(async (tx) => {
+    const [category] = await tx
+      .select({ code: assetCategories.code })
+      .from(assetCategories)
+      .where(eq(assetCategories.id, asset.categoryId!))
+      .limit(1)
+      .for('update');
+    if (!category) throw new AppError(400, 'VALIDATION_ERROR', 'Asset category not found.');
+
+    const [period] = await tx
+      .select({
+        maxSequence: sql<number | null>`max(split_part(${assetTransfers.transferNumber}, '/', 1)::int)`,
+        month: sql<number>`extract(month from now())::int`,
+        year: sql<number>`extract(year from now())::int`,
+      })
+      .from(assetTransfers)
+      .innerJoin(assetsTable, eq(assetTransfers.assetId, assetsTable.id))
+      .where(and(
+        eq(assetsTable.categoryId, asset.categoryId!),
+        sql`${assetTransfers.transferNumber} IS NOT NULL`,
+        sql`date_trunc('month', ${assetTransfers.requestedAt}) = date_trunc('month', now())`,
+      ));
+    const transferNumber = formatTransferNumber(Number(period?.maxSequence ?? 0) + 1, category.code, Number(period.month), Number(period.year));
+
     const [record] = await tx.insert(assetTransfers).values({
+      transferNumber,
       assetId: sql`${assetId}::uuid`,
       fromSiteId: asset.siteId ? sql`${asset.siteId}::uuid` : undefined,
       fromBuildingId: asset.buildingId ? sql`${asset.buildingId}::uuid` : undefined,
@@ -416,6 +442,7 @@ export async function getActiveTransfer(assetId: string, scope?: AssetScope) {
    const rows = await db
      .select({
        id: assetTransfers.id,
+       transferNumber: assetTransfers.transferNumber,
        assetId: assetTransfers.assetId,
        fromSiteName: transferFromSites.name,
        fromBuildingName: transferFromBuildings.name,
@@ -471,6 +498,7 @@ export async function getLatestTransfer(assetId: string, scope?: AssetScope) {
     const rows = await db
       .select({
         id: assetTransfers.id,
+        transferNumber: assetTransfers.transferNumber,
         assetId: assetTransfers.assetId,
         status: assetTransfers.status,
         reason: assetTransfers.reason,
@@ -527,6 +555,7 @@ export async function getTransferById(transferId: string, scope?: AssetScope) {
     const [transfer] = await db
       .select({
         id: assetTransfers.id,
+        transferNumber: assetTransfers.transferNumber,
         assetId: assetTransfers.assetId,
         status: assetTransfers.status,
         authorizationLetterUrl: assetTransfers.authorizationLetterUrl,

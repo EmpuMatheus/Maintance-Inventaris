@@ -79,6 +79,7 @@ export const assetAssignments = pgTable('asset_assignments', {
 
 export const assetTransfers = pgTable('asset_transfers', {
   id: uuid('id').defaultRandom().primaryKey(),
+  transferNumber: varchar('transfer_number', { length: 100 }),
   assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   fromSiteId: uuid('from_site_id').references(() => sites.id),
   fromBuildingId: uuid('from_building_id').references(() => buildings.id),

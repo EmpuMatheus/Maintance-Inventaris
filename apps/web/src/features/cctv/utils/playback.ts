@@ -24,18 +24,3 @@ export function resolveTransportOrder(
 export function buildPlaybackUrl(apiUrl: string, relative: string): string {
   return `${apiUrl.replace(/\/+$/, '')}${relative}`;
 }
-
-/**
- * Builds the Live View deep link used by a Monitor tile. The Live View page
- * reads these params to AUTO-SELECT the device/channel only; it never uses them
- * to start playback (Live View does not autoplay).
- */
-export function buildLiveViewUrl(
-  deviceId: string,
-  channelId: string,
-  streamKind: 'MAIN' | 'SUB',
-): string {
-  return `/cctv/live?deviceId=${encodeURIComponent(deviceId)}&channelId=${encodeURIComponent(
-    channelId,
-  )}&stream=${streamKind}`;
-}

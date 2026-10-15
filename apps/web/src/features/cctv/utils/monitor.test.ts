@@ -8,6 +8,7 @@ import {
   fullscreenFillerCount,
   FULLSCREEN_TILE_OPTIONS,
   MONITOR_GRID_CLASS,
+  monitorTileState,
 } from './monitor';
 import type { CctvChannel } from '../types';
 
@@ -83,21 +84,24 @@ describe('monitorGridClass (uniform video-wall tiles)', () => {
 });
 
 describe('full screen video wall', () => {
-  it('exposes 8, 16 and 32 tile choices', () => {
-    expect(FULLSCREEN_TILE_OPTIONS).toEqual([8, 16, 32]);
+  it('exposes 8, 16, 25 and 32 tile choices', () => {
+    expect(FULLSCREEN_TILE_OPTIONS).toEqual([8, 16, 25, 32]);
   });
 
-  it('uses the correct grid for 8, 16 and 32 tiles', () => {
+  it('uses the correct grid for 8, 16, 25 and 32 tiles', () => {
     expect(fullscreenGridClass(8)).toContain('grid-cols-4');
     expect(fullscreenGridClass(8)).toContain('grid-rows-2');
     expect(fullscreenGridClass(16)).toContain('grid-cols-4');
     expect(fullscreenGridClass(16)).toContain('grid-rows-4');
+    expect(fullscreenGridClass(25)).toContain('grid-cols-5');
+    expect(fullscreenGridClass(25)).toContain('grid-rows-5');
     expect(fullscreenGridClass(32)).toContain('grid-cols-8');
     expect(fullscreenGridClass(32)).toContain('grid-rows-4');
   });
 
   it('always yields the same number of cells as the chosen tile count', () => {
     expect(fullscreenFillerCount(16, 10)).toBe(6);
+    expect(fullscreenFillerCount(25, 10)).toBe(15);
     expect(fullscreenFillerCount(8, 10)).toBe(0);
     expect(fullscreenFillerCount(32, 0)).toBe(32);
     expect(fullscreenFillerCount(8, 8)).toBe(0);
@@ -149,5 +153,33 @@ describe('flattenMonitorChannels (single flat grid, no device grouping)', () => 
       ch('c', 'd', 'A Device', 2),
     ]);
     expect(flat.map((c) => c.id)).toEqual(['c', 'b', 'a']);
+  });
+});
+
+describe('monitorTileState (grid / multi / single fullscreen)', () => {
+  it('grid mode follows Play All and hides nothing', () => {
+    const base = { view: 'grid' as const, index: 3, focusedIndex: null, tileCount: 8 as const };
+    expect(monitorTileState({ ...base, playingAll: true })).toEqual({ hidden: false, autoStart: true });
+    expect(monitorTileState({ ...base, playingAll: false })).toEqual({ hidden: false, autoStart: false });
+  });
+
+  it('multi mode fills the chosen tile count and follows Play All', () => {
+    const base = { view: 'multi' as const, focusedIndex: null, playingAll: true, tileCount: 8 as const };
+    expect(monitorTileState({ ...base, index: 0 })).toEqual({ hidden: false, autoStart: true });
+    expect(monitorTileState({ ...base, index: 7 })).toEqual({ hidden: false, autoStart: true });
+    expect(monitorTileState({ ...base, index: 8 })).toEqual({ hidden: true, autoStart: false });
+    expect(monitorTileState({ ...base, index: 20, playingAll: false })).toEqual({ hidden: true, autoStart: false });
+  });
+
+  it('single mode plays only the focused tile and stops the rest', () => {
+    const base = { view: 'single' as const, focusedIndex: 2, playingAll: true, tileCount: 8 as const };
+    expect(monitorTileState({ ...base, index: 2 })).toEqual({ hidden: false, autoStart: true });
+    expect(monitorTileState({ ...base, index: 1 })).toEqual({ hidden: true, autoStart: false });
+  });
+
+  it('single mode with no focus hides every tile', () => {
+    const base = { view: 'single' as const, focusedIndex: null, playingAll: true, tileCount: 8 as const };
+    expect(monitorTileState({ ...base, index: 0 })).toEqual({ hidden: true, autoStart: false });
+    expect(monitorTileState({ ...base, index: 5 })).toEqual({ hidden: true, autoStart: false });
   });
 });
