@@ -20,6 +20,8 @@ export interface LivePlayerProps {
   preferredTransport: CctvPlaybackTransport;
   /** Fill the parent element instead of using the default 16:9 box. */
   fill?: boolean;
+  /** Stretch the source image to the entire video box without cropping. */
+  stretch?: boolean;
   onStatusChange?: (status: PlayerStatus, transport: CctvPlaybackTransport | null) => void;
 }
 
@@ -33,7 +35,7 @@ export interface LivePlayerProps {
  * - WebRTC failure is not treated as a fatal error: HLS fallback success still
  *   reports `playing`.
  */
-export default function LivePlayer({ session, preferredTransport, fill = false, onStatusChange }: LivePlayerProps) {
+export default function LivePlayer({ session, preferredTransport, fill = false, stretch = false, onStatusChange }: LivePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<PlayerStatus>('connecting');
   const [transport, setTransport] = useState<CctvPlaybackTransport | null>(null);
@@ -182,7 +184,7 @@ export default function LivePlayer({ session, preferredTransport, fill = false, 
     >
       <video
         ref={videoRef}
-        className="h-full w-full object-contain"
+        className={`h-full w-full ${stretch ? 'object-fill' : 'object-contain'}`}
         controls
         muted
         autoPlay

@@ -173,7 +173,7 @@ export async function createLiveSession(input: CreateLiveSessionInput): Promise<
 
   // Reuse an existing active session for the same channel/kind instead of
   // opening a second gateway path on every refresh.
-  const existing = await repo.findActiveLiveSession(input.deviceId, input.channelId, input.streamKind);
+  const existing = await repo.findActiveLiveSession(input.deviceId, input.channelId, input.streamKind, input.userId);
   if (existing && (existing.expiresAt as Date).getTime() > Date.now()) {
     await repo.touchLiveSession(
       existing.id as string,

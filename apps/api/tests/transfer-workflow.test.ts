@@ -18,6 +18,7 @@ let receiverId: string;
 let witnessId: string;
 let creatorId: string;
 let transferId: string;
+let transferNumber: string;
 
 // Second asset + receiver used for receiver-context / assignment rotation tests.
 let deptId: string;
@@ -137,6 +138,8 @@ describe('Transfer Location workflow', () => {
     );
     transferId = res.id as string;
     const detail = (await transferSvc.getTransferById(transferId)) as any;
+    transferNumber = detail.transferNumber;
+    expect(transferNumber).toMatch(/^\d+\/BBP\/TWF_CAT\/(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\/\d{4}$/);
     expect(detail.status).toBe('PENDING');
     const byUser = new Map<string, any>();
     for (const c of detail.confirmations) byUser.set(c.userId, c);

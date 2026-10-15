@@ -14,10 +14,11 @@ interface TileChannel {
 /**
  * A single, uniform tile in the CCTV video-wall grid.
  *
- * The tile NEVER starts on its own. It only starts when the parent sets
- * `autoStart` (Monitor "Play All"), and is gated by the shared session limiter
- * so a large wall does not open every stream at once (over-limit tiles show
- * "Waiting"). Clicking the tile opens Live View (which also does not autoplay).
+ * The tile NEVER starts on its own. It starts when the parent sets `autoStart`
+ * (Monitor "Play All", or when this tile is the fullscreen focus), and is gated
+ * by the shared session limiter so a large wall does not open every stream at
+ * once (over-limit tiles show "Waiting"). Clicking the tile asks the parent to
+ * show it full screen and play it.
  */
 export default function CctvStreamTile({
   deviceId,
@@ -26,7 +27,7 @@ export default function CctvStreamTile({
   streamKind,
   autoStart = false,
   fill = false,
-  onOpen,
+  onSelect,
 }: {
   deviceId: string;
   deviceName?: string;
@@ -35,7 +36,7 @@ export default function CctvStreamTile({
   autoStart?: boolean;
   /** Full Screen wall mode: fill the grid cell instead of using aspect-video. */
   fill?: boolean;
-  onOpen: (deviceId: string, channelId: string, streamKind: CctvLiveStreamKind) => void;
+  onSelect: () => void;
 }) {
   const { phase, session, error, notifyPlayerStatus } = useLiveSessionPlayer({
     deviceId,
@@ -55,9 +56,9 @@ export default function CctvStreamTile({
     >
       <button
         type="button"
-        onClick={() => onOpen(deviceId, channel.id, streamKind)}
+        onClick={onSelect}
         className="absolute inset-0 z-10 cursor-pointer"
-        aria-label={`Buka Live View ${deviceName ? `${deviceName} ` : ''}${label}`}
+        aria-label={`Tampilkan layar penuh ${deviceName ? `${deviceName} ` : ''}${label}`}
       />
 
       <div className={fill ? 'relative h-full w-full' : 'relative aspect-video w-full'}>
@@ -67,6 +68,7 @@ export default function CctvStreamTile({
             preferredTransport="webrtc"
             onStatusChange={notifyPlayerStatus}
             fill={fill}
+            stretch
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-900">

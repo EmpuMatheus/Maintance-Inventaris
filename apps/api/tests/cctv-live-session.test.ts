@@ -192,6 +192,28 @@ describe('cctv live session - service', () => {
     expect(gateway.paths.size).toBe(1);
   });
 
+  it('isolates live sessions per user and reuses only within the same user', async () => {
+    const created = await sql`
+      INSERT INTO users (id, employee_code, name, username, is_active, must_change_password, created_at, updated_at)
+      VALUES
+        (gen_random_uuid(), ${`QA_LIVE_A_${RUN}`}, 'QA Live User A', ${`qa_live_a_${RUN}`}, true, false, now(), now()),
+        (gen_random_uuid(), ${`QA_LIVE_B_${RUN}`}, 'QA Live User B', ${`qa_live_b_${RUN}`}, true, false, now(), now())
+      RETURNING id`;
+    const [userA, userB] = created.map((r) => r.id as string);
+    try {
+      const a1 = await live.createLiveSession({ deviceId, channelId, streamKind: 'SUB', userId: userA });
+      const a2 = await live.createLiveSession({ deviceId, channelId, streamKind: 'SUB', userId: userA });
+      const b1 = await live.createLiveSession({ deviceId, channelId, streamKind: 'SUB', userId: userB });
+      // Same user reuses its own session...
+      expect(a2.id).toBe(a1.id);
+      // ...a different user gets a separate session, so stopping one never
+      // tears down the other viewer's stream.
+      expect(b1.id).not.toBe(a1.id);
+    } finally {
+      await sql`DELETE FROM users WHERE id IN (${userA}, ${userB})`;
+    }
+  });
+
   it('throws STREAM_UNAVAILABLE and cleans up when the stream never becomes ready', async () => {
     gateway.ready = false;
     await expect(
