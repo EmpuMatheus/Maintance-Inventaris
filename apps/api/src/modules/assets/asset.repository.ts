@@ -69,8 +69,11 @@ export async function findAssets(params: {
   if (params.floorId) conditions.push(eq(assets.floorId, sql`${params.floorId}::uuid`));
   if (params.roomId) conditions.push(eq(assets.roomId, sql`${params.roomId}::uuid`));
   if (params.picId) conditions.push(eq(assets.currentPicId, sql`${params.picId}::uuid`));
-  if (params.ownUserId) conditions.push(eq(assets.currentPicId, sql`${params.ownUserId}::uuid`));
-  if (params.categoryIds && params.categoryIds.length > 0) {
+  if (params.ownUserId && params.categoryIds && params.categoryIds.length > 0) {
+    conditions.push(sql`(${eq(assets.currentPicId, sql`${params.ownUserId}::uuid`)} OR ${inArray(assets.categoryId, params.categoryIds)})`);
+  } else if (params.ownUserId) {
+    conditions.push(eq(assets.currentPicId, sql`${params.ownUserId}::uuid`));
+  } else if (params.categoryIds && params.categoryIds.length > 0) {
     conditions.push(inArray(assets.categoryId, params.categoryIds));
   }
 

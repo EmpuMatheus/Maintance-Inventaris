@@ -277,7 +277,6 @@ Configuration is read from `.env` (see `.env.example`). **`DATABASE_URL` is requ
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `JWT_SECRET` | dev default | **Must be a random secret ≥ 32 chars in production** |
-| `JWT_EXPIRES_IN` | `15m` | Access-token lifetime |
 
 ### HTTPS & Proxy
 

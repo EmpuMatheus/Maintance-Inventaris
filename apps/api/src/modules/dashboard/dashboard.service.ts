@@ -17,6 +17,9 @@ import type { SQL } from 'drizzle-orm';
 
 /** Builds a WHERE fragment that constrains an assets query to the given scope. */
 function buildAssetScopeCondition(scope: AssetScope): SQL | undefined {
+  if (scope.ownUserId && scope.categoryIds?.length) {
+    return sql`(${eq(assets.currentPicId, sql`${scope.ownUserId}::uuid`)} OR ${inArray(assets.categoryId, scope.categoryIds)})`;
+  }
   if (scope.ownUserId) return eq(assets.currentPicId, sql`${scope.ownUserId}::uuid`);
   if (scope.categoryIds && scope.categoryIds.length > 0) return inArray(assets.categoryId, scope.categoryIds);
   return undefined;

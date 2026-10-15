@@ -42,7 +42,6 @@ With `APP_ENV=production` the server refuses to start unless:
 | Variable | Default | Notes |
 |----------|---------|-------|
 | `JWT_SECRET` | dev default | **Must be a random secret >= 32 chars in production** |
-| `JWT_EXPIRES_IN` | `15m` | Access token lifetime |
 
 ## HTTPS
 

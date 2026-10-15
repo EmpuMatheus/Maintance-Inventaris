@@ -6,17 +6,18 @@ import { validate } from '@/middleware/validate';
 import * as ctrl from './master-data.controller';
 import * as s from './master-data.schema';
 import { getDb } from '@/database/client';
-import { users, departments } from '@/database/schema';
-import { eq, sql } from 'drizzle-orm';
+import { users, departments, roles, userRoles } from '@/database/schema';
+import { and, eq, sql } from 'drizzle-orm';
 
 const router = Router();
 
 const read = [authenticate, authorize('master_data.read')];
 const write = [authenticate, authorize('master_data.manage')];
 
-router.get('/users', ...read, async (_req, res, next) => {
+router.get('/users', ...read, async (req, res, next) => {
   try {
     const db = getDb();
+    const role = typeof req.query.role === 'string' ? req.query.role : undefined;
     const rows = await db
       .select({
         id: users.id,
@@ -30,7 +31,9 @@ router.get('/users', ...read, async (_req, res, next) => {
       })
       .from(users)
       .leftJoin(departments, eq(users.departmentId, departments.id))
-      .where(sql`${users.isActive} = true`)
+      .leftJoin(userRoles, eq(userRoles.userId, users.id))
+      .leftJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(and(sql`${users.isActive} = true`, sql`${users.deletedAt} IS NULL`, role ? eq(roles.name, role) : undefined))
       .orderBy(users.name);
     res.json({ success: true, data: rows });
   } catch (error) { next(error); }

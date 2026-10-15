@@ -28,6 +28,13 @@ export async function findMany(filters: UserFilters) {
     conditions.push(sql`(${like(users.username, p)} OR ${like(users.name, p)} OR ${like(users.email, p)} OR ${like(users.employeeCode, p)})`);
   }
   if (filters.departmentId) conditions.push(eq(users.departmentId, sql`${filters.departmentId}::uuid`));
+  if (filters.role) {
+    conditions.push(sql`EXISTS (
+      SELECT 1 FROM ${userRoles}
+      INNER JOIN ${roles} ON ${userRoles.roleId} = ${roles.id}
+      WHERE ${userRoles.userId} = ${users.id} AND ${roles.name} = ${filters.role}
+    )`);
+  }
   if (filters.isActive !== undefined) conditions.push(eq(users.isActive, filters.isActive));
 
   const where = conditions.length ? and(...conditions) : undefined;

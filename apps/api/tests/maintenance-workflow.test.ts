@@ -4,13 +4,19 @@ import { env } from '@/config/env';
 import * as assetSvc from '@/modules/assets/asset.service';
 import * as maintSvc from '@/modules/maintenance/maintenance.service';
 import { repo as maintRepo } from '@/modules/maintenance/maintenance.service';
+import * as userSvc from '@/modules/users/user.service';
 
 const sql = postgres(env.DATABASE_URL, { max: 1 });
 let adminId: string;
 let assetId: string;
 let catId: string;
 let subId: string;
+let techRoleId: string;
+let userRoleId: string;
+let technicianId: string;
+let nonTechnicianId: string;
 const maintIds: string[] = [];
+const userIds: string[] = [];
 
 beforeAll(async () => {
   const rows = await sql`SELECT id FROM users WHERE username = 'admin' LIMIT 1`;
@@ -21,6 +27,15 @@ beforeAll(async () => {
   subId = sub[0].id;
   const asset = await assetSvc.create({ assetName: 'QA Maint Asset', categoryId: catId, subcategoryId: subId, condition: 'GOOD', status: 'AVAILABLE' }, adminId);
   assetId = asset.id as string;
+  const roleRows = await sql`SELECT id, name FROM roles WHERE name IN ('TECHNICIAN', 'USER')`;
+  techRoleId = (roleRows.find((r) => r.name === 'TECHNICIAN') as { id: string }).id;
+  userRoleId = (roleRows.find((r) => r.name === 'USER') as { id: string }).id;
+  const run = Date.now().toString(36);
+  const technician = await userSvc.create({ employeeCode: `QA_MW_TECH_${run}`, name: 'QA MW Technician', username: `qamwtech${run}`, password: 'password123', roleId: techRoleId, categoryId: catId });
+  const nonTechnician = await userSvc.create({ employeeCode: `QA_MW_USER_${run}`, name: 'QA MW User', username: `qamwuser${run}`, password: 'password123', roleId: userRoleId });
+  technicianId = technician.id;
+  nonTechnicianId = nonTechnician.id;
+  userIds.push(technicianId, nonTechnicianId);
 });
 
 afterAll(async () => {
@@ -33,6 +48,11 @@ afterAll(async () => {
   }
   await sql`DELETE FROM asset_condition_history WHERE asset_id = ${assetId}`;
   await sql`DELETE FROM assets WHERE id = ${assetId}`;
+  for (const id of userIds) {
+    await sql`DELETE FROM user_roles WHERE user_id = ${id}`;
+    await sql`DELETE FROM user_categories WHERE user_id = ${id}`;
+    await sql`DELETE FROM users WHERE id = ${id}`;
+  }
   await sql`DELETE FROM asset_code_counters WHERE category_id = ${catId} AND subcategory_id = ${subId}`;
   await sql`DELETE FROM asset_subcategories WHERE id = ${subId}`;
   await sql`DELETE FROM asset_categories WHERE id = ${catId}`;
@@ -60,7 +80,7 @@ describe('Maintenance workflow', () => {
 
   it('runs the full happy-path workflow', async () => {
     const id = await createMaintenance();
-    await maintSvc.assign(id, { technicianId: adminId }, adminId);
+    await maintSvc.assign(id, { technicianId: technicianId }, adminId);
     expect((await maintRepo.findById(id)).status).toBe('ASSIGNED');
 
     await maintSvc.start(id);
@@ -82,7 +102,7 @@ describe('Maintenance workflow', () => {
 
   it('updates the asset condition on completion', async () => {
     const id = await createMaintenance();
-    await maintSvc.assign(id, { technicianId: adminId }, adminId);
+    await maintSvc.assign(id, { technicianId: technicianId }, adminId);
     await maintSvc.start(id);
     await maintSvc.testing(id);
     await maintSvc.complete(id, { condition: 'GOOD', result: 'ok' }, adminId);
@@ -100,10 +120,21 @@ describe('Maintenance workflow', () => {
 
   it('rejects starting a completed maintenance', async () => {
     const id = await createMaintenance();
-    await maintSvc.assign(id, { technicianId: adminId }, adminId);
+    await maintSvc.assign(id, { technicianId: technicianId }, adminId);
     await maintSvc.start(id);
     await maintSvc.testing(id);
     await maintSvc.complete(id, { result: 'ok', condition: 'GOOD' }, adminId);
     await expect(maintSvc.start(id)).rejects.toThrow('Cannot transition from COMPLETED to IN_PROGRESS');
+  });
+
+  it('rejects assigning a non-technician user to maintenance', async () => {
+    const id = await createMaintenance();
+    await expect(maintSvc.assign(id, { technicianId: nonTechnicianId }, adminId))
+      .rejects.toThrow('Technician must be an active user with TECHNICIAN role.');
+  });
+
+  it('rejects creating maintenance with a non-technician user', async () => {
+    await expect(maintSvc.create({ assetId, maintenanceCategory: 'CORRECTIVE', problem: 'QA problem', technicianId: nonTechnicianId }, adminId))
+      .rejects.toThrow('Technician must be an active user with TECHNICIAN role.');
   });
 });

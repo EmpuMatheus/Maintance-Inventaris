@@ -129,8 +129,8 @@ export default function MaintenanceDetailPage() {
   });
 
   const { data: users } = useQuery({
-    queryKey: ['master', 'users'],
-    queryFn: () => listMaster('users', {}),
+    queryKey: ['master', 'users', 'technicians'],
+    queryFn: () => listMaster('users', { role: 'TECHNICIAN' }),
   });
 
   const invalidate = () => {
