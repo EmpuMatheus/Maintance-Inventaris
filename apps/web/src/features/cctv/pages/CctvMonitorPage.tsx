@@ -31,7 +31,7 @@ const selectClassDark =
  *   tiles show "Waiting".
  * - Clicking a tile shows THAT tile full screen and plays it immediately
  *   (all other tiles stop, so the clicked one never has to wait for a slot).
- * - The "Full Screen" button opens a tile-count chooser (8/16/25/32) for a
+ * - The "Full Screen" button opens a tile-count chooser (4/9/16/25/32/36/49) for a
  *   multi-tile wall. While full screen, a tile-count <select> changes the wall
  *   live without leaving full screen. "Exit Full Screen" returns to the grid.
  */
@@ -72,7 +72,7 @@ export default function CctvMonitorPage() {
   );
 
   const inFullscreen = view !== 'grid';
-  const activeTiles: FullScreenTileCount = tileChoice ?? 8;
+  const activeTiles: FullScreenTileCount = tileChoice ?? 9;
 
   // A click on any tile zooms that tile to a single-tile full screen.
   const selectTile = (index: number) => {

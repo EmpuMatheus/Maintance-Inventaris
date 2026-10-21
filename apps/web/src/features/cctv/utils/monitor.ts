@@ -47,24 +47,30 @@ export function monitorGridClass(_tileCount?: number): string {
 /* ---------------------------- Full Screen wall ---------------------------- */
 
 /** The tile counts a user may pick for the Full Screen video wall. */
-export type FullScreenTileCount = 8 | 16 | 25 | 32;
+export type FullScreenTileCount = 4 | 9 | 16 | 25 | 32 | 36 | 49;
 
-export const FULLSCREEN_TILE_OPTIONS: FullScreenTileCount[] = [8, 16, 25, 32];
+export const FULLSCREEN_TILE_OPTIONS: FullScreenTileCount[] = [4, 9, 16, 25, 32, 36, 49];
 
 /**
  * Uniform video-wall grid for Full Screen. Every tile is the same size and the
  * grid fills the available viewport height (the caller supplies `flex-1
  * min-h-0`). Layouts:
- *   8  -> 4 columns x 2 rows
+ *   4  -> 2 columns x 2 rows
+ *   9  -> 3 columns x 3 rows
  *   16 -> 4 columns x 4 rows
  *   25 -> 5 columns x 5 rows
  *   32 -> 8 columns x 4 rows
+ *   36 -> 6 columns x 6 rows
+ *   49 -> 7 columns x 7 rows
  */
 const FULLSCREEN_GRID_CLASS: Record<FullScreenTileCount, string> = {
-  8: 'grid-cols-4 grid-rows-2',
+  4: 'grid-cols-2 grid-rows-2',
+  9: 'grid-cols-3 grid-rows-3',
   16: 'grid-cols-4 grid-rows-4',
   25: 'grid-cols-5 grid-rows-5',
   32: 'grid-cols-8 grid-rows-4',
+  36: 'grid-cols-6 grid-rows-6',
+  49: 'grid-cols-7 grid-rows-7',
 };
 
 export function fullscreenGridClass(count: FullScreenTileCount): string {
