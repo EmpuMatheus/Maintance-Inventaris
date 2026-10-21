@@ -56,7 +56,13 @@ async function assertTechnician(technicianId: unknown, categoryId?: string | nul
     .from(users)
     .innerJoin(userRoles, eq(userRoles.userId, users.id))
     .innerJoin(roles, eq(userRoles.roleId, roles.id))
-    .leftJoin(userCategories, eq(userCategories.userId, users.id))
+    .leftJoin(
+      userCategories,
+      and(
+        eq(userCategories.userId, users.id),
+        categoryId ? eq(userCategories.categoryId, sql`${categoryId}::uuid`) : undefined,
+      ),
+    )
     .where(and(
       eq(users.id, sql`${technicianId as string}::uuid`),
       eq(users.isActive, true),
@@ -65,16 +71,13 @@ async function assertTechnician(technicianId: unknown, categoryId?: string | nul
     ))
     .limit(1);
   if (!technician) throw new AppError(400, 'VALIDATION_ERROR', 'Technician must be an active user with TECHNICIAN role.');
-  if (categoryId && technician.categoryId !== categoryId) {
+  // The join is filtered to the requested category, so a null membership means
+  // the technician is not qualified for this asset even if they belong to others.
+  if (categoryId && !technician.categoryId) {
     throw new AppError(400, 'VALIDATION_ERROR', 'Technician must belong to the asset category.');
   }
 }
 
-/**
- * Start, Waiting Part, and Testing are limited to the technician the record is
- * assigned to. Being assigned is the requirement, so only the stored technician
- * ID is compared; role, active flag, and category are not re-checked here.
- */
 /** Append a workflow event. `exec` may be the db or an open transaction. */
 async function recordStatus(
   exec: { insert: (...args: any[]) => any },
@@ -90,6 +93,11 @@ async function recordStatus(
   await repo.addStatusHistory(exec, data);
 }
 
+/**
+ * Start, Waiting Part, and Testing are limited to the technician the record is
+ * assigned to. Being assigned is the requirement, so only the stored technician
+ * ID is compared; role, active flag, and category are not re-checked here.
+ */
 function assertAssignedTechnician(mt: Record<string, unknown>, actorId?: string) {
   if (!actorId || mt.technicianId !== actorId) {
     throw new AppError(403, 'FORBIDDEN', 'Only the assigned technician can perform this action.');
@@ -413,15 +421,20 @@ export async function addPart(maintenanceId: string, body: Record<string, unknow
   }
   const qty = Number(body.quantity) || 1;
   const price = Number(body.unitPrice) || 0;
-  return repo.addPart({
-    maintenanceId: sql`${maintenanceId}::uuid`,
-    partName: str(body.partName),
-    partNumber: str(body.partNumber) ?? undefined,
-    quantity: qty,
-    unitPrice: sql`${String(price)}::numeric`,
-    totalPrice: sql`${String(qty * price)}::numeric`,
-    vendorId: body.vendorId ? sql`${body.vendorId as string}::uuid` : undefined,
-    notes: str(body.notes) ?? undefined,
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const part = await repo.addPart({
+      maintenanceId: sql`${maintenanceId}::uuid`,
+      partName: str(body.partName),
+      partNumber: str(body.partNumber) ?? undefined,
+      quantity: qty,
+      unitPrice: sql`${String(price)}::numeric`,
+      totalPrice: sql`${String(qty * price)}::numeric`,
+      vendorId: body.vendorId ? sql`${body.vendorId as string}::uuid` : undefined,
+      notes: str(body.notes) ?? undefined,
+    }, tx);
+    await repo.recalcCosts(maintenanceId, tx);
+    return part;
   });
 }
 
@@ -431,7 +444,11 @@ export async function deletePart(maintenanceId: string, partId: string) {
   if (mt.status === 'COMPLETED' || mt.status === 'CANCELLED') {
     throw new AppError(400, 'VALIDATION_ERROR', 'Cannot delete parts from a completed or cancelled maintenance.');
   }
-  await repo.deletePart(partId);
+  const db = getDb();
+  await db.transaction(async (tx) => {
+    await repo.deletePart(partId, tx);
+    await repo.recalcCosts(maintenanceId, tx);
+  });
 }
 
 export { repo };

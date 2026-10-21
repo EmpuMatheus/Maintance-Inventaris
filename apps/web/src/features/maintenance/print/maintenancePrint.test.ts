@@ -118,4 +118,33 @@ describe('completed maintenance report printout', () => {
     expect(html).toContain('&lt;b&gt;x&lt;/b&gt;');
     expect(html).toContain('a &amp; b');
   });
+
+  it('escapes task text, notes, technician name, and maintenance code', () => {
+    const html = buildMaintenanceReportHtml(
+      detail({
+        status: 'COMPLETED',
+        maintenanceCode: 'MNT<1>',
+        notes: '<img src=x onerror=alert(1)>',
+        technician: { id: 'tech-1', name: 'Budi "X" <b>' },
+        tasks: [
+          {
+            id: 't1',
+            maintenanceId: 'm1',
+            task: 'Step <script>x</script>',
+            sortOrder: 0,
+            isCompleted: true,
+            createdAt: '2026-10-01T00:00:00.000Z',
+            updatedAt: '2026-10-01T00:00:00.000Z',
+          },
+        ],
+      }),
+      [],
+    );
+    expect(html).not.toContain('<img src=x onerror=alert(1)>');
+    expect(html).not.toContain('<script>x</script>');
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(html).toContain('&lt;script&gt;x&lt;/script&gt;');
+    expect(html).toContain('Budi &quot;X&quot; &lt;b&gt;');
+    expect(html).toContain('MNT&lt;1&gt;');
+  });
 });

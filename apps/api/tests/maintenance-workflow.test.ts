@@ -17,6 +17,7 @@ let techRoleId: string;
 let userRoleId: string;
 let technicianId: string;
 let otherTechnicianId: string;
+let multiTechnicianId: string;
 let nonTechnicianId: string;
 const maintIds: string[] = [];
 const userIds: string[] = [];
@@ -39,10 +40,16 @@ beforeAll(async () => {
   const technician = await userSvc.create({ employeeCode: `QA_MW_TECH_${run}`, name: 'QA MW Technician', username: `qamwtech${run}`, password: 'password123', roleId: techRoleId, categoryId: catId });
   const otherTechnician = await userSvc.create({ employeeCode: `QA_MW_OTECH_${run}`, name: 'QA MW Other Technician', username: `qamwotech${run}`, password: 'password123', roleId: techRoleId, categoryId: otherCatId });
   const nonTechnician = await userSvc.create({ employeeCode: `QA_MW_USER_${run}`, name: 'QA MW User', username: `qamwuser${run}`, password: 'password123', roleId: userRoleId });
+  // Belongs to the asset category as well as another one. The asset-category
+  // membership is inserted second on purpose so an unfiltered `.limit(1)` join
+  // is likely to return the other category first.
+  const multiTechnician = await userSvc.create({ employeeCode: `QA_MW_MTECH_${run}`, name: 'QA MW Multi Technician', username: `qamwmtech${run}`, password: 'password123', roleId: techRoleId, categoryId: otherCatId });
+  await sql`INSERT INTO user_categories (id, user_id, category_id, created_at) VALUES (gen_random_uuid(), ${multiTechnician.id}, ${catId}, now())`;
   technicianId = technician.id;
   otherTechnicianId = otherTechnician.id;
+  multiTechnicianId = multiTechnician.id;
   nonTechnicianId = nonTechnician.id;
-  userIds.push(technicianId, otherTechnicianId, nonTechnicianId);
+  userIds.push(technicianId, otherTechnicianId, multiTechnicianId, nonTechnicianId);
 });
 
 afterAll(async () => {
@@ -218,5 +225,40 @@ describe('Maintenance workflow', () => {
     const ids = result.map((u) => u.id as string);
     expect(ids).toContain(technicianId);
     expect(ids).not.toContain(otherTechnicianId);
+  });
+
+  it('assigns a technician who belongs to the asset category among several categories', async () => {
+    const id = await createMaintenance();
+    const assigned = await maintSvc.assign(id, { technicianId: multiTechnicianId }, adminId);
+    expect(assigned.status).toBe('ASSIGNED');
+  });
+
+  it('rolls recorded parts into the maintenance cost summary', async () => {
+    const id = await createMaintenance();
+    await maintSvc.assign(id, { technicianId }, adminId);
+    await maintSvc.start(id, technicianId);
+
+    const part = (await maintSvc.addPart(id, { partName: 'Capacitor', quantity: 2, unitPrice: 150000 })) as { id: string };
+    const withPart = (await maintSvc.getById(id)) as Record<string, unknown>;
+    expect(Number(withPart.partsCost)).toBe(300000);
+    expect(Number(withPart.totalCost)).toBe(300000);
+
+    await maintSvc.deletePart(id, part.id);
+    const withoutPart = (await maintSvc.getById(id)) as Record<string, unknown>;
+    expect(Number(withoutPart.partsCost)).toBe(0);
+    expect(Number(withoutPart.totalCost)).toBe(0);
+  });
+
+  it('keeps Complete and Cancel available to a permitted non-assigned user', async () => {
+    const completedId = await createMaintenance();
+    await maintSvc.assign(completedId, { technicianId }, adminId);
+    await maintSvc.start(completedId, technicianId);
+    await maintSvc.testing(completedId, technicianId);
+    const completed = await maintSvc.complete(completedId, { result: 'ok', condition: 'GOOD' }, adminId);
+    expect(completed.status).toBe('COMPLETED');
+
+    const cancelledId = await createMaintenance();
+    const cancelled = await maintSvc.cancel(cancelledId, { reason: 'Not needed' }, adminId);
+    expect(cancelled.status).toBe('CANCELLED');
   });
 });

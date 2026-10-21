@@ -321,15 +321,32 @@ export async function getParts(maintenanceId: string) {
   return db.select().from(maintenanceParts).where(eq(maintenanceParts.maintenanceId, sql`${maintenanceId}::uuid`)).orderBy(maintenanceParts.createdAt);
 }
 
-export async function addPart(data: Record<string, unknown>) {
-  const db = getDb();
+export async function addPart(data: Record<string, unknown>, exec?: { insert: (...args: any[]) => any }) {
+  const db = exec ?? getDb();
   const rows = await db.insert(maintenanceParts).values(data as any).returning();
   return (rows as any[])[0] ?? null;
 }
 
-export async function deletePart(partId: string) {
-  const db = getDb();
+export async function deletePart(partId: string, exec?: { delete: (...args: any[]) => any }) {
+  const db = exec ?? getDb();
   await db.delete(maintenanceParts).where(eq(maintenanceParts.id, sql`${partId}::uuid`));
+}
+
+/**
+ * Recompute the stored cost summary from the recorded Part Used rows. Labor and
+ * other costs are preserved; total is their sum with the parts subtotal.
+ */
+export async function recalcCosts(maintenanceId: string, exec?: { execute: (...args: any[]) => any }) {
+  const db = exec ?? getDb();
+  await db.execute(sql`
+    UPDATE maintenance_records
+    SET parts_cost = COALESCE((SELECT SUM(mp.total_price) FROM maintenance_parts mp WHERE mp.maintenance_id = ${sql`${maintenanceId}::uuid`}), 0),
+        total_cost = COALESCE(labor_cost, 0)
+          + COALESCE((SELECT SUM(mp.total_price) FROM maintenance_parts mp WHERE mp.maintenance_id = ${sql`${maintenanceId}::uuid`}), 0)
+          + COALESCE(other_cost, 0),
+        updated_at = now()
+    WHERE id = ${sql`${maintenanceId}::uuid`}
+  `);
 }
 
 export async function getDocuments(maintenanceId: string) {
