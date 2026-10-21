@@ -75,6 +75,21 @@ async function assertTechnician(technicianId: unknown, categoryId?: string | nul
  * assigned to. Being assigned is the requirement, so only the stored technician
  * ID is compared; role, active flag, and category are not re-checked here.
  */
+/** Append a workflow event. `exec` may be the db or an open transaction. */
+async function recordStatus(
+  exec: { insert: (...args: any[]) => any },
+  data: {
+    maintenanceId: string;
+    fromStatus: string | null;
+    toStatus: string;
+    reason?: string | null;
+    notes?: string | null;
+    changedBy?: string | null;
+  },
+) {
+  await repo.addStatusHistory(exec, data);
+}
+
 function assertAssignedTechnician(mt: Record<string, unknown>, actorId?: string) {
   if (!actorId || mt.technicianId !== actorId) {
     throw new AppError(403, 'FORBIDDEN', 'Only the assigned technician can perform this action.');
@@ -121,7 +136,13 @@ export async function getById(id: string, scope?: AssetScope) {
   await assertOwnMaintenance(id, scope);
   const tasks = await repo.getTasks(id);
   const completed = tasks.filter((t) => (t as { isCompleted?: boolean }).isCompleted).length;
-  return { ...(row as Record<string, unknown>), tasks, taskProgress: { completed, total: tasks.length } };
+  const statusHistory = await repo.getStatusHistory(id);
+  return {
+    ...(row as Record<string, unknown>),
+    tasks,
+    taskProgress: { completed, total: tasks.length },
+    statusHistory,
+  };
 }
 
 export async function getByCode(code: string, scope?: AssetScope) {
@@ -197,6 +218,13 @@ export async function create(body: Record<string, unknown>, userId?: string, sco
       status: 'OPEN',
     } as any).returning();
 
+    await recordStatus(tx, {
+      maintenanceId: record.id,
+      fromStatus: null,
+      toStatus: 'OPEN',
+      changedBy: userId ?? null,
+    });
+
     // Snapshot the Maintenance Type task list onto the maintenance record so
     // later edits to the type never change an already-created maintenance.
     if (body.maintenanceTypeId) {
@@ -223,7 +251,7 @@ export async function create(body: Record<string, unknown>, userId?: string, sco
   });
 }
 
-export async function assign(id: string, body: Record<string, unknown>, _userId?: string) {
+export async function assign(id: string, body: Record<string, unknown>, userId?: string) {
   const mt = await repo.findById(id);
   if (!mt) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
   assertTransition(mt.status, 'ASSIGNED');
@@ -237,11 +265,19 @@ export async function assign(id: string, body: Record<string, unknown>, _userId?
 
   await assertTechnician(body.technicianId, asset?.categoryId ?? null);
 
-  return repo.update(id, {
+  const result = await repo.update(id, {
     technicianId: sql`${body.technicianId as string}::uuid`,
     status: 'ASSIGNED',
     notes: str(body.notes) ?? undefined,
   });
+  await recordStatus(db, {
+    maintenanceId: id,
+    fromStatus: mt.status as string,
+    toStatus: 'ASSIGNED',
+    notes: str(body.notes) ?? null,
+    changedBy: userId ?? null,
+  });
+  return result;
 }
 
 export async function start(id: string, actorId?: string) {
@@ -250,6 +286,12 @@ export async function start(id: string, actorId?: string) {
   assertTransition(mt.status, 'IN_PROGRESS');
   assertAssignedTechnician(mt, actorId);
   const result = await repo.update(id, { status: 'IN_PROGRESS', startDate: sql`now()` });
+  await recordStatus(getDb(), {
+    maintenanceId: id,
+    fromStatus: mt.status as string,
+    toStatus: 'IN_PROGRESS',
+    changedBy: actorId ?? null,
+  });
   eventBus.publish({
     type: 'MAINTENANCE',
     action: 'started',
@@ -267,7 +309,16 @@ export async function waitingPart(id: string, body: Record<string, unknown>, act
   assertTransition(mt.status, 'WAITING_PART');
   assertAssignedTechnician(mt, actorId);
   if (!str(body.reason)) throw new AppError(400, 'VALIDATION_ERROR', 'Reason for waiting part is required.');
-  return repo.update(id, { status: 'WAITING_PART', notes: str(body.notes) ?? undefined });
+  const result = await repo.update(id, { status: 'WAITING_PART', notes: str(body.notes) ?? undefined });
+  await recordStatus(getDb(), {
+    maintenanceId: id,
+    fromStatus: mt.status as string,
+    toStatus: 'WAITING_PART',
+    reason: str(body.reason) ?? null,
+    notes: str(body.notes) ?? null,
+    changedBy: actorId ?? null,
+  });
+  return result;
 }
 
 export async function testing(id: string, actorId?: string) {
@@ -275,7 +326,14 @@ export async function testing(id: string, actorId?: string) {
   if (!mt) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
   assertTransition(mt.status, 'TESTING');
   assertAssignedTechnician(mt, actorId);
-  return repo.update(id, { status: 'TESTING' });
+  const result = await repo.update(id, { status: 'TESTING' });
+  await recordStatus(getDb(), {
+    maintenanceId: id,
+    fromStatus: mt.status as string,
+    toStatus: 'TESTING',
+    changedBy: actorId ?? null,
+  });
+  return result;
 }
 
 export async function complete(id: string, body: Record<string, unknown>, userId?: string) {
@@ -294,6 +352,13 @@ export async function complete(id: string, body: Record<string, unknown>, userId
       notes: str(body.notes) ?? undefined,
       updatedAt: sql`now()`,
     } as any).where(eq(maintenanceRecords.id, sql`${id}::uuid`));
+
+    await recordStatus(tx, {
+      maintenanceId: id,
+      fromStatus: mt.status as string,
+      toStatus: 'COMPLETED',
+      changedBy: userId ?? null,
+    });
 
     const newCondition = str(body.condition);
     if (newCondition) {
@@ -323,12 +388,21 @@ export async function complete(id: string, body: Record<string, unknown>, userId
   return repo.findById(id);
 }
 
-export async function cancel(id: string, body: Record<string, unknown>) {
+export async function cancel(id: string, body: Record<string, unknown>, userId?: string) {
   const mt = await repo.findById(id);
   if (!mt) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
   assertTransition(mt.status, 'CANCELLED');
   if (!str(body.reason)) throw new AppError(400, 'VALIDATION_ERROR', 'Cancellation reason is required.');
-  return repo.update(id, { status: 'CANCELLED', notes: str(body.notes) ?? undefined });
+  const result = await repo.update(id, { status: 'CANCELLED', notes: str(body.notes) ?? undefined });
+  await recordStatus(getDb(), {
+    maintenanceId: id,
+    fromStatus: mt.status as string,
+    toStatus: 'CANCELLED',
+    reason: str(body.reason) ?? null,
+    notes: str(body.notes) ?? null,
+    changedBy: userId ?? null,
+  });
+  return result;
 }
 
 export async function addPart(maintenanceId: string, body: Record<string, unknown>) {

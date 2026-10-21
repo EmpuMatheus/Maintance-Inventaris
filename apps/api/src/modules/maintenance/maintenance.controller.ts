@@ -58,7 +58,7 @@ export async function completeController(req: Request, res: Response, next: Next
 }
 export async function cancelController(req: Request, res: Response, next: NextFunction) {
   try {
-    const r = await svc.cancel(req.params.id as string, req.body);
+    const r = await svc.cancel(req.params.id as string, req.body, req.user?.id);
     auditFromRequest(req, {
       module: 'MAINTENANCE',
       action: 'CANCEL',

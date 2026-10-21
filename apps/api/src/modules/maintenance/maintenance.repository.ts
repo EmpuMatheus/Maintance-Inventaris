@@ -3,6 +3,7 @@ import {
   maintenanceRecords,
   maintenanceParts,
   maintenanceDocuments,
+  maintenanceStatusHistory,
   maintenanceTasks,
   assets,
   assetCategories,
@@ -24,6 +25,50 @@ import type { SQL } from 'drizzle-orm';
 const technicianUsers = alias(users, 'technician_users');
 const assetPicUsers = alias(users, 'asset_pic_users');
 const createdByUsers = alias(users, 'created_by_users');
+const historyActorUsers = alias(users, 'history_actor_users');
+
+/** Append an immutable workflow event. Callers may pass a transaction handle. */
+export async function addStatusHistory(
+  exec: { insert: (...args: any[]) => any },
+  data: {
+    maintenanceId: string;
+    fromStatus: string | null;
+    toStatus: string;
+    reason?: string | null;
+    notes?: string | null;
+    changedBy?: string | null;
+  },
+) {
+  await exec.insert(maintenanceStatusHistory).values({
+    maintenanceId: sql`${data.maintenanceId}::uuid`,
+    fromStatus: data.fromStatus,
+    toStatus: data.toStatus,
+    reason: data.reason ?? null,
+    notes: data.notes ?? null,
+    changedBy: data.changedBy ? sql`${data.changedBy}::uuid` : null,
+  } as any);
+}
+
+/** Chronological workflow history with the acting user's display name. */
+export async function getStatusHistory(maintenanceId: string) {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: maintenanceStatusHistory.id,
+      fromStatus: maintenanceStatusHistory.fromStatus,
+      toStatus: maintenanceStatusHistory.toStatus,
+      reason: maintenanceStatusHistory.reason,
+      notes: maintenanceStatusHistory.notes,
+      changedBy: maintenanceStatusHistory.changedBy,
+      changedByName: historyActorUsers.name,
+      createdAt: maintenanceStatusHistory.createdAt,
+    })
+    .from(maintenanceStatusHistory)
+    .leftJoin(historyActorUsers, eq(maintenanceStatusHistory.changedBy, historyActorUsers.id))
+    .where(eq(maintenanceStatusHistory.maintenanceId, sql`${maintenanceId}::uuid`))
+    .orderBy(asc(maintenanceStatusHistory.createdAt));
+  return rows as any[];
+}
 
 export async function findMany(params: {
   page?: number; limit?: number; search?: string; status?: string; priority?: string;

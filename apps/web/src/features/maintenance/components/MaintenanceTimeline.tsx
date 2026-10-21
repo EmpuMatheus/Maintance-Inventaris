@@ -1,6 +1,6 @@
-import type { MaintenanceDetail } from '../types';
+import type { MaintenanceDetail, MaintenanceStatus, MaintenanceStatusHistory } from '../types';
 
-interface TimelineEvent {
+export interface TimelineEvent {
   label: string;
   description: string;
   date: string;
@@ -13,7 +13,56 @@ function formatDateTime(value?: string | null): string {
   return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} · ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
-function buildTimeline(m: MaintenanceDetail): TimelineEvent[] {
+const STATUS_LABELS: Record<MaintenanceStatus, string> = {
+  OPEN: 'Created',
+  ASSIGNED: 'Assigned',
+  IN_PROGRESS: 'In Progress',
+  WAITING_PART: 'Waiting Part',
+  TESTING: 'Testing',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+};
+
+const STATUS_TONES: Record<MaintenanceStatus, TimelineEvent['tone']> = {
+  OPEN: 'default',
+  ASSIGNED: 'default',
+  IN_PROGRESS: 'default',
+  WAITING_PART: 'default',
+  TESTING: 'default',
+  COMPLETED: 'success',
+  CANCELLED: 'danger',
+};
+
+function describeHistoryEvent(m: MaintenanceDetail, h: MaintenanceStatusHistory): string {
+  if (h.toStatus === 'OPEN') return `Maintenance ${m.maintenanceCode} was created.`;
+  if (h.toStatus === 'ASSIGNED') return m.technician ? `Assigned to ${m.technician.name}.` : 'Assigned to a technician.';
+  if (h.toStatus === 'WAITING_PART') return h.reason || 'Waiting for required parts.';
+  if (h.toStatus === 'IN_PROGRESS') {
+    return h.fromStatus === 'WAITING_PART' ? 'Work resumed.' : 'Maintenance work started.';
+  }
+  if (h.toStatus === 'TESTING') return 'Maintenance is being tested.';
+  if (h.toStatus === 'COMPLETED') return m.result || 'Maintenance completed.';
+  return h.reason || m.notes || 'Maintenance cancelled.';
+}
+
+/**
+ * Persistent timeline from recorded workflow events. Returns null when a record
+ * predates status history so the caller can fall back to the inferred timeline.
+ */
+export function buildTimelineFromHistory(m: MaintenanceDetail): TimelineEvent[] | null {
+  const history = m.statusHistory;
+  if (!history || history.length === 0) return null;
+  return [...history]
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .map((h) => ({
+      label: h.toStatus === 'IN_PROGRESS' && h.fromStatus === 'WAITING_PART' ? 'Resumed' : STATUS_LABELS[h.toStatus],
+      description: describeHistoryEvent(m, h),
+      date: h.createdAt,
+      tone: STATUS_TONES[h.toStatus],
+    }));
+}
+
+export function buildTimeline(m: MaintenanceDetail): TimelineEvent[] {
   const events: TimelineEvent[] = [
     {
       label: 'Created',
@@ -81,7 +130,7 @@ function buildTimeline(m: MaintenanceDetail): TimelineEvent[] {
 }
 
 export default function MaintenanceTimeline({ record }: { record: MaintenanceDetail }) {
-  const events = buildTimeline(record);
+  const events = buildTimelineFromHistory(record) ?? buildTimeline(record);
   return (
     <div>
       {events.map((ev, i) => (
