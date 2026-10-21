@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPartsRequestHtml } from './maintenancePrint';
+import { buildMaintenanceReportHtml, buildPartsRequestHtml } from './maintenancePrint';
 import type { MaintenanceDetail, MaintenancePart } from '../types';
 
 function detail(overrides: Partial<MaintenanceDetail> = {}): MaintenanceDetail {
@@ -66,5 +66,56 @@ describe('parts request printout', () => {
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).toContain('AC &amp; &quot;Fan&quot;');
+  });
+});
+
+describe('completed maintenance report printout', () => {
+  const completed = detail({
+    status: 'COMPLETED',
+    diagnosis: 'Capacitor weak',
+    actionTaken: 'Replaced capacitor',
+    result: 'Unit cooling again',
+    finishDate: '2026-10-20T09:30:00.000Z',
+    laborCost: '100000.00',
+    partsCost: '300000.00',
+    otherCost: '0.00',
+    totalCost: '400000.00',
+    tasks: [
+      { id: 't1', maintenanceId: 'm1', task: 'Check voltage', sortOrder: 0, isCompleted: true, createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-01T00:00:00.000Z' },
+      { id: 't2', maintenanceId: 'm1', task: 'Clean filter', sortOrder: 1, isCompleted: false, createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-01T00:00:00.000Z' },
+    ],
+  });
+
+  it('prints maintenance data, tasks, parts, and costs', () => {
+    const html = buildMaintenanceReportHtml(completed, PARTS);
+
+    expect(html).toContain('MNT-2026-000123');
+    expect(html).toContain('AST-001');
+    expect(html).toContain('AC Split');
+    expect(html).toContain('COMPLETED');
+    expect(html).toContain('Capacitor weak');
+    expect(html).toContain('Replaced capacitor');
+    expect(html).toContain('Unit cooling again');
+
+    expect(html).toContain('Check voltage');
+    expect(html).toContain('Clean filter');
+
+    expect(html).toContain('Fan Blade');
+    expect(html).toContain('FAN-9');
+    expect(html).toContain('Rp 90.000');
+
+    expect(html).toContain('Rp 100.000');
+    expect(html).toContain('Rp 300.000');
+    expect(html).toContain('Rp 400.000');
+  });
+
+  it('escapes dynamic text in the report', () => {
+    const html = buildMaintenanceReportHtml(
+      detail({ status: 'COMPLETED', diagnosis: '<b>x</b>', result: 'a & b' }),
+      [],
+    );
+    expect(html).not.toContain('<b>x</b>');
+    expect(html).toContain('&lt;b&gt;x&lt;/b&gt;');
+    expect(html).toContain('a &amp; b');
   });
 });

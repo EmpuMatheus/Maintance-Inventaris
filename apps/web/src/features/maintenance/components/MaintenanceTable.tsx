@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Eye, Loader2, MoreVertical } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, Loader2, MoreVertical, Printer } from 'lucide-react';
 import type { MaintenanceListItem, PaginationMeta } from '../types';
 import StatusBadge from './StatusBadge';
 import PriorityBadge from './PriorityBadge';
@@ -20,6 +20,8 @@ interface MaintenanceTableProps {
   onPageChange: (page: number) => void;
   onView: (id: string) => void;
   moreActions: (record: MaintenanceListItem) => MoreMenuItem[];
+  onPrint?: (record: MaintenanceListItem) => void;
+  printingId?: string | null;
 }
 
 function formatDate(value?: string | null): string {
@@ -38,6 +40,8 @@ export default function MaintenanceTable({
   onPageChange,
   onView,
   moreActions,
+  onPrint,
+  printingId,
 }: MaintenanceTableProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
@@ -103,6 +107,16 @@ export default function MaintenanceTable({
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
                     <button onClick={() => onView(m.id)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600" title="View"><Eye className="h-4 w-4" /></button>
+                    {onPrint && m.status === 'COMPLETED' && (
+                      <button
+                        onClick={() => onPrint(m)}
+                        disabled={printingId === m.id}
+                        className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600 disabled:opacity-40"
+                        title="Print report"
+                      >
+                        {printingId === m.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                      </button>
+                    )}
                     {moreActions(m).length > 0 && (
                       <div className="relative">
                         <button onClick={() => setOpenMenuId(openMenuId === m.id ? null : m.id)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" title="More actions"><MoreVertical className="h-4 w-4" /></button>
@@ -160,7 +174,18 @@ export default function MaintenanceTable({
             </div>
             <div className="flex items-center justify-between border-t border-slate-100 pt-3">
               <span className="text-xs text-slate-400">Created {formatDate(m.createdAt)}</span>
-              <button onClick={() => onView(m.id)} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"><Eye className="h-3 w-3" /> View</button>
+              <div className="flex items-center gap-2">
+                {onPrint && m.status === 'COMPLETED' && (
+                  <button
+                    onClick={() => onPrint(m)}
+                    disabled={printingId === m.id}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    {printingId === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Printer className="h-3 w-3" />} Print
+                  </button>
+                )}
+                <button onClick={() => onView(m.id)} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"><Eye className="h-3 w-3" /> View</button>
+              </div>
             </div>
           </div>
         ))}

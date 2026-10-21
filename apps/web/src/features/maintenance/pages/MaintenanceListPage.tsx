@@ -2,10 +2,18 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { listMaintenance, maintenanceKeys, type MaintenanceFilters } from '../api/maintenance';
+import {
+  getMaintenance,
+  listMaintenance,
+  listMaintenanceParts,
+  maintenanceKeys,
+  type MaintenanceFilters,
+} from '../api/maintenance';
 import { listMaster } from '@/features/inventory/api/inventory';
 import MaintenanceTable from '../components/MaintenanceTable';
+import { buildMaintenanceReportHtml, printHtmlDocument } from '../print/maintenancePrint';
 import type { MaintenanceListItem } from '../types';
 
 const STATUS_OPTIONS = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'WAITING_PART', 'TESTING', 'COMPLETED', 'CANCELLED'];
@@ -20,6 +28,7 @@ export default function MaintenanceListPage() {
   const [priority, setPriority] = useState('');
   const [typeId, setTypeId] = useState('');
   const [technicianId, setTechnicianId] = useState('');
+  const [printingId, setPrintingId] = useState<string | null>(null);
 
   const filters: MaintenanceFilters = {
     page,
@@ -46,6 +55,24 @@ export default function MaintenanceListPage() {
   });
 
   const resetPage = () => setPage(1);
+
+  const handlePrint = async (record: MaintenanceListItem) => {
+    try {
+      setPrintingId(record.id);
+      const [detail, parts] = await Promise.all([
+        getMaintenance(record.id),
+        listMaintenanceParts(record.id),
+      ]);
+      if (!detail?.data) throw new Error('Unable to load maintenance report.');
+      printHtmlDocument(
+        buildMaintenanceReportHtml(detail.data, parts?.data ?? [], new Date().toISOString()),
+      );
+    } catch (e) {
+      toast.error((e as Error).message || 'Unable to print maintenance report.');
+    } finally {
+      setPrintingId(null);
+    }
+  };
 
   const moreActions = (m: MaintenanceListItem) => {
     const items: { label: string; onClick: () => void }[] = [];
@@ -139,6 +166,8 @@ export default function MaintenanceListPage() {
         onPageChange={setPage}
         onView={(id) => navigate(`/maintenance/${id}`)}
         moreActions={moreActions}
+        onPrint={handlePrint}
+        printingId={printingId}
       />
     </div>
   );

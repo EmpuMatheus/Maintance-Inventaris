@@ -48,6 +48,9 @@ const PRINT_STYLES = `
   table.data td.num { text-align: right; white-space: nowrap; }
   table.data td.center { text-align: center; }
   .empty { color: #6b7280; font-style: italic; padding: 10px 0; }
+  .para { margin: 0 0 4px; font-size: 10.5pt; white-space: pre-wrap; }
+  table.data.costs td:first-child { width: 70%; }
+  table.data.costs td.num { text-align: right; }
   .signatures { width: 100%; border-collapse: collapse; margin-top: 34px; }
   .signatures td { width: 50%; text-align: center; vertical-align: top; padding: 8px; }
   .sign-title { margin-bottom: 4px; }
@@ -144,6 +147,115 @@ export function buildPartsRequestHtml(
     </table>`;
 
   return documentShell(`Permintaan Part ${record.maintenanceCode}`, body);
+}
+
+function textBlock(title: string, value?: string | null): string {
+  const text = value && String(value).trim() ? escHtml(value) : '-';
+  return `<h4 class="section">${escHtml(title)}</h4><p class="para">${text}</p>`;
+}
+
+/**
+ * Completed maintenance report. Prints the record's data plus its task
+ * checklist, Parts Used (with stored quantity and prices), and cost summary.
+ */
+export function buildMaintenanceReportHtml(
+  record: MaintenanceDetail,
+  parts: MaintenancePart[],
+  printedAt?: string,
+): string {
+  const tasks = record.tasks ?? [];
+  const taskRows = tasks.length
+    ? tasks
+        .map(
+          (t) =>
+            `<tr><td class="center">${t.isCompleted ? '✓' : '—'}</td><td>${escHtml(t.task)}</td></tr>`,
+        )
+        .join('')
+    : '<tr><td class="empty" colspan="2">Tidak ada task.</td></tr>';
+
+  const partRows = parts.length
+    ? parts
+        .map(
+          (p, i) => `
+        <tr>
+          <td class="center">${i + 1}</td>
+          <td>${escHtml(p.partName)}</td>
+          <td>${escHtml(p.partNumber) || '-'}</td>
+          <td class="center">${escHtml(p.quantity)}</td>
+          <td class="num">${escHtml(formatCurrency(p.unitPrice))}</td>
+          <td class="num">${escHtml(formatCurrency(p.totalPrice))}</td>
+        </tr>`,
+        )
+        .join('')
+    : '<tr><td class="empty" colspan="6">Tidak ada part.</td></tr>';
+
+  const body = `
+    <div class="header">
+      <h1>LAPORAN MAINTENANCE</h1>
+      <h2>${escHtml(record.maintenanceCode)}</h2>
+    </div>
+
+    <div class="meta">
+      <table>
+        <tr><td class="label">Kode Maintenance</td><td class="sep">:</td><td>${escHtml(record.maintenanceCode)}</td></tr>
+        <tr><td class="label">Status</td><td class="sep">:</td><td>${escHtml(record.status)}</td></tr>
+        <tr><td class="label">Aset</td><td class="sep">:</td><td>${escHtml(record.asset?.assetCode) || '-'} — ${escHtml(record.asset?.assetName) || '-'}</td></tr>
+        <tr><td class="label">Kategori</td><td class="sep">:</td><td>${escHtml(record.asset?.categoryName) || '-'}</td></tr>
+        <tr><td class="label">Jenis Maintenance</td><td class="sep">:</td><td>${escHtml(record.maintenanceType?.name) || escHtml(record.maintenanceCategory)}</td></tr>
+        <tr><td class="label">Prioritas</td><td class="sep">:</td><td>${escHtml(record.priority) || '-'}</td></tr>
+        <tr><td class="label">Teknisi</td><td class="sep">:</td><td>${escHtml(record.technician?.name) || '-'}</td></tr>
+        <tr><td class="label">Dibuat</td><td class="sep">:</td><td>${escHtml(formatDateId(record.createdAt))}</td></tr>
+        <tr><td class="label">Mulai</td><td class="sep">:</td><td>${escHtml(formatDateId(record.startDate))}</td></tr>
+        <tr><td class="label">Selesai</td><td class="sep">:</td><td>${escHtml(formatDateId(record.finishDate))}</td></tr>
+        <tr><td class="label">Dicetak</td><td class="sep">:</td><td>${escHtml(formatDateId(printedAt))}</td></tr>
+      </table>
+    </div>
+
+    ${textBlock('Masalah', record.problem)}
+    ${textBlock('Diagnosis', record.diagnosis)}
+    ${textBlock('Tindakan', record.actionTaken)}
+    ${textBlock('Hasil', record.result)}
+    ${textBlock('Catatan', record.notes)}
+
+    <h4 class="section">Checklist Task</h4>
+    <table class="data">
+      <thead><tr><th style="width:70px">Selesai</th><th>Task</th></tr></thead>
+      <tbody>${taskRows}</tbody>
+    </table>
+
+    <h4 class="section">Part Used</h4>
+    <table class="data">
+      <thead>
+        <tr>
+          <th style="width:40px">No</th>
+          <th>Nama Part</th>
+          <th>No. Part</th>
+          <th style="width:60px">Qty</th>
+          <th style="width:120px">Harga Satuan</th>
+          <th style="width:130px">Total</th>
+        </tr>
+      </thead>
+      <tbody>${partRows}</tbody>
+    </table>
+
+    <h4 class="section">Ringkasan Biaya</h4>
+    <table class="data costs">
+      <tbody>
+        <tr><td>Biaya Tenaga Kerja</td><td class="num">${escHtml(formatCurrency(record.laborCost))}</td></tr>
+        <tr><td>Biaya Part</td><td class="num">${escHtml(formatCurrency(record.partsCost))}</td></tr>
+        <tr><td>Biaya Lain</td><td class="num">${escHtml(formatCurrency(record.otherCost))}</td></tr>
+        <tr><td><strong>Total</strong></td><td class="num"><strong>${escHtml(formatCurrency(record.totalCost))}</strong></td></tr>
+      </tbody>
+    </table>
+
+    <table class="signatures">
+      <tr>
+        <td><div class="sign-title">Dikerjakan Oleh</div><div class="sign-area"></div><div class="sign-name">${escHtml(record.technician?.name) || '________________'}</div></td>
+        <td><div class="sign-title">Diperiksa Oleh</div><div class="sign-area"></div><div class="sign-name">________________</div></td>
+      </tr>
+    </table>`;
+
+  return documentShell(`Laporan Maintenance ${record.maintenanceCode}`, body);
 }
 
 /** Open a printable document in a new window and trigger the browser print dialog. */
