@@ -189,6 +189,30 @@ describe('Maintenance workflow', () => {
     expect((await maintRepo.findById(id)).status).toBe('TESTING');
   });
 
+  it('records status history and keeps the waiting-part entry after resume', async () => {
+    const id = await createMaintenance();
+    await maintSvc.assign(id, { technicianId }, adminId);
+    await maintSvc.start(id, technicianId);
+    await maintSvc.waitingPart(id, { reason: 'No stock' }, technicianId);
+    await maintSvc.start(id, technicianId);
+
+    const detail = (await maintSvc.getById(id)) as Record<string, unknown>;
+    const history = detail.statusHistory as Array<{
+      fromStatus: string | null;
+      toStatus: string;
+      reason?: string | null;
+    }>;
+
+    expect(history.map((h) => `${h.fromStatus ?? 'null'}->${h.toStatus}`)).toEqual([
+      'null->OPEN',
+      'OPEN->ASSIGNED',
+      'ASSIGNED->IN_PROGRESS',
+      'IN_PROGRESS->WAITING_PART',
+      'WAITING_PART->IN_PROGRESS',
+    ]);
+    expect(history.find((h) => h.toStatus === 'WAITING_PART')?.reason).toBe('No stock');
+  });
+
   it('lists only technicians belonging to the requested asset category', async () => {
     const result = await mdSvc.listUsers({ role: 'TECHNICIAN', categoryId: catId });
     const ids = result.map((u) => u.id as string);
