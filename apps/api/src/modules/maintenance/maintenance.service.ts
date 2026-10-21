@@ -10,6 +10,7 @@ import {
   users,
   roles,
   userRoles,
+  userCategories,
 } from '@/database/schema';
 import { sql, eq, asc, and } from 'drizzle-orm';
 import { eventBus } from '@/lib/event-bus';
@@ -47,14 +48,15 @@ async function generateCode(): Promise<string> {
   return `MNT-${year}-${String(num).padStart(6, '0')}`;
 }
 
-async function assertTechnician(technicianId: unknown): Promise<void> {
+async function assertTechnician(technicianId: unknown, categoryId?: string | null): Promise<void> {
   if (!technicianId) return;
   const db = getDb();
   const [technician] = await db
-    .select({ id: users.id })
+    .select({ id: users.id, categoryId: userCategories.categoryId })
     .from(users)
     .innerJoin(userRoles, eq(userRoles.userId, users.id))
     .innerJoin(roles, eq(userRoles.roleId, roles.id))
+    .leftJoin(userCategories, eq(userCategories.userId, users.id))
     .where(and(
       eq(users.id, sql`${technicianId as string}::uuid`),
       eq(users.isActive, true),
@@ -63,6 +65,9 @@ async function assertTechnician(technicianId: unknown): Promise<void> {
     ))
     .limit(1);
   if (!technician) throw new AppError(400, 'VALIDATION_ERROR', 'Technician must be an active user with TECHNICIAN role.');
+  if (categoryId && technician.categoryId !== categoryId) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Technician must belong to the asset category.');
+  }
 }
 
 /**
@@ -160,7 +165,7 @@ export async function create(body: Record<string, unknown>, userId?: string, sco
   if (!canAccessAsset(scope ?? {}, asset as { categoryId?: unknown; currentPicId?: unknown })) {
     throw new AppError(404, 'NOT_FOUND', 'Asset not found.');
   }
-  await assertTechnician(body.technicianId);
+  await assertTechnician(body.technicianId, asset.categoryId);
 
   const code = await generateCode();
 
@@ -212,7 +217,14 @@ export async function assign(id: string, body: Record<string, unknown>, _userId?
   if (!mt) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
   assertTransition(mt.status, 'ASSIGNED');
 
-  await assertTechnician(body.technicianId);
+  const db = getDb();
+  const [asset] = await db
+    .select({ categoryId: assetsTable.categoryId })
+    .from(assetsTable)
+    .where(eq(assetsTable.id, sql`${mt.assetId as string}::uuid`))
+    .limit(1);
+
+  await assertTechnician(body.technicianId, asset?.categoryId ?? null);
 
   return repo.update(id, {
     technicianId: sql`${body.technicianId as string}::uuid`,

@@ -1,5 +1,8 @@
 import { AppError } from '@/middleware/error-handler';
 import * as repo from './master-data.repository';
+import { getDb } from '@/database/client';
+import { departments, roles, userCategories, userRoles, users } from '@/database/schema';
+import { and, asc, eq, sql } from 'drizzle-orm';
 
 const LIST_RESOURCES = [
   'categories', 'subcategories', 'brands', 'departments',
@@ -169,6 +172,35 @@ function normalizeTaskList(value: unknown): repo.TaskInput[] {
     tasks.push({ id, task: text, order: tasks.length });
   }
   return tasks;
+}
+
+export async function listUsers(params: { role?: string; categoryId?: string }) {
+  const db = getDb();
+  const conditions = [
+    eq(users.isActive, true),
+    sql`${users.deletedAt} IS NULL`,
+    params.role ? eq(roles.name, params.role) : undefined,
+    params.categoryId ? eq(userCategories.categoryId, sql`${params.categoryId}::uuid`) : undefined,
+  ];
+
+  return db
+    .selectDistinct({
+      id: users.id,
+      name: users.name,
+      username: users.username,
+      employeeCode: users.employeeCode,
+      isActive: users.isActive,
+      departmentId: users.departmentId,
+      departmentName: departments.name,
+      departmentCode: departments.code,
+    })
+    .from(users)
+    .leftJoin(departments, eq(users.departmentId, departments.id))
+    .leftJoin(userRoles, eq(userRoles.userId, users.id))
+    .leftJoin(roles, eq(userRoles.roleId, roles.id))
+    .leftJoin(userCategories, eq(userCategories.userId, users.id))
+    .where(and(...conditions))
+    .orderBy(asc(users.name));
 }
 
 export async function list(

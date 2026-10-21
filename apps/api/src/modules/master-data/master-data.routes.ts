@@ -3,11 +3,9 @@ import type { ZodTypeAny } from 'zod';
 import { authenticate } from '@/middleware/authenticate';
 import { authorize } from '@/middleware/authorize';
 import { validate } from '@/middleware/validate';
+import * as masterService from './master-data.service';
 import * as ctrl from './master-data.controller';
 import * as s from './master-data.schema';
-import { getDb } from '@/database/client';
-import { users, departments, roles, userRoles } from '@/database/schema';
-import { and, eq, sql } from 'drizzle-orm';
 
 const router = Router();
 
@@ -16,25 +14,9 @@ const write = [authenticate, authorize('master_data.manage')];
 
 router.get('/users', ...read, async (req, res, next) => {
   try {
-    const db = getDb();
     const role = typeof req.query.role === 'string' ? req.query.role : undefined;
-    const rows = await db
-      .select({
-        id: users.id,
-        name: users.name,
-        username: users.username,
-        employeeCode: users.employeeCode,
-        isActive: users.isActive,
-        departmentId: users.departmentId,
-        departmentName: departments.name,
-        departmentCode: departments.code,
-      })
-      .from(users)
-      .leftJoin(departments, eq(users.departmentId, departments.id))
-      .leftJoin(userRoles, eq(userRoles.userId, users.id))
-      .leftJoin(roles, eq(userRoles.roleId, roles.id))
-      .where(and(sql`${users.isActive} = true`, sql`${users.deletedAt} IS NULL`, role ? eq(roles.name, role) : undefined))
-      .orderBy(users.name);
+    const categoryId = typeof req.query.categoryId === 'string' ? req.query.categoryId : undefined;
+    const rows = await masterService.listUsers({ role, categoryId });
     res.json({ success: true, data: rows });
   } catch (error) { next(error); }
 });

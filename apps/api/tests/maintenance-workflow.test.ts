@@ -5,15 +5,18 @@ import * as assetSvc from '@/modules/assets/asset.service';
 import * as maintSvc from '@/modules/maintenance/maintenance.service';
 import { repo as maintRepo } from '@/modules/maintenance/maintenance.service';
 import * as userSvc from '@/modules/users/user.service';
+import * as mdSvc from '@/modules/master-data/master-data.service';
 
 const sql = postgres(env.DATABASE_URL, { max: 1 });
 let adminId: string;
 let assetId: string;
 let catId: string;
+let otherCatId: string;
 let subId: string;
 let techRoleId: string;
 let userRoleId: string;
 let technicianId: string;
+let otherTechnicianId: string;
 let nonTechnicianId: string;
 const maintIds: string[] = [];
 const userIds: string[] = [];
@@ -23,6 +26,8 @@ beforeAll(async () => {
   adminId = rows[0].id as string;
   const cat = await sql`INSERT INTO asset_categories (id, code, name, is_active, created_at, updated_at) VALUES (gen_random_uuid(), 'QA_MC', 'QA Maint Cat', true, now(), now()) RETURNING id`;
   catId = cat[0].id;
+  const otherCat = await sql`INSERT INTO asset_categories (id, code, name, is_active, created_at, updated_at) VALUES (gen_random_uuid(), 'QA_MCO', 'QA Other Maint Cat', true, now(), now()) RETURNING id`;
+  otherCatId = otherCat[0].id;
   const sub = await sql`INSERT INTO asset_subcategories (id, category_id, code, name, is_active, created_at, updated_at) VALUES (gen_random_uuid(), ${catId}, 'QA_MS', 'QA Maint Sub', true, now(), now()) RETURNING id`;
   subId = sub[0].id;
   const asset = await assetSvc.create({ assetName: 'QA Maint Asset', categoryId: catId, subcategoryId: subId, condition: 'GOOD', status: 'AVAILABLE' }, adminId);
@@ -32,10 +37,12 @@ beforeAll(async () => {
   userRoleId = (roleRows.find((r) => r.name === 'USER') as { id: string }).id;
   const run = Date.now().toString(36);
   const technician = await userSvc.create({ employeeCode: `QA_MW_TECH_${run}`, name: 'QA MW Technician', username: `qamwtech${run}`, password: 'password123', roleId: techRoleId, categoryId: catId });
+  const otherTechnician = await userSvc.create({ employeeCode: `QA_MW_OTECH_${run}`, name: 'QA MW Other Technician', username: `qamwotech${run}`, password: 'password123', roleId: techRoleId, categoryId: otherCatId });
   const nonTechnician = await userSvc.create({ employeeCode: `QA_MW_USER_${run}`, name: 'QA MW User', username: `qamwuser${run}`, password: 'password123', roleId: userRoleId });
   technicianId = technician.id;
+  otherTechnicianId = otherTechnician.id;
   nonTechnicianId = nonTechnician.id;
-  userIds.push(technicianId, nonTechnicianId);
+  userIds.push(technicianId, otherTechnicianId, nonTechnicianId);
 });
 
 afterAll(async () => {
@@ -55,7 +62,7 @@ afterAll(async () => {
   }
   await sql`DELETE FROM asset_code_counters WHERE category_id = ${catId} AND subcategory_id = ${subId}`;
   await sql`DELETE FROM asset_subcategories WHERE id = ${subId}`;
-  await sql`DELETE FROM asset_categories WHERE id = ${catId}`;
+  await sql`DELETE FROM asset_categories WHERE id IN (${catId}, ${otherCatId})`;
   await sql.end();
 });
 
@@ -136,5 +143,29 @@ describe('Maintenance workflow', () => {
   it('rejects creating maintenance with a non-technician user', async () => {
     await expect(maintSvc.create({ assetId, maintenanceCategory: 'CORRECTIVE', problem: 'QA problem', technicianId: nonTechnicianId }, adminId))
       .rejects.toThrow('Technician must be an active user with TECHNICIAN role.');
+  });
+
+  it('rejects assigning a technician whose category differs from the asset', async () => {
+    const id = await createMaintenance();
+    await expect(maintSvc.assign(id, { technicianId: otherTechnicianId }, adminId))
+      .rejects.toThrow('Technician must belong to the asset category.');
+  });
+
+  it('rejects creating maintenance with a technician from another category', async () => {
+    await expect(maintSvc.create({ assetId, maintenanceCategory: 'CORRECTIVE', problem: 'QA problem', technicianId: otherTechnicianId }, adminId))
+      .rejects.toThrow('Technician must belong to the asset category.');
+  });
+
+  it('assigns a technician whose category matches the asset', async () => {
+    const id = await createMaintenance();
+    const assigned = await maintSvc.assign(id, { technicianId }, adminId);
+    expect(assigned.status).toBe('ASSIGNED');
+  });
+
+  it('lists only technicians belonging to the requested asset category', async () => {
+    const result = await mdSvc.listUsers({ role: 'TECHNICIAN', categoryId: catId });
+    const ids = result.map((u) => u.id as string);
+    expect(ids).toContain(technicianId);
+    expect(ids).not.toContain(otherTechnicianId);
   });
 });

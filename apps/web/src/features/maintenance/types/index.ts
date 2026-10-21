@@ -51,6 +51,7 @@ export interface MaintenanceAssetDetail {
   assetName: string;
   condition?: string | null;
   status?: string | null;
+  categoryId?: string | null;
   categoryName?: string | null;
   picName?: string | null;
   location?: string | null;

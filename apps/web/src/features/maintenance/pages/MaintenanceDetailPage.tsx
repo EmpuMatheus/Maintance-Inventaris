@@ -128,9 +128,11 @@ export default function MaintenanceDetailPage() {
     enabled: !!id,
   });
 
+  const categoryId = data?.data?.asset?.categoryId ?? undefined;
   const { data: users } = useQuery({
-    queryKey: ['master', 'users', 'technicians'],
-    queryFn: () => listMaster('users', { role: 'TECHNICIAN' }),
+    queryKey: ['master', 'users', 'technicians', categoryId ?? 'all'],
+    queryFn: () => listMaster('users', { role: 'TECHNICIAN', categoryId }),
+    enabled: !!categoryId,
   });
 
   const invalidate = () => {
