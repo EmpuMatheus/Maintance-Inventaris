@@ -33,6 +33,19 @@ export const maintenanceRecords = pgTable('maintenance_records', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const maintenanceStatusHistory = pgTable('maintenance_status_history', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  maintenanceId: uuid('maintenance_id').notNull().references(() => maintenanceRecords.id, { onDelete: 'cascade' }),
+  fromStatus: varchar('from_status', { length: 50 }),
+  toStatus: varchar('to_status', { length: 50 }).notNull(),
+  reason: text('reason'),
+  notes: text('notes'),
+  changedBy: uuid('changed_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  maintenanceCreatedAtIdx: index('maintenance_status_history_maintenance_created_at_idx').on(table.maintenanceId, table.createdAt),
+}));
+
 export const maintenanceParts = pgTable('maintenance_parts', {
   id: uuid('id').defaultRandom().primaryKey(),
   maintenanceId: uuid('maintenance_id').notNull().references(() => maintenanceRecords.id, { onDelete: 'cascade' }),
