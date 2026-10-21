@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, ExternalLink, FileText, Loader2, Package, Trash2, Upload, Wrench } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, FileText, Loader2, Package, Printer, Trash2, Upload, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -32,12 +32,14 @@ import {
   CompleteDialog,
   ConfirmDialog,
   PartDialog,
+  PartsRequestDialog,
   WaitingPartDialog,
   type UserOption,
 } from '../components/dialogs';
+import { buildPartsRequestHtml, printHtmlDocument } from '../print/maintenancePrint';
 import type { MaintenanceDetail, MaintenanceDocument, MaintenancePart } from '../types';
 
-type DialogKey = 'assign' | 'start' | 'waiting-part' | 'testing' | 'complete' | 'cancel' | 'part' | 'resume' | null;
+type DialogKey = 'assign' | 'start' | 'waiting-part' | 'testing' | 'complete' | 'cancel' | 'part' | 'resume' | 'parts-request' | null;
 
 interface WorkflowAction {
   label: string;
@@ -246,6 +248,7 @@ export default function MaintenanceDetailPage() {
   const partsList = (parts?.data ?? []) as MaintenancePart[];
   const docList = (documents?.data ?? []) as MaintenanceDocument[];
   const taskList = m.tasks ?? [];
+  const canPrintPartsRequest = status === 'WAITING_PART' && isAssignedTechnician && partsList.length > 0;
   const canToggleTasks =
     can('maintenance.update') && ['IN_PROGRESS', 'WAITING_PART', 'TESTING'].includes(status);
 
@@ -303,7 +306,7 @@ export default function MaintenanceDetailPage() {
           )}
         </div>
 
-        {actions.length > 0 && (
+        {(actions.length > 0 || canPrintPartsRequest) && (
           <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:flex-wrap">
             {actions.map((a) => (
               <button
@@ -314,6 +317,14 @@ export default function MaintenanceDetailPage() {
                 {a.label}
               </button>
             ))}
+            {canPrintPartsRequest && (
+              <button
+                onClick={() => setDialog('parts-request')}
+                className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${BUTTON_TONES.outline}`}
+              >
+                <Printer className="h-4 w-4" /> Cetak Permintaan Part
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -577,6 +588,16 @@ export default function MaintenanceDetailPage() {
         isSubmitting={mutAddPart.isPending}
         onClose={closeDialog}
         onSubmit={(d) => mutAddPart.mutate(d)}
+      />
+      <PartsRequestDialog
+        open={dialog === 'parts-request'}
+        parts={partsList}
+        isSubmitting={false}
+        onClose={closeDialog}
+        onPrint={(selectedIds) => {
+          printHtmlDocument(buildPartsRequestHtml(m, partsList, selectedIds, new Date().toISOString()));
+          closeDialog();
+        }}
       />
     </div>
   );

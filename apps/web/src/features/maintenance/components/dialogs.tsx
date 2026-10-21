@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
+import { formatCurrency } from '../print/maintenancePrint';
+import type { MaintenancePart } from '../types';
 
 interface ModalShellProps {
   title: string;
@@ -377,6 +379,85 @@ export function PartDialog({
         confirmLabel="Add Part"
         isSubmitting={isSubmitting}
         disabled={!partName.trim()}
+      />
+    </ModalShell>
+  );
+}
+
+/**
+ * Select existing Parts Used rows to print a parts request. Quantity and prices
+ * are taken from the stored rows and cannot be edited here.
+ */
+export function PartsRequestDialog({
+  open,
+  parts,
+  isSubmitting,
+  onClose,
+  onPrint,
+}: {
+  open: boolean;
+  parts: MaintenancePart[];
+  isSubmitting: boolean;
+  onClose: () => void;
+  onPrint: (selectedIds: string[]) => void;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  useEffect(() => {
+    if (open) setSelected([]);
+  }, [open]);
+  if (!open) return null;
+
+  const toggle = (id: string) =>
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  return (
+    <ModalShell title="Cetak Permintaan Part" onClose={onClose}>
+      <div className="space-y-3 px-6 py-4">
+        {parts.length === 0 ? (
+          <p className="text-sm text-slate-500">Belum ada part yang tercatat untuk maintenance ini.</p>
+        ) : (
+          <div className="max-h-80 overflow-y-auto rounded-lg border border-slate-200">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="w-10 px-3 py-2"></th>
+                  <th className="px-3 py-2 text-left">Part</th>
+                  <th className="px-3 py-2 text-right">Qty</th>
+                  <th className="px-3 py-2 text-right">Harga</th>
+                  <th className="px-3 py-2 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {parts.map((p) => (
+                  <tr key={p.id} className="border-t border-slate-100">
+                    <td className="px-3 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(p.id)}
+                        onChange={() => toggle(p.id)}
+                        aria-label={`Pilih ${p.partName}`}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-slate-800">{p.partName}</div>
+                      {p.partNumber ? <div className="text-xs text-slate-400">{p.partNumber}</div> : null}
+                    </td>
+                    <td className="px-3 py-2 text-right">{p.quantity}</td>
+                    <td className="px-3 py-2 text-right">{formatCurrency(p.unitPrice)}</td>
+                    <td className="px-3 py-2 text-right">{formatCurrency(p.totalPrice)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      <DialogFooter
+        onClose={onClose}
+        onConfirm={() => onPrint(selected)}
+        confirmLabel="Cetak"
+        isSubmitting={isSubmitting}
+        disabled={selected.length === 0}
       />
     </ModalShell>
   );
