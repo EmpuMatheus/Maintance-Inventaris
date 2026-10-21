@@ -44,6 +44,7 @@ interface WorkflowAction {
   key: Exclude<DialogKey, null>;
   perm: string;
   tone: 'outline' | 'success' | 'danger';
+  requiresAssignedTechnician?: boolean;
 }
 
 const WORKFLOW_ACTIONS: Record<string, WorkflowAction[]> = {
@@ -52,16 +53,16 @@ const WORKFLOW_ACTIONS: Record<string, WorkflowAction[]> = {
     { label: 'Cancel', key: 'cancel', perm: 'maintenance.cancel', tone: 'danger' },
   ],
   ASSIGNED: [
-    { label: 'Start Maintenance', key: 'start', perm: 'maintenance.update', tone: 'outline' },
+    { label: 'Start Maintenance', key: 'start', perm: 'maintenance.update', tone: 'outline', requiresAssignedTechnician: true },
     { label: 'Cancel', key: 'cancel', perm: 'maintenance.cancel', tone: 'danger' },
   ],
   IN_PROGRESS: [
-    { label: 'Waiting Part', key: 'waiting-part', perm: 'maintenance.update', tone: 'outline' },
-    { label: 'Testing', key: 'testing', perm: 'maintenance.update', tone: 'outline' },
+    { label: 'Waiting Part', key: 'waiting-part', perm: 'maintenance.update', tone: 'outline', requiresAssignedTechnician: true },
+    { label: 'Testing', key: 'testing', perm: 'maintenance.update', tone: 'outline', requiresAssignedTechnician: true },
     { label: 'Cancel', key: 'cancel', perm: 'maintenance.cancel', tone: 'danger' },
   ],
   WAITING_PART: [
-    { label: 'Resume', key: 'resume', perm: 'maintenance.update', tone: 'outline' },
+    { label: 'Resume', key: 'resume', perm: 'maintenance.update', tone: 'outline', requiresAssignedTechnician: true },
     { label: 'Cancel', key: 'cancel', perm: 'maintenance.cancel', tone: 'danger' },
   ],
   TESTING: [
@@ -104,7 +105,7 @@ function formatDate(value?: string | null): string {
 export default function MaintenanceDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const qc = useQueryClient();
   const [dialog, setDialog] = useState<DialogKey>(null);
   const [docType, setDocType] = useState('BEFORE_PHOTO');
@@ -237,7 +238,10 @@ export default function MaintenanceDetailPage() {
   const m: MaintenanceDetail = data.data;
   const status = m.status;
   const isTerminal = status === 'COMPLETED' || status === 'CANCELLED';
-  const actions = (WORKFLOW_ACTIONS[status] ?? []).filter((a) => can(a.perm));
+  const isAssignedTechnician = !!user?.id && user.id === m.technicianId;
+  const actions = (WORKFLOW_ACTIONS[status] ?? []).filter(
+    (a) => can(a.perm) && (!a.requiresAssignedTechnician || isAssignedTechnician),
+  );
   const userOptions = (users?.data ?? []) as UserOption[];
   const partsList = (parts?.data ?? []) as MaintenancePart[];
   const docList = (documents?.data ?? []) as MaintenanceDocument[];

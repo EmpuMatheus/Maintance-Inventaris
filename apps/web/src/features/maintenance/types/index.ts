@@ -42,6 +42,7 @@ export interface MaintenanceListItem {
   createdAt: string;
   asset: AssetReference | null;
   maintenanceType: MaintenanceTypeReference | null;
+  technicianId?: string | null;
   technician: UserReference | null;
 }
 

@@ -71,6 +71,17 @@ async function assertTechnician(technicianId: unknown, categoryId?: string | nul
 }
 
 /**
+ * Start, Waiting Part, and Testing are limited to the technician the record is
+ * assigned to. Being assigned is the requirement, so only the stored technician
+ * ID is compared; role, active flag, and category are not re-checked here.
+ */
+function assertAssignedTechnician(mt: Record<string, unknown>, actorId?: string) {
+  if (!actorId || mt.technicianId !== actorId) {
+    throw new AppError(403, 'FORBIDDEN', 'Only the assigned technician can perform this action.');
+  }
+}
+
+/**
  * Users with own-scoped or category-scoped access may only view maintenance
  * records whose asset is within their scope.
  */
@@ -233,10 +244,11 @@ export async function assign(id: string, body: Record<string, unknown>, _userId?
   });
 }
 
-export async function start(id: string) {
+export async function start(id: string, actorId?: string) {
   const mt = await repo.findById(id);
   if (!mt) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
   assertTransition(mt.status, 'IN_PROGRESS');
+  assertAssignedTechnician(mt, actorId);
   const result = await repo.update(id, { status: 'IN_PROGRESS', startDate: sql`now()` });
   eventBus.publish({
     type: 'MAINTENANCE',
@@ -249,18 +261,20 @@ export async function start(id: string) {
   return result;
 }
 
-export async function waitingPart(id: string, body: Record<string, unknown>) {
+export async function waitingPart(id: string, body: Record<string, unknown>, actorId?: string) {
   const mt = await repo.findById(id);
   if (!mt) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
   assertTransition(mt.status, 'WAITING_PART');
+  assertAssignedTechnician(mt, actorId);
   if (!str(body.reason)) throw new AppError(400, 'VALIDATION_ERROR', 'Reason for waiting part is required.');
   return repo.update(id, { status: 'WAITING_PART', notes: str(body.notes) ?? undefined });
 }
 
-export async function testing(id: string) {
+export async function testing(id: string, actorId?: string) {
   const mt = await repo.findById(id);
   if (!mt) throw new AppError(404, 'NOT_FOUND', 'Maintenance record not found.');
   assertTransition(mt.status, 'TESTING');
+  assertAssignedTechnician(mt, actorId);
   return repo.update(id, { status: 'TESTING' });
 }
 

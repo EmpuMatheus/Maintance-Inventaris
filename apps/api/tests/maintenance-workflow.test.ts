@@ -90,16 +90,16 @@ describe('Maintenance workflow', () => {
     await maintSvc.assign(id, { technicianId: technicianId }, adminId);
     expect((await maintRepo.findById(id)).status).toBe('ASSIGNED');
 
-    await maintSvc.start(id);
+    await maintSvc.start(id, technicianId);
     expect((await maintRepo.findById(id)).status).toBe('IN_PROGRESS');
 
-    await maintSvc.waitingPart(id, { reason: 'No stock' });
+    await maintSvc.waitingPart(id, { reason: 'No stock' }, technicianId);
     expect((await maintRepo.findById(id)).status).toBe('WAITING_PART');
 
-    await maintSvc.start(id);
+    await maintSvc.start(id, technicianId);
     expect((await maintRepo.findById(id)).status).toBe('IN_PROGRESS');
 
-    await maintSvc.testing(id);
+    await maintSvc.testing(id, technicianId);
     expect((await maintRepo.findById(id)).status).toBe('TESTING');
 
     const completed = await maintSvc.complete(id, { result: 'Fixed', condition: 'GOOD', diagnosis: 'Battery', actionTaken: 'Replaced' }, adminId);
@@ -110,8 +110,8 @@ describe('Maintenance workflow', () => {
   it('updates the asset condition on completion', async () => {
     const id = await createMaintenance();
     await maintSvc.assign(id, { technicianId: technicianId }, adminId);
-    await maintSvc.start(id);
-    await maintSvc.testing(id);
+    await maintSvc.start(id, technicianId);
+    await maintSvc.testing(id, technicianId);
     await maintSvc.complete(id, { condition: 'GOOD', result: 'ok' }, adminId);
     const asset = await assetSvc.getById(assetId);
     expect(asset.condition).toBe('GOOD');
@@ -128,10 +128,10 @@ describe('Maintenance workflow', () => {
   it('rejects starting a completed maintenance', async () => {
     const id = await createMaintenance();
     await maintSvc.assign(id, { technicianId: technicianId }, adminId);
-    await maintSvc.start(id);
-    await maintSvc.testing(id);
+    await maintSvc.start(id, technicianId);
+    await maintSvc.testing(id, technicianId);
     await maintSvc.complete(id, { result: 'ok', condition: 'GOOD' }, adminId);
-    await expect(maintSvc.start(id)).rejects.toThrow('Cannot transition from COMPLETED to IN_PROGRESS');
+    await expect(maintSvc.start(id, technicianId)).rejects.toThrow('Cannot transition from COMPLETED to IN_PROGRESS');
   });
 
   it('rejects assigning a non-technician user to maintenance', async () => {
@@ -160,6 +160,33 @@ describe('Maintenance workflow', () => {
     const id = await createMaintenance();
     const assigned = await maintSvc.assign(id, { technicianId }, adminId);
     expect(assigned.status).toBe('ASSIGNED');
+  });
+
+  it('restricts start, waiting part, and testing to the assigned technician', async () => {
+    const id = await createMaintenance();
+    await maintSvc.assign(id, { technicianId }, adminId);
+
+    await expect(maintSvc.start(id, adminId))
+      .rejects.toThrow('Only the assigned technician can perform this action.');
+    expect((await maintRepo.findById(id)).status).toBe('ASSIGNED');
+
+    await maintSvc.start(id, technicianId);
+    expect((await maintRepo.findById(id)).status).toBe('IN_PROGRESS');
+
+    await expect(maintSvc.waitingPart(id, { reason: 'No stock' }, adminId))
+      .rejects.toThrow('Only the assigned technician can perform this action.');
+    await expect(maintSvc.testing(id, adminId))
+      .rejects.toThrow('Only the assigned technician can perform this action.');
+    expect((await maintRepo.findById(id)).status).toBe('IN_PROGRESS');
+
+    await maintSvc.waitingPart(id, { reason: 'No stock' }, technicianId);
+    expect((await maintRepo.findById(id)).status).toBe('WAITING_PART');
+
+    await maintSvc.start(id, technicianId);
+    expect((await maintRepo.findById(id)).status).toBe('IN_PROGRESS');
+
+    await maintSvc.testing(id, technicianId);
+    expect((await maintRepo.findById(id)).status).toBe('TESTING');
   });
 
   it('lists only technicians belonging to the requested asset category', async () => {

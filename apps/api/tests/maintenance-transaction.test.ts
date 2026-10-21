@@ -18,8 +18,8 @@ async function runToTesting(): Promise<string> {
   const id = rec.id as string;
   maintIds.push(id);
   await maintSvc.assign(id, { technicianId: technicianId }, adminId);
-  await maintSvc.start(id);
-  await maintSvc.testing(id);
+  await maintSvc.start(id, technicianId);
+  await maintSvc.testing(id, technicianId);
   return id;
 }
 

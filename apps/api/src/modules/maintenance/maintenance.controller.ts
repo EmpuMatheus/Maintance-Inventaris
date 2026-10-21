@@ -34,13 +34,13 @@ export async function assignController(req: Request, res: Response, next: NextFu
   try { const r = await svc.assign(req.params.id as string, req.body, req.user?.id); res.json({ success: true, data: r }); } catch (e) { next(e); }
 }
 export async function startController(req: Request, res: Response, next: NextFunction) {
-  try { const r = await svc.start(req.params.id as string); res.json({ success: true, data: r }); } catch (e) { next(e); }
+  try { const r = await svc.start(req.params.id as string, req.user?.id); res.json({ success: true, data: r }); } catch (e) { next(e); }
 }
 export async function waitingPartController(req: Request, res: Response, next: NextFunction) {
-  try { const r = await svc.waitingPart(req.params.id as string, req.body); res.json({ success: true, data: r }); } catch (e) { next(e); }
+  try { const r = await svc.waitingPart(req.params.id as string, req.body, req.user?.id); res.json({ success: true, data: r }); } catch (e) { next(e); }
 }
 export async function testingController(req: Request, res: Response, next: NextFunction) {
-  try { const r = await svc.testing(req.params.id as string); res.json({ success: true, data: r }); } catch (e) { next(e); }
+  try { const r = await svc.testing(req.params.id as string, req.user?.id); res.json({ success: true, data: r }); } catch (e) { next(e); }
 }
 export async function completeController(req: Request, res: Response, next: NextFunction) {
   try {
